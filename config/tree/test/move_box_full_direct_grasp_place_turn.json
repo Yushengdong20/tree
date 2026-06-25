@@ -359,6 +359,38 @@
                         "value": "0.2",
                         "source": "CUSTOM"
                       },
+                      "max_delta_yaw_deg": {
+                        "value": "5.0",
+                        "source": "CUSTOM"
+                      },
+                      "max_delta_pitch_deg": {
+                        "value": "5.0",
+                        "source": "CUSTOM"
+                      },
+                      "head_control_mode": {
+                        "value": "pd",
+                        "source": "CUSTOM"
+                      },
+                      "head_kp_yaw": {
+                        "value": "0.40",
+                        "source": "CUSTOM"
+                      },
+                      "head_kp_pitch": {
+                        "value": "0.30",
+                        "source": "CUSTOM"
+                      },
+                      "head_kd_yaw": {
+                        "value": "0.06",
+                        "source": "CUSTOM"
+                      },
+                      "head_kd_pitch": {
+                        "value": "0.04",
+                        "source": "CUSTOM"
+                      },
+                      "head_derivative_filter_alpha": {
+                        "value": "0.5",
+                        "source": "CUSTOM"
+                      },
                       "failure_log_interval_sec": {
                         "value": "1.0",
                         "source": "CUSTOM"

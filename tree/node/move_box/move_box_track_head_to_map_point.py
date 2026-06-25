@@ -41,6 +41,21 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         self.track_interval_sec = float(params.get("track_interval_sec", 0.2))
         self.failure_log_interval_sec = float(params.get("failure_log_interval_sec", 1.0))
         self.axis_length_m = float(params.get("axis_length_m", 1.0))
+        # 与 YOLO 盯箱节点共用 HeadController 的 P/PD 增量控制：
+        # 这里的参数只影响“目标点已经转换到 camera/head_frame 后怎么转头”，
+        # 不参与 map 固定点 TF 组合和 RViz 可视化。
+        self.max_delta_yaw_deg = self._optional_float(params.get("max_delta_yaw_deg", None))
+        self.max_delta_pitch_deg = self._optional_float(params.get("max_delta_pitch_deg", None))
+        self.head_control_mode = str(params.get("head_control_mode", "p")).strip().lower()
+        self.head_kp_yaw = self._optional_float(params.get("head_kp_yaw", None))
+        self.head_kp_pitch = self._optional_float(params.get("head_kp_pitch", None))
+        self.head_kd_yaw = float(params.get("head_kd_yaw", 0.0))
+        self.head_kd_pitch = float(params.get("head_kd_pitch", 0.0))
+        self.head_derivative_filter_alpha = self._clamp(
+            float(params.get("head_derivative_filter_alpha", 0.5)),
+            0.0,
+            1.0,
+        )
         self.debug_enabled = self._to_bool(params.get("debug_enabled", True))
         self.debug_point_topic = str(
             params.get("debug_point_topic", "/head_x_axis_target_point")
@@ -68,11 +83,13 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
 
         self._last_track_time = 0.0
         self._last_failure_log_time = 0.0
+        self._reset_head_controller_on_next_tick = True
         self._skip_logged = False
 
     def initialise(self):
         super().initialise()
         self._last_track_time = 0.0
+        self._reset_head_controller_on_next_tick = True
         self._skip_logged = False
 
     def update(self):
@@ -97,6 +114,9 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
             return Status.RUNNING
 
         head_controller = services.head_controller
+        if self._reset_head_controller_on_next_tick:
+            head_controller.reset_tracking_control_state()
+            self._reset_head_controller_on_next_tick = False
         target_point_msg = self._build_target_point_msg()
         split_target_to_head = None
         if self.tracking_mode == "split_tf":
@@ -112,7 +132,7 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
                 target_to_head_matrix=split_target_to_head,
             )
             ok = (
-                head_controller.turn_to_head_frame_point(target_in_head)
+                self._turn_to_head_frame_point(head_controller, target_in_head)
                 if target_in_head is not None
                 else False
             )
@@ -120,7 +140,12 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
             # tf 模式：保持旧逻辑，完全交给 HeadController 查询 target_frame -> camera。
             # 如果完整 TF 链时间戳不一致，这个模式更容易复现 camera 原点跳变。
             self._publish_debug_markers(head_controller, target_point_msg)
-            ok = head_controller.turn_to_target(self.target_point, self.target_frame)
+            target_in_head = self._target_point_to_head_frame(head_controller, target_point_msg)
+            ok = (
+                self._turn_to_head_frame_point(head_controller, target_in_head)
+                if target_in_head is not None
+                else False
+            )
         if not ok:
             self._log_failure(
                 f"[{self.config_label}] 头部跟踪执行失败: mode={self.tracking_mode}"
@@ -143,6 +168,19 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
             self.ros_node.get_logger().warning(message)
             self._last_failure_log_time = now
 
+    @staticmethod
+    def _optional_float(value):
+        if value is None:
+            return None
+        text = str(value).strip()
+        if text == "" or text.lower() in {"none", "null"}:
+            return None
+        return float(text)
+
+    @staticmethod
+    def _clamp(value, min_value, max_value):
+        return max(min_value, min(max_value, value))
+
     def _build_target_point_msg(self):
         """把 JSON 目标点发布成 PointStamped，方便 rostopic/RViz 检查输入点。"""
         point_msg = PointStamped()
@@ -152,6 +190,43 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         point_msg.point.y = self.target_point[1]
         point_msg.point.z = self.target_point[2]
         return point_msg
+
+    def _turn_to_head_frame_point(self, head_controller, target_in_head):
+        """复用 HeadController 通用 P/PD 控制，保持与 YOLO 盯箱节点一致的调参语义。"""
+        return head_controller.turn_to_head_frame_point_controlled(
+            target_in_head,
+            control_mode=self.head_control_mode,
+            kp_yaw=self.head_kp_yaw,
+            kp_pitch=self.head_kp_pitch,
+            kd_yaw=self.head_kd_yaw,
+            kd_pitch=self.head_kd_pitch,
+            derivative_filter_alpha=self.head_derivative_filter_alpha,
+            max_delta_yaw_deg=self.max_delta_yaw_deg,
+            max_delta_pitch_deg=self.max_delta_pitch_deg,
+            log_prefix=f"[{self.config_label}] 固定点头部限幅控制",
+        )
+
+    def _target_point_to_head_frame(self, head_controller, target_point_msg):
+        """tf 模式下把固定点转换到 camera/head_frame，再交给通用控制器。"""
+        latest_tf_time = self.ros_node.zero_time()
+        target_point_msg.header.stamp = latest_tf_time
+        try:
+            head_controller.tf_listener.waitForTransform(
+                head_controller.head_frame,
+                target_point_msg.header.frame_id,
+                latest_tf_time,
+                self.ros_node.duration(head_controller.tf_timeout),
+            )
+            return head_controller.tf_listener.transformPoint(
+                head_controller.head_frame,
+                target_point_msg,
+            )
+        except Exception as err:
+            self._log_failure(
+                f"[{self.config_label}] 目标点从 {target_point_msg.header.frame_id} "
+                f"转到 {head_controller.head_frame} 失败: {err}"
+            )
+            return None
 
     def _publish_debug_markers(
         self,

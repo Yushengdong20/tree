@@ -142,11 +142,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         self._last_chassis_yaw_time = None
         self._pending_relock_point = None
         self._pending_relock_count = 0
-        self._last_head_control_time = None
-        self._last_error_yaw = None
-        self._last_error_pitch = None
-        self._filtered_derivative_yaw = 0.0
-        self._filtered_derivative_pitch = 0.0
+        self._reset_head_controller_on_next_tick = True
         self._skip_logged = False
 
     def initialise(self):
@@ -161,7 +157,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         self._last_chassis_yaw_time = None
         self._pending_relock_point = None
         self._pending_relock_count = 0
-        self._reset_head_control_state()
+        self._reset_head_controller_on_next_tick = True
         self._skip_logged = False
 
     def update(self):
@@ -185,6 +181,9 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
                 f"[{self.config_label}] services 或 head_controller 缺失: key={self.services_key}",
             )
             return Status.RUNNING
+        if self._reset_head_controller_on_next_tick:
+            services.head_controller.reset_tracking_control_state()
+            self._reset_head_controller_on_next_tick = False
 
         # 每个周期先尝试消费最新 YOLO：有新帧就更新锁点，没有新帧也继续追旧锁点。
         pose_array = self._get_latest_pose_array()
@@ -293,14 +292,6 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         if text == "" or text.lower() in {"none", "null"}:
             return None
         return float(text)
-
-    def _reset_head_control_state(self):
-        """重置 PD 历史项，避免重新进入节点或进入误差死区后残留 D 项。"""
-        self._last_head_control_time = None
-        self._last_error_yaw = None
-        self._last_error_pitch = None
-        self._filtered_derivative_yaw = 0.0
-        self._filtered_derivative_pitch = 0.0
 
     def _build_target_point_msg(self, pose, source_frame):
         """把当前选中的 YOLO 目标转成 PointStamped，方便 RViz 和 rostopic 检查。"""
@@ -604,136 +595,24 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         return self._turn_to_head_point_with_limited_step(head_controller, target_in_head)
 
     def _turn_to_head_point_with_limited_step(self, head_controller, target_in_head):
-        """根据当前 camera/head_frame 下目标点计算受限的单次头部控制量。
+        """把 head_frame 下目标点交给 HeadController 的通用 P/PD 控制器。
 
         target_in_head 已经是最新 camera/head_frame 下的坐标：
         - legacy 模式：直接由当前 YOLO 点转换得到。
         - latched_map_target 模式：由锁定的 map 目标按当前头部 TF 重投影得到。
-        因此这里不再关心原始 YOLO frame，只根据 head_frame 下 x/y/z 误差做增量控制。
+        因此这里不再关心原始 YOLO frame，只负责把业务参数传给通用头部控制器。
         """
-        x = target_in_head.point.x
-        y = target_in_head.point.y
-        z = target_in_head.point.z
-        horizontal_distance = math.hypot(x, y)
-        target_distance = math.hypot(horizontal_distance, z)
-        if target_distance < 1e-6:
-            self._log_throttled("failure", f"[{self.config_label}] YOLO 目标距离头部过近")
-            return False
-
-        if (
-            abs(y) < head_controller.head_target_y_tolerance
-            and abs(z) < head_controller.head_target_z_tolerance
-        ):
-            # 目标已经落在 camera x 轴附近，不再发布新目标，避免在小误差内来回抖。
-            self._reset_head_control_state()
-            self.ros_node.get_logger().info(
-                f"[{self.config_label}] 头部目标已在误差阈值内: "
-                f"y={y:.3f}, z={z:.3f}"
-            )
-            return True
-
-        # camera/head_frame 下：x 为前方，y 为左右误差，z 为上下误差。
-        # yaw 修正左右偏差；pitch 修正上下偏差。
-        delta_yaw = math.degrees(math.atan2(y, x))
-        delta_pitch = -math.degrees(math.atan2(z, horizontal_distance))
-        raw_step_yaw, raw_step_pitch, control_debug = self._compute_head_control_step(
-            head_controller,
-            delta_yaw,
-            delta_pitch,
-        )
-        step_yaw = self._clamp(raw_step_yaw, -self.max_delta_yaw_deg, self.max_delta_yaw_deg)
-        step_pitch = self._clamp(
-            raw_step_pitch,
-            -self.max_delta_pitch_deg,
-            self.max_delta_pitch_deg,
-        )
-        # current_yaw/current_pitch 是 HeadController 最近一次发送的目标角；
-        # 当前节点按增量方式更新，并再次夹到头部机械/软件限位内。
-        yaw = self._clamp(
-            head_controller.current_yaw + step_yaw,
-            head_controller.yaw_min,
-            head_controller.yaw_max,
-        )
-        pitch = self._clamp(
-            head_controller.current_pitch + step_pitch,
-            head_controller.pitch_min,
-            head_controller.pitch_max,
-        )
-
-        self.ros_node.get_logger().info(
-            f"[{self.config_label}] YOLO头部限幅控制: "
-            f"head_frame={target_in_head.header.frame_id}, "
-            f"head_xyz=({x:.3f}, {y:.3f}, {z:.3f}), "
-            f"delta_yaw={delta_yaw:.1f}, delta_pitch={delta_pitch:.1f}, "
-            f"{control_debug}, "
-            f"raw_step=({raw_step_yaw:.1f}, {raw_step_pitch:.1f}), "
-            f"limited_step=({step_yaw:.1f}, {step_pitch:.1f}), "
-            f"send_yaw={yaw:.1f}, send_pitch={pitch:.1f}"
-        )
-        return head_controller.set_head_target(yaw, pitch)
-
-    def _compute_head_control_step(self, head_controller, error_yaw, error_pitch):
-        """计算头部增量控制量。
-
-        默认 P 模式完全兼容原逻辑：kp 使用 HeadController.head_tracking_gain。
-        PD 模式额外根据误差变化率添加 D 项：
-        - 误差快速变小时，D 项会抵消一部分 P，帮助接近目标时减速；
-        - 误差快速变大时，D 项会增加响应，帮助移动目标更快跟上。
-        """
-        kp_yaw = (
-            head_controller.head_tracking_gain
-            if self.head_kp_yaw is None
-            else self.head_kp_yaw
-        )
-        kp_pitch = (
-            head_controller.head_tracking_gain
-            if self.head_kp_pitch is None
-            else self.head_kp_pitch
-        )
-        p_yaw = kp_yaw * error_yaw
-        p_pitch = kp_pitch * error_pitch
-
-        if self.head_control_mode != "pd":
-            self._last_head_control_time = time.monotonic()
-            self._last_error_yaw = error_yaw
-            self._last_error_pitch = error_pitch
-            return p_yaw, p_pitch, f"mode=p, kp=({kp_yaw:.2f}, {kp_pitch:.2f})"
-
-        now = time.monotonic()
-        d_yaw = 0.0
-        d_pitch = 0.0
-        if (
-            self._last_head_control_time is not None
-            and self._last_error_yaw is not None
-            and self._last_error_pitch is not None
-        ):
-            dt = max(now - self._last_head_control_time, 1e-3)
-            d_yaw = (error_yaw - self._last_error_yaw) / dt
-            d_pitch = (error_pitch - self._last_error_pitch) / dt
-            alpha = self.head_derivative_filter_alpha
-            self._filtered_derivative_yaw = (
-                alpha * d_yaw + (1.0 - alpha) * self._filtered_derivative_yaw
-            )
-            self._filtered_derivative_pitch = (
-                alpha * d_pitch + (1.0 - alpha) * self._filtered_derivative_pitch
-            )
-
-        self._last_head_control_time = now
-        self._last_error_yaw = error_yaw
-        self._last_error_pitch = error_pitch
-
-        d_step_yaw = self.head_kd_yaw * self._filtered_derivative_yaw
-        d_step_pitch = self.head_kd_pitch * self._filtered_derivative_pitch
-        raw_step_yaw = p_yaw + d_step_yaw
-        raw_step_pitch = p_pitch + d_step_pitch
-        return (
-            raw_step_yaw,
-            raw_step_pitch,
-            "mode=pd, "
-            f"kp=({kp_yaw:.2f}, {kp_pitch:.2f}), "
-            f"kd=({self.head_kd_yaw:.3f}, {self.head_kd_pitch:.3f}), "
-            f"p=({p_yaw:.1f}, {p_pitch:.1f}), "
-            f"d=({d_step_yaw:.1f}, {d_step_pitch:.1f})",
+        return head_controller.turn_to_head_frame_point_controlled(
+            target_in_head,
+            control_mode=self.head_control_mode,
+            kp_yaw=self.head_kp_yaw,
+            kp_pitch=self.head_kp_pitch,
+            kd_yaw=self.head_kd_yaw,
+            kd_pitch=self.head_kd_pitch,
+            derivative_filter_alpha=self.head_derivative_filter_alpha,
+            max_delta_yaw_deg=self.max_delta_yaw_deg,
+            max_delta_pitch_deg=self.max_delta_pitch_deg,
+            log_prefix=f"[{self.config_label}] YOLO头部限幅控制",
         )
 
     def _sample_chassis_yaw_rate(self, head_controller):

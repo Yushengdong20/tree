@@ -74,7 +74,7 @@
             "source": "CUSTOM"
           },
           "max_delta_pitch_deg": {
-            "value": "4.0",
+            "value": "5.0",
             "source": "CUSTOM"
           },
           "head_control_mode": {
