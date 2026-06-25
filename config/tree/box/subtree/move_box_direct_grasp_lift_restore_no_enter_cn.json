@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "直接抓取上提回位流程",
+    "label": "直接抓取上提回位流程（通用节点版）",
     "params": {
       "memory": {
         "value": "True",
@@ -10,11 +10,19 @@
     },
     "childs": [
       {
-        "name": "MoveBoxBothClawsToPoints",
-        "label": "双夹爪同步上提箱体",
+        "name": "MoveBoxArmsToPose",
+        "label": "双夹爪同步上提箱体（通用手臂节点）",
         "params": {
           "services_key": {
             "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
             "source": "CUSTOM"
           },
           "left_point_key": {
@@ -28,8 +36,30 @@
         }
       },
       {
-        "name": "MoveBoxReturnTorsoAndRestorePitch",
-        "label": "躯干回位并恢复双手 pitch",
+        "name": "ComputeMoveBoxRestorePitchArmPoses",
+        "label": "计算躯干回位后的双手 pitch 恢复目标",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pitch": {
+            "value": "-60.0",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "move_box_restore_pitch_left_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "move_box_restore_pitch_right_pose",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "躯干回到初始位姿（通用腰部节点）",
         "params": {
           "services_key": {
             "value": "move_box_services",
@@ -39,12 +69,30 @@
             "value": "True",
             "source": "CUSTOM"
           },
-          "post_torso_return_pitch": {
-            "value": "-60.0",
-            "source": "CUSTOM"
-          },
           "skip_torso_motion": {
             "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxArmsToPose",
+        "label": "保持双手位置并恢复 pitch（通用手臂节点）",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "move_box_restore_pitch_left_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "move_box_restore_pitch_right_pose",
             "source": "CUSTOM"
           }
         }
@@ -62,4 +110,3 @@
     ]
   }
 }
-

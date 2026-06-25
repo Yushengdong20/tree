@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "直接抓取到闭爪流程",
+    "label": "直接抓取到闭爪流程（通用节点版）",
     "params": {
       "memory": {
         "value": "True",
@@ -106,11 +106,19 @@
         }
       },
       {
-        "name": "MoveBoxBothClawsToPoints",
-        "label": "双夹爪同步移动到左右边缘上方",
+        "name": "MoveBoxArmsToPose",
+        "label": "双夹爪同步移动到左右边缘上方（通用手臂节点）",
         "params": {
           "services_key": {
             "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
             "source": "CUSTOM"
           },
           "left_point_key": {
@@ -124,11 +132,19 @@
         }
       },
       {
-        "name": "MoveBoxBothClawsToPoints",
-        "label": "双夹爪同步下降到左右边缘下方",
+        "name": "MoveBoxArmsToPose",
+        "label": "双夹爪同步下降到左右边缘下方（通用手臂节点）",
         "params": {
           "services_key": {
             "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
             "source": "CUSTOM"
           },
           "left_point_key": {
@@ -158,4 +174,3 @@
     ]
   }
 }
-

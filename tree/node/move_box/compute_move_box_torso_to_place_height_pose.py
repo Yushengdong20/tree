@@ -1,7 +1,7 @@
 """根据放置平面高度计算躯干目标位姿，并写入 blackboard。
 
 本节点只负责计算，不直接控制腰部；后续由 MoveTorsoPose 读取 pose_key 执行。
-计算逻辑与 MoveBoxTorsoToPlaceHeight 保持一致，便于逐步替换旧业务节点。
+计算逻辑保留原放箱流程的躯干高度约束。
 """
 
 import py_trees

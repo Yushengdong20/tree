@@ -104,30 +104,82 @@
         }
       },
       {
-        "name": "MoveBoxReturnTorsoAndRestorePitch",
-        "label": "测试 wait_done=True 的回位速度",
+        "name": "Sequence",
+        "label": "测试通用节点 wait_done=True 的回位速度",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
-          "wait_done": {
+          "memory": {
             "value": "True",
             "source": "CUSTOM"
-          },
-          "post_torso_return_pitch": {
-            "value": "-60.0",
-            "source": "CUSTOM"
-          },
-          "skip_torso_motion": {
-            "value": "False",
-            "source": "CUSTOM"
-          },
-          "skip_arm_motion": {
-            "value": "False",
-            "source": "CUSTOM"
           }
-        }
+        },
+        "childs": [
+          {
+            "name": "ComputeMoveBoxRestorePitchArmPoses",
+            "label": "记录当前双手位置并计算 pitch 恢复目标",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "pitch": {
+                "value": "-60.0",
+                "source": "CUSTOM"
+              },
+              "left_pose_key": {
+                "value": "move_box_demo_restore_pitch_left_pose",
+                "source": "CUSTOM"
+              },
+              "right_pose_key": {
+                "value": "move_box_demo_restore_pitch_right_pose",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "MoveTorsoPose",
+            "label": "通用腰部节点回位（wait_done=True）",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "wait_done": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "skip_torso_motion": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "MoveBoxArmsToPose",
+            "label": "通用手臂节点恢复双手 pitch",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "pose_frame": {
+                "value": "waist_yaw_link",
+                "source": "CUSTOM"
+              },
+              "left_pose_key": {
+                "value": "move_box_demo_restore_pitch_left_pose",
+                "source": "CUSTOM"
+              },
+              "right_pose_key": {
+                "value": "move_box_demo_restore_pitch_right_pose",
+                "source": "CUSTOM"
+              },
+              "skip_arm_motion": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
       },
       {
         "name": "WaitForEnter",
@@ -198,30 +250,82 @@
         }
       },
       {
-        "name": "MoveBoxReturnTorsoAndRestorePitch",
-        "label": "测试 wait_done=False 的回位速度",
+        "name": "Sequence",
+        "label": "测试通用节点 wait_done=False 的回位速度",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
-          "wait_done": {
-            "value": "False",
-            "source": "CUSTOM"
-          },
-          "post_torso_return_pitch": {
-            "value": "-60.0",
-            "source": "CUSTOM"
-          },
-          "skip_torso_motion": {
-            "value": "False",
-            "source": "CUSTOM"
-          },
-          "skip_arm_motion": {
-            "value": "False",
+          "memory": {
+            "value": "True",
             "source": "CUSTOM"
           }
-        }
+        },
+        "childs": [
+          {
+            "name": "ComputeMoveBoxRestorePitchArmPoses",
+            "label": "记录当前双手位置并计算 pitch 恢复目标",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "pitch": {
+                "value": "-60.0",
+                "source": "CUSTOM"
+              },
+              "left_pose_key": {
+                "value": "move_box_demo_restore_pitch_left_pose",
+                "source": "CUSTOM"
+              },
+              "right_pose_key": {
+                "value": "move_box_demo_restore_pitch_right_pose",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "MoveTorsoPose",
+            "label": "通用腰部节点回位（wait_done=False）",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "wait_done": {
+                "value": "False",
+                "source": "CUSTOM"
+              },
+              "skip_torso_motion": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "MoveBoxArmsToPose",
+            "label": "通用手臂节点恢复双手 pitch",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "pose_frame": {
+                "value": "waist_yaw_link",
+                "source": "CUSTOM"
+              },
+              "left_pose_key": {
+                "value": "move_box_demo_restore_pitch_left_pose",
+                "source": "CUSTOM"
+              },
+              "right_pose_key": {
+                "value": "move_box_demo_restore_pitch_right_pose",
+                "source": "CUSTOM"
+              },
+              "skip_arm_motion": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
       },
       {
         "name": "WaitForEnter",

@@ -170,8 +170,8 @@
                         }
                       },
                       {
-                        "name": "MoveBoxTorsoToPlaceHeight",
-                        "label": "根据放置平面调整躯干",
+                        "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                        "label": "计算放置高度对应的躯干目标",
                         "params": {
                           "services_key": {
                             "value": "move_box_services",
@@ -195,6 +195,24 @@
                           },
                           "place_torso_x": {
                             "value": "0.5",
+                            "source": "CUSTOM"
+                          },
+                          "target_pose_key": {
+                            "value": "move_box_place_torso_pose",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "MoveTorsoPose",
+                        "label": "根据放置平面调整躯干（通用腰部节点）",
+                        "params": {
+                          "services_key": {
+                            "value": "move_box_services",
+                            "source": "CUSTOM"
+                          },
+                          "pose_key": {
+                            "value": "move_box_place_torso_pose",
                             "source": "CUSTOM"
                           },
                           "wait_done": {
@@ -294,4 +312,3 @@
     ]
   }
 }
-

@@ -8,8 +8,8 @@
   默认按该坐标系填写。
 - 本节点内部会通过 ArmController 将 `base_link` 目标转换到 `waist_yaw_link`
   后交给底层手臂事件和 IK。
-- `target_type=claw_point` 当前仅支持 `pose_frame=base_link`，用于保持与
-  MoveBoxBothClawsToPoints 的历史语义一致。
+- `target_type=claw_point` 当前仅支持 `pose_frame=base_link`，用于兼容
+  夹爪空间点目标的控制语义。
 
 数据来源优先级：
 1. JSON `left_pose/right_pose`，直接下发左右 eef 末端完整位姿。

@@ -58,7 +58,7 @@
             "source": "CUSTOM"
           },
           "target_point": {
-            "value": "[3.0, 4.25, 0.25]",
+            "value": "[3.0, 4.25, -0.25]",
             "source": "CUSTOM"
           },
           "chassis_frame": {

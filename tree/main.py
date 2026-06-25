@@ -42,6 +42,9 @@ def main(args=None):
     # 测试通用动作节点完整搬箱流程时，切换到下面这棵树。
     # tree_file_name = "tree/test/move_box_full_direct_grasp_place_common_cn.json"
     
+    # 当前默认指向“抓箱对齐 -> 直接抓取 -> 放箱 -> 回等待区域”的完整实机流程。
+    # tree_file_name = "tree/box/move_box_full_direct_grasp_place_turn.json"
+
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     # blackboard.json 用来放启动时就应该可见的共享参数。
     blackboard_json_file = os.path.join(
