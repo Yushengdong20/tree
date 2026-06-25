@@ -25,7 +25,7 @@ def main(args=None):
     # 这里把“默认跑哪棵树”显式放在入口文件里，方便调试时直接切换。
     # 当前默认指向只靠近不抓取的往返测试树：
     # 只做底盘靠近与往返导航，头部盯箱和盯传送带。
-    tree_file_name = "tree/test/move_box_approach_shuttle_no_grasp_test_cn.json"
+    # tree_file_name = "tree/test/move_box_approach_shuttle_no_grasp_test_cn.json"
 
     # 测试完整搬箱流程：抓箱前头部盯 YOLO 箱体，抓箱后头部盯传送带点位。
     # tree_file_name = "tree/test/move_box_full_direct_grasp_place_turn.json"
@@ -34,7 +34,7 @@ def main(args=None):
     # tree_file_name = "tree/test/head_track_yolo_box_parallel_navigation_test_cn.json"
 
     # 单独测试头部持续盯住 YOLO 最近箱体时，切换到下面这棵树。
-    # tree_file_name = "tree/test/head_track_yolo_box_test_cn.json"
+    tree_file_name = "tree/test/head_track_yolo_box_test_cn.json"
 
     # 单独测试头部盯住 map 系固定坐标点时，切换到下面这棵树。
     # tree_file_name = "tree/test/head_track_map_point_test_cn.json"
