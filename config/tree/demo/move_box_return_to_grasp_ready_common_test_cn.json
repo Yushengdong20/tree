@@ -1,0 +1,74 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "通用回抓取初始位姿子树测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "只创建共享控制实例（跳过初始化动作）",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "skip_head_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "共享实例创建后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "共享实例已创建，按 Enter 测试“通用节点回到抓取初始位姿”子树...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SubTree",
+        "label": "执行通用回抓取初始位姿子树",
+        "params": {
+          "file": {
+            "value": "../box/subtree/move_box_return_to_grasp_ready_common_cn.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "子树测试结束暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "通用回抓取初始位姿子树测试完成，按 Enter 结束...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

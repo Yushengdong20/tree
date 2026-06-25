@@ -1,0 +1,41 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "move_arm_target_pose_demo_blackboard",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "MoveArmBaseTargetPose",
+        "label": "move_arm_to_blackboard_target",
+        "params": {
+          "arm_control_mode": {
+            "value": "fixed_base",
+            "source": "CUSTOM"
+          },
+          "arm_timeout": {
+            "value": "40",
+            "source": "CUSTOM"
+          },
+          "pos_threshold": {
+            "value": "0.21",
+            "source": "CUSTOM"
+          },
+          "angle_threshold": {
+            "value": "0.45",
+            "source": "CUSTOM"
+          },
+          "blackboard_target_key": {
+            "value": "arm_target",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

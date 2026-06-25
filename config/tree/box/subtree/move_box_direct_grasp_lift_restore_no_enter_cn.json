@@ -1,0 +1,65 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "直接抓取上提回位流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "MoveBoxBothClawsToPoints",
+        "label": "双夹爪同步上提箱体",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_direct_left_lift_target",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_direct_right_lift_target",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxReturnTorsoAndRestorePitch",
+        "label": "躯干回位并恢复双手 pitch",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "post_torso_return_pitch": {
+            "value": "-60.0",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ClearMoveBoxGraspRequest",
+        "label": "清除抓取请求",
+        "params": {
+          "request_key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,96 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "头部camera x轴对准map点测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 控制实例",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "共享实例创建后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "共享实例已创建，按 Enter 开始测试 camera x轴对准 map 固定点...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxTrackHeadToMapPoint",
+        "label": "头部camera x轴持续对准map固定点",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "tracking_mode": {
+            "value": "split_tf",
+            "source": "CUSTOM"
+          },
+          "target_frame": {
+            "value": "map",
+            "source": "CUSTOM"
+          },
+          "target_point": {
+            "value": "[3.0, 4.25, 0.25]",
+            "source": "CUSTOM"
+          },
+          "chassis_frame": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "track_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "failure_log_interval_sec": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "axis_length_m": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "debug_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "debug_point_topic": {
+            "value": "/head_x_axis_target_point",
+            "source": "CUSTOM"
+          },
+          "debug_marker_topic": {
+            "value": "/head_x_axis_alignment_marker",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

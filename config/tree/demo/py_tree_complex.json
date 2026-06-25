@@ -1,0 +1,202 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "mission_root",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "MoveHead",
+        "label": "scan_workspace",
+        "params": {
+          "yaw": {
+            "value": "0.4",
+            "source": "CUSTOM"
+          },
+          "pitch": {
+            "value": "-0.2",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "Selector",
+        "label": "choose_navigation_plan",
+        "params": {
+          "memory": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "primary_plan",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "MoveToTarget",
+                "label": "approach_zone_a",
+                "params": {
+                  "x": {
+                    "value": "1.5",
+                    "source": "CUSTOM"
+                  },
+                  "y": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "yaw": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  },
+                  "result": {
+                    "value": "FAILURE",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "MoveHead",
+                "label": "align_with_target_a",
+                "params": {
+                  "yaw": {
+                    "value": "-0.2",
+                    "source": "CUSTOM"
+                  },
+                  "pitch": {
+                    "source": "CUSTOM",
+                    "value": "-0.1"
+                  }
+                },
+                "childs": []
+              }
+            ]
+          },
+          {
+            "name": "Sequence",
+            "label": "fallback_plan",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "MoveToTarget",
+                "label": "approach_zone_b",
+                "params": {
+                  "x": {
+                    "value": "0.8",
+                    "source": "CUSTOM"
+                  },
+                  "y": {
+                    "value": "-0.6",
+                    "source": "CUSTOM"
+                  },
+                  "yaw": {
+                    "source": "CUSTOM",
+                    "value": "0.5"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "MoveHead",
+                "label": "align_with_target_b",
+                "params": {
+                  "yaw": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  },
+                  "pitch": {
+                    "source": "CUSTOM",
+                    "value": "-0.3"
+                  }
+                },
+                "childs": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Parallel",
+        "label": "prepare_grasp",
+        "params": {
+          "policy": {
+            "value": "SuccessOnAll",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "MoveHead",
+            "label": "focus_on_object",
+            "params": {
+              "yaw": {
+                "value": "0.1",
+                "source": "CUSTOM"
+              },
+              "pitch": {
+                "source": "CUSTOM",
+                "value": "-0.5"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "MoveClaw",
+            "label": "pre_open_claw",
+            "params": {
+              "target_positions": {
+                "value": "0.4,0.4",
+                "source": "CUSTOM"
+              },
+              "velocity": {
+                "value": "40,40",
+                "source": "CUSTOM"
+              },
+              "torque": {
+                "value": "0.8,0.8",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          }
+        ]
+      },
+      {
+        "name": "MoveClaw",
+        "label": "close_on_target",
+        "params": {
+          "target_positions": {
+            "value": "0.05,0.05",
+            "source": "CUSTOM"
+          },
+          "velocity": {
+            "value": "55,55",
+            "source": "CUSTOM"
+          },
+          "torque": {
+            "value": "1.5,1.5",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

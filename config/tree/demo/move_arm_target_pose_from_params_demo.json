@@ -1,0 +1,57 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "move_arm_target_pose_demo_params_fallback",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "MoveArmBaseTargetPose",
+        "label": "move_arm_to_params_target",
+        "params": {
+          "arm_control_mode": {
+            "value": "fixed_base",
+            "source": "CUSTOM"
+          },
+          "arm_timeout": {
+            "value": "40",
+            "source": "CUSTOM"
+          },
+          "pos_threshold": {
+            "value": "0.21",
+            "source": "CUSTOM"
+          },
+          "angle_threshold": {
+            "value": "0.45",
+            "source": "CUSTOM"
+          },
+          "blackboard_target_key": {
+            "value": "unused_arm_target",
+            "source": "CUSTOM"
+          },
+          "blackboard_pose_key": {
+            "value": "unused_target_pose",
+            "source": "CUSTOM"
+          },
+          "blackboard_wrench_key": {
+            "value": "unused_target_wrench",
+            "source": "CUSTOM"
+          },
+          "target_pose": {
+            "value": "{\"left\": [{\"pos\": [0.32, 0.18, 0.22], \"euler\": [0.0, -90.0, 0.0], \"frame\": \"BASE\", \"degrees\": true}], \"right\": [{\"pos\": [0.32, -0.18, 0.22], \"euler\": [0.0, -90.0, 0.0], \"frame\": \"BASE\", \"degrees\": true}]}",
+            "source": "CUSTOM"
+          },
+          "target_wrench": {
+            "value": "{\"left\": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], \"right\": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]}",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

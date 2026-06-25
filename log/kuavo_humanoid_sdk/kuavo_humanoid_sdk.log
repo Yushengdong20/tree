@@ -1,0 +1,532 @@
+2026-06-15 10:31:58,225 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 10:31:58,230 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 10:32:03,263 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 10:32:03,264 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 10:32:03,317 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 10:32:05,329 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:32:05,329 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:32:07,404 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:32:07,404 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:32:07,455 - DEBUG - [Core] Change manipulation mpc ctrl mode from KuavoManipulationMpcCtrlMode.BaseOnly to KuavoManipulationMpcCtrlMode.BaseArm, retry: 0
+2026-06-15 10:32:07,492 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:32:07,492 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:32:07,496 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:38:55,017 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 10:38:55,019 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 10:39:00,041 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 10:39:00,042 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 10:39:00,093 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 10:39:02,102 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:39:02,103 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:39:04,152 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:39:04,152 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:39:04,190 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:39:04,190 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:39:04,195 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:39:33,818 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 10:39:33,821 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 10:39:38,843 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 10:39:38,844 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 10:39:38,896 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 10:39:40,907 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:39:40,908 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:39:42,980 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:39:42,980 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:39:43,012 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:39:43,012 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:39:43,017 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:45:18,504 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 10:45:18,506 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 10:45:23,536 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 10:45:23,537 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 10:45:23,600 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 10:45:25,621 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:45:25,622 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:45:27,702 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:45:27,705 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:45:27,730 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:45:27,730 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:45:27,754 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:48:25,990 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 10:48:25,993 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 10:48:31,016 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 10:48:31,018 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 10:48:31,094 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 10:48:33,106 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:48:33,106 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:48:35,167 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 10:48:35,168 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 10:48:35,190 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:48:35,190 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 10:48:35,197 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:11:06,028 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 11:11:06,033 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 11:11:11,056 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 11:11:11,057 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 11:11:11,102 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 11:11:13,112 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:11:13,113 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:11:15,162 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:11:15,162 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:11:15,217 - DEBUG - [Core] Change manipulation mpc ctrl mode from KuavoManipulationMpcCtrlMode.BaseOnly to KuavoManipulationMpcCtrlMode.BaseArm, retry: 0
+2026-06-15 11:11:15,260 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:11:15,262 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:11:15,272 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:15:18,115 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 11:15:18,117 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 11:15:23,139 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 11:15:23,140 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 11:15:23,202 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 11:15:25,233 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:15:25,233 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:15:27,333 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:15:27,333 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:15:27,358 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:15:27,358 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:15:27,364 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:17:28,129 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 11:17:28,131 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 11:17:33,151 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 11:17:33,152 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 11:17:33,194 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 11:17:35,207 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:17:35,208 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:17:37,255 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:17:37,255 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:17:37,311 - DEBUG - [Core] Change manipulation mpc ctrl mode from KuavoManipulationMpcCtrlMode.BaseOnly to KuavoManipulationMpcCtrlMode.BaseArm, retry: 0
+2026-06-15 11:17:37,351 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:17:37,352 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:17:37,366 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:19:35,310 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 11:19:35,312 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 11:19:40,359 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 11:19:40,360 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 11:19:40,394 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 11:19:42,403 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:19:42,403 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:19:44,471 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:19:44,471 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:19:44,489 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:19:44,490 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:19:44,505 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:24:47,637 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 11:24:47,639 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 11:27:43,105 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 11:27:43,107 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 11:27:48,138 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 11:27:48,140 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 11:27:48,184 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 11:27:50,198 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:27:50,201 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:27:52,253 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:27:52,254 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:27:52,297 - DEBUG - [Core] Change manipulation mpc ctrl mode from KuavoManipulationMpcCtrlMode.BaseOnly to KuavoManipulationMpcCtrlMode.BaseArm, retry: 0
+2026-06-15 11:27:52,337 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:27:52,337 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:27:52,344 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:29:39,227 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 11:29:39,228 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 11:29:44,257 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 11:29:44,258 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 11:29:44,297 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 11:29:46,310 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:29:46,310 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:29:48,418 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:29:48,420 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:29:48,458 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:29:48,458 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:29:48,468 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:59:07,609 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 11:59:07,611 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 11:59:12,633 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 11:59:12,636 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 11:59:12,679 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 11:59:14,688 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:59:14,689 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:59:16,760 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 11:59:16,763 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 11:59:16,795 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:59:16,796 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 11:59:16,806 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:00:28,869 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 12:00:28,871 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 12:00:33,897 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 12:00:33,898 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 12:00:33,958 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 12:00:45,761 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 12:00:45,763 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 12:00:50,789 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 12:00:50,790 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 12:00:50,862 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 12:00:52,872 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:00:52,873 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:00:54,921 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:00:54,922 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:00:54,955 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:00:54,956 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:00:54,966 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:05:44,234 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 12:05:44,236 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 12:05:49,258 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 12:05:49,259 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 12:05:49,321 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 12:05:51,330 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:05:51,331 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:05:53,399 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:05:53,400 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:05:53,437 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:05:53,437 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:05:53,446 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:11:11,081 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 12:11:11,083 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 12:11:16,097 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 12:11:16,098 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 12:11:16,138 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 12:11:18,151 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:11:18,151 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:11:18,151 - ERROR - [Error] change arm ctrl mode: rospy shutdown
+2026-06-15 12:11:40,899 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 12:11:40,900 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 12:11:45,921 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 12:11:45,922 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 12:11:45,974 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 12:11:47,983 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:11:47,987 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:11:50,047 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:11:50,047 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:11:50,081 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:11:50,082 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:11:50,089 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:48,529 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:12:48,529 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:12:48,563 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:48,564 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:48,571 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:50,522 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:12:50,527 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:12:50,567 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:50,568 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:50,572 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:54,233 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:12:54,234 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:12:54,257 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:54,257 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:12:54,263 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:13:00,286 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:13:00,286 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:13:00,315 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:13:00,315 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:13:00,321 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:13:32,228 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 12:13:32,229 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 12:13:32,288 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:13:32,289 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 12:13:32,294 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:51:34,743 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 13:51:34,748 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 13:51:39,786 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 13:51:39,790 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 13:51:39,846 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 13:51:41,855 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 13:51:41,855 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 13:51:43,909 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 13:51:43,909 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 13:51:43,981 - DEBUG - [Core] Change manipulation mpc ctrl mode from KuavoManipulationMpcCtrlMode.BaseOnly to KuavoManipulationMpcCtrlMode.BaseArm, retry: 0
+2026-06-15 13:51:44,043 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:51:44,044 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:51:44,047 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:24,187 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 13:52:24,187 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 13:52:24,223 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:24,225 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:24,229 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:24,726 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 13:52:24,728 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 13:52:24,759 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:24,765 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:24,776 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:25,288 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 13:52:25,289 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 13:52:25,320 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:25,321 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:25,327 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:28,833 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 13:52:28,833 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 13:52:28,860 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:28,861 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:28,862 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:49,806 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 13:52:49,807 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 13:52:49,839 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:49,839 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:49,845 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:52,439 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 13:52:52,442 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 13:52:52,460 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:52,461 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 13:52:52,463 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:00:20,818 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 14:00:20,820 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 14:00:25,847 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 14:00:25,849 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 14:00:25,885 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 14:00:27,910 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:00:27,910 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:00:29,976 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:00:29,977 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:00:30,000 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:00:30,001 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:00:30,005 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:18,443 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:01:18,444 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:01:18,501 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:18,503 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:18,513 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:20,054 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:01:20,054 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:01:20,079 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:20,080 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:20,082 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:21,756 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:01:21,757 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:01:21,794 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:21,795 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:21,800 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:26,702 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:01:26,702 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:01:26,721 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:26,722 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:26,733 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:48,740 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:01:48,742 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:01:48,762 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:48,763 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:48,768 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:52,312 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:01:52,312 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:01:52,353 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:52,357 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:01:52,361 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:06:09,130 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 14:06:09,132 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 14:06:14,149 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 14:06:14,149 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 14:06:14,223 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 14:06:16,233 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:06:16,235 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:06:19,327 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:06:19,327 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:06:19,361 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:06:19,362 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:06:19,372 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:02,809 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:07:02,810 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:07:02,842 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:02,843 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:02,850 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:04,404 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:07:04,405 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:07:04,436 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:04,440 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:04,453 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:07,134 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:07:07,135 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:07:07,160 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:07,161 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:07,170 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:11,983 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:07:11,983 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:07:12,014 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:12,015 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:12,019 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:33,961 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:07:33,962 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:07:33,982 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:33,983 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:33,991 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:39,545 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:07:39,546 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:07:39,554 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:39,554 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:07:39,555 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:17:27,746 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 14:17:27,750 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 14:17:32,772 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 14:17:32,772 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 14:17:32,835 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 14:17:34,853 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:17:34,854 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:17:37,905 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:17:37,906 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:17:37,951 - DEBUG - [Core] Change manipulation mpc ctrl mode from KuavoManipulationMpcCtrlMode.BaseOnly to KuavoManipulationMpcCtrlMode.BaseArm, retry: 0
+2026-06-15 14:17:37,992 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:17:37,993 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:17:38,002 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:29,462 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:18:29,463 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:18:29,492 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:29,493 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:29,501 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:31,033 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:18:31,033 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:18:31,076 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:31,077 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:31,082 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:33,633 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:18:33,634 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:18:33,668 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:33,669 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:33,680 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:38,220 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:18:38,220 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:18:38,256 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:38,257 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:38,264 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:59,870 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:18:59,870 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:18:59,910 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:59,910 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:18:59,928 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:19:05,522 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:19:05,523 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:19:05,554 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:19:05,557 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:19:05,577 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:22:20,249 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 14:22:20,252 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 14:22:25,276 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 14:22:25,277 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 14:22:25,317 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 14:22:27,331 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:22:27,331 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:22:30,443 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:22:30,444 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:22:30,487 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:22:30,492 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:22:30,499 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:16,133 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:23:16,133 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:23:16,172 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:16,173 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:16,185 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:17,722 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:23:17,722 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:23:17,751 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:17,751 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:17,759 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:20,288 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:23:20,288 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:23:20,312 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:20,313 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:20,321 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:25,370 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:23:25,370 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:23:25,389 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:25,392 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:25,397 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:46,171 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:23:46,171 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:23:46,210 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:46,211 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:46,219 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:51,827 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:23:51,828 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:23:51,852 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:51,853 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:23:51,859 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:26:51,203 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 14:26:51,205 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 14:26:56,230 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 14:26:56,231 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 14:26:56,290 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 14:26:58,299 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:26:58,299 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:27:01,372 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:27:01,377 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:27:01,411 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:01,412 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:01,417 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:50,007 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:27:50,007 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:27:50,031 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:50,032 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:50,038 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:51,604 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:27:51,604 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:27:51,628 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:51,629 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:51,634 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:54,151 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:27:54,151 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:27:54,192 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:54,192 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:54,205 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:59,428 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:27:59,428 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:27:59,449 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:59,449 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:27:59,455 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:28:21,434 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:28:21,435 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:28:21,464 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:28:21,464 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:28:21,472 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:28:27,277 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:28:27,279 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:28:27,309 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:28:27,310 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:28:27,314 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:37:29,243 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 14:37:29,246 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 14:37:34,289 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 14:37:34,292 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 14:37:34,354 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 14:37:36,364 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:37:36,365 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:37:39,451 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:37:39,452 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:37:39,493 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:37:39,494 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:37:39,499 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:37:55,488 - WARNING - Warning: waist_pitch_link is not found or incomplete in robot_desc
+2026-06-15 14:37:55,493 - WARNING - leg_joint_names is not equal to leg_link_names, 4 != 3。将使用默认关节名称列表。
+2026-06-15 14:38:00,518 - INFO - [WheelArmROSControl] 轮臂ROS控制模块初始化完成
+2026-06-15 14:38:00,519 - INFO - Using standard mode, subscribing to: /sensors_data_raw
+2026-06-15 14:38:00,575 - DEBUG - TF2 TransformListener initialized successfully
+2026-06-15 14:38:02,587 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:38:02,587 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:38:05,646 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:38:05,647 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:38:05,677 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:05,678 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:05,685 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:45,695 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:38:45,697 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:38:45,735 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:45,740 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:45,750 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:47,399 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:38:47,399 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:38:47,429 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:47,429 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:47,440 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:49,991 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:38:49,992 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:38:50,011 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:50,013 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:50,017 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:55,134 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:38:55,135 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:38:55,189 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:55,191 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:38:55,200 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:39:17,197 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:39:17,197 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:39:17,230 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:39:17,230 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:39:17,236 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:39:23,011 - DEBUG - [Core] Change robot arm control  from None to KuavoArmCtrlMode.ExternalControl, retry: 0
+2026-06-15 14:39:23,013 - DEBUG - [ROS] Change robot arm control mode: KuavoArmCtrlMode.ExternalControl
+2026-06-15 14:39:23,049 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:39:23,049 - DEBUG - 🟢 源坐标系映射: base_link -> waist_yaw_link
+2026-06-15 14:39:23,054 - DEBUG - 🔵 目标坐标系映射: base_link -> waist_yaw_link

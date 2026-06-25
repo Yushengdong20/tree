@@ -1,0 +1,500 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "只靠近不抓取-抓箱点与放置点往返测试（展开版不动腰）",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 控制实例（禁用手臂/腰部/夹爪动作）",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化完成后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "move_box 控制实例已初始化，按 Enter 开始只靠近不抓取的往返测试...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Repeat",
+        "label": "循环执行靠近箱子与导航到放置点",
+        "params": {
+          "num_success": {
+            "value": "-1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮只靠近不抓取往返流程",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "HttpNavigateToPose",
+                "label": "回等待区域",
+                "params": {
+                  "x": {
+                    "value": "2.820933034031259",
+                    "source": "CUSTOM"
+                  },
+                  "y": {
+                    "value": "2.307197578516518",
+                    "source": "CUSTOM"
+                  },
+                  "yaw": {
+                    "value": "-150.41201143492874",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "Parallel",
+                "label": "抓箱前头部盯箱并靠近箱子",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnOne",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "MoveBoxTrackHeadToYoloBox",
+                    "label": "头部持续盯住YOLO箱体",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "yolo_topic": {
+                        "value": "/yolo/target_poses",
+                        "source": "CUSTOM"
+                      },
+                      "target_select_frame": {
+                        "value": "base_link",
+                        "source": "CUSTOM"
+                      },
+                      "control_mode": {
+                        "value": "latched_map_target",
+                        "source": "CUSTOM"
+                      },
+                      "control_frame": {
+                        "value": "map",
+                        "source": "CUSTOM"
+                      },
+                      "track_interval_sec": {
+                        "value": "0.1",
+                        "source": "CUSTOM"
+                      },
+                      "max_delta_yaw_deg": {
+                        "value": "3.0",
+                        "source": "CUSTOM"
+                      },
+                      "max_delta_pitch_deg": {
+                        "value": "2.0",
+                        "source": "CUSTOM"
+                      },
+                      "head_control_mode": {
+                        "value": "pd",
+                        "source": "CUSTOM"
+                      },
+                      "head_kp_yaw": {
+                        "value": "0.30",
+                        "source": "CUSTOM"
+                      },
+                      "head_kp_pitch": {
+                        "value": "0.25",
+                        "source": "CUSTOM"
+                      },
+                      "head_kd_yaw": {
+                        "value": "0.04",
+                        "source": "CUSTOM"
+                      },
+                      "head_kd_pitch": {
+                        "value": "0.03",
+                        "source": "CUSTOM"
+                      },
+                      "head_derivative_filter_alpha": {
+                        "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "lock_residual_fast_m": {
+                        "value": "0.12",
+                        "source": "CUSTOM"
+                      },
+                      "lock_residual_slow_m": {
+                        "value": "0.35",
+                        "source": "CUSTOM"
+                      },
+                      "lock_fast_alpha": {
+                        "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "lock_slow_alpha": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "lock_pending_confirm_count": {
+                        "value": "2",
+                        "source": "CUSTOM"
+                      },
+                      "lock_pending_match_m": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_yaw_rate_slow_update_deg_s": {
+                        "value": "12.0",
+                        "source": "CUSTOM"
+                      },
+                      "no_target_log_interval_sec": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "failure_log_interval_sec": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "axis_length_m": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "debug_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "debug_point_topic": {
+                        "value": "/head_track_yolo_target_point",
+                        "source": "CUSTOM"
+                      },
+                      "debug_marker_topic": {
+                        "value": "/head_track_yolo_marker",
+                        "source": "CUSTOM"
+                      },
+                      "debug_frame": {
+                        "value": "map",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_frame": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "YOLO粗靠近与FoundationPose精靠近",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "Parallel",
+                        "label": "YOLO远距离粗靠近并提前准备FoundationPose",
+                        "params": {
+                          "policy": {
+                            "value": "SuccessOnOne",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": [
+                          {
+                            "name": "MoveBoxYoloApproachToBox",
+                            "label": "YOLO定位箱体并粗靠近",
+                            "params": {
+                              "services_key": {
+                                "value": "move_box_services",
+                                "source": "CUSTOM"
+                              },
+                              "chassis_url": {
+                                "value": "http://localhost:8081",
+                                "source": "CUSTOM"
+                              },
+                              "target_distance_m": {
+                                "value": "1.2",
+                                "source": "CUSTOM"
+                              },
+                              "navigation_target_key": {
+                                "value": "move_box_yolo_navigation_target",
+                                "source": "CUSTOM"
+                              },
+                              "navigation_timeout_sec": {
+                                "value": "600",
+                                "source": "CUSTOM"
+                              },
+                              "poll_interval_sec": {
+                                "value": "0.2",
+                                "source": "CUSTOM"
+                              },
+                              "keep_running_after_success": {
+                                "value": "True",
+                                "source": "CUSTOM"
+                              }
+                            }
+                          },
+                          {
+                            "name": "Sequence",
+                            "label": "接近YOLO目标时重启并等待FoundationPose",
+                            "params": {
+                              "memory": {
+                                "value": "True",
+                                "source": "CUSTOM"
+                              }
+                            },
+                            "childs": [
+                              {
+                                "name": "WaitUntilNearNavigationGoal",
+                                "label": "监听接近YOLO粗靠近目标",
+                                "params": {
+                                  "odom_topic": {
+                                    "value": "melon_odom",
+                                    "source": "CUSTOM"
+                                  },
+                                  "target_key": {
+                                    "value": "move_box_yolo_navigation_target",
+                                    "source": "CUSTOM"
+                                  },
+                                  "distance_threshold": {
+                                    "value": "0.8",
+                                    "source": "CUSTOM"
+                                  }
+                                }
+                              },
+                              {
+                                "name": "EnsureMoveBoxDetectionReady",
+                                "label": "提前重启并等待FoundationPose检测有效",
+                                "params": {
+                                  "services_key": {
+                                    "value": "move_box_services",
+                                    "source": "CUSTOM"
+                                  },
+                                  "grasp_pair_key": {
+                                    "value": "move_box_latest_grasp_pair",
+                                    "source": "CUSTOM"
+                                  },
+                                  "box_axes_key": {
+                                    "value": "move_box_latest_box_axes",
+                                    "source": "CUSTOM"
+                                  },
+                                  "box_center_key": {
+                                    "value": "move_box_latest_box_center",
+                                    "source": "CUSTOM"
+                                  },
+                                  "detect_timeout_sec": {
+                                    "value": "10.0",
+                                    "source": "CUSTOM"
+                                  },
+                                  "restart_before_wait": {
+                                    "value": "True",
+                                    "source": "CUSTOM"
+                                  },
+                                  "restart_on_timeout": {
+                                    "value": "True",
+                                    "source": "CUSTOM"
+                                  },
+                                  "detection_reset_service": {
+                                    "value": "/foundationpose/reset",
+                                    "source": "CUSTOM"
+                                  },
+                                  "detection_reset_timeout_sec": {
+                                    "value": "5.0",
+                                    "source": "CUSTOM"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "name": "MoveBoxFpApproachToBox",
+                        "label": "FoundationPose计算最终站位并精靠近",
+                        "params": {
+                          "services_key": {
+                            "value": "move_box_services",
+                            "source": "CUSTOM"
+                          },
+                          "chassis_url": {
+                            "value": "http://localhost:8081",
+                            "source": "CUSTOM"
+                          },
+                          "target_distance_m": {
+                            "value": "1.0",
+                            "source": "CUSTOM"
+                          },
+                          "navigation_target_key": {
+                            "value": "move_box_fp_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "arrival_box_center_key": {
+                            "value": "move_box_fp_arrival_box_center",
+                            "source": "CUSTOM"
+                          },
+                          "navigation_timeout_sec": {
+                            "value": "600",
+                            "source": "CUSTOM"
+                          },
+                          "poll_interval_sec": {
+                            "value": "0.2",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "Parallel",
+                "label": "靠近完成后头部盯传送带并导航到放置点",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnOne",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "MoveBoxTrackHeadToMapPoint",
+                    "label": "头部持续盯住传送带",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "tracking_mode": {
+                        "value": "split_tf",
+                        "source": "CUSTOM"
+                      },
+                      "target_frame": {
+                        "value": "map",
+                        "source": "CUSTOM"
+                      },
+                      "target_point": {
+                        "value": "[3.0, 4.25, -0.25]",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_frame": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      },
+                      "track_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "failure_log_interval_sec": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "axis_length_m": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "debug_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "debug_point_topic": {
+                        "value": "/head_conveyor_target_point",
+                        "source": "CUSTOM"
+                      },
+                      "debug_marker_topic": {
+                        "value": "/head_conveyor_alignment_marker",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到放置点",
+                    "params": {
+                      "x": {
+                        "value": "2.820933034031259",
+                        "source": "CUSTOM"
+                      },
+                      "y": {
+                        "value": "3.307197578516518",
+                        "source": "CUSTOM"
+                      },
+                      "yaw": {
+                        "value": "86.41201143492874",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "按 Enter 返回抓箱靠近",
+                "params": {
+                  "message": {
+                    "value": "已到放置点，本轮没有抓取/放置/腰部动作。按 Enter 返回抓箱靠近流程...",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

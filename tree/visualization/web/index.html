@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pytrees_ros2 Viewer</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">ROS 2 Jazzy</p>
+          <h1>pytrees_ros2 Viewer</h1>
+          <p class="subtle">JSON-configured mock tree with MoveHead, MoveToTarget and MoveClaw.</p>
+        </div>
+        <div class="meta">
+          <div class="meta-card"><span>Execution</span><strong id="execution-state">UNKNOWN</strong></div>
+          <div class="meta-card"><span>Root Status</span><strong id="root-status">UNKNOWN</strong></div>
+          <div class="meta-card"><span>Nodes</span><strong id="node-count">0</strong></div>
+          <div class="meta-card"><span>Tick Count</span><strong id="tick-count">0</strong></div>
+          <div class="meta-card"><span>Last Tick Interval</span><strong id="tick-interval">-</strong></div>
+        </div>
+      </header>
+      <section class="panel live-panel">
+        <div class="panel-head">
+          <h2>Live Step</h2>
+        </div>
+        <div id="live-runtime" class="live-runtime empty">No blocking runtime step is active.</div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Tree</h2>
+          <button id="refresh-btn" type="button">Refresh</button>
+        </div>
+        <div id="tree-root" class="tree-root"></div>
+      </section>
+    </main>
+
+    <template id="node-template">
+      <div class="node">
+        <div class="node-card">
+          <button class="node-toggle" type="button">-</button>
+          <div class="node-main">
+            <span class="node-label"></span>
+            <span class="node-type"></span>
+            <span class="node-history"></span>
+          </div>
+          <span class="node-status"></span>
+        </div>
+        <div class="node-children"></div>
+      </div>
+    </template>
+    <script src="./viewer.js"></script>
+  </body>
+</html>

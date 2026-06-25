@@ -1,0 +1,103 @@
+{
+  "tree": {
+    "name": "Parallel",
+    "label": "move_arm_repeat_until_enter_demo",
+    "params": {
+      "policy": {
+        "value": "SuccessOnOne",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "Repeat",
+        "label": "repeat_arm_motion_forever",
+        "params": {
+          "num_success": {
+            "value": "-1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "alternate_arm_targets",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "MoveArmBaseTargetPose",
+                "label": "move_arm_to_target_a",
+                "params": {
+                  "arm_control_mode": {
+                    "value": "fixed_base",
+                    "source": "CUSTOM"
+                  },
+                  "arm_timeout": {
+                    "value": "40",
+                    "source": "CUSTOM"
+                  },
+                  "pos_threshold": {
+                    "value": "0.21",
+                    "source": "CUSTOM"
+                  },
+                  "angle_threshold": {
+                    "value": "0.45",
+                    "source": "CUSTOM"
+                  },
+                  "blackboard_target_key": {
+                    "value": "arm_target_a",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "MoveArmBaseTargetPose",
+                "label": "move_arm_to_target_b",
+                "params": {
+                  "arm_control_mode": {
+                    "value": "fixed_base",
+                    "source": "CUSTOM"
+                  },
+                  "arm_timeout": {
+                    "value": "40",
+                    "source": "CUSTOM"
+                  },
+                  "pos_threshold": {
+                    "value": "0.21",
+                    "source": "CUSTOM"
+                  },
+                  "angle_threshold": {
+                    "value": "0.45",
+                    "source": "CUSTOM"
+                  },
+                  "blackboard_target_key": {
+                    "value": "arm_target_b",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "WaitForEnterAsync",
+        "label": "按 Enter 停止循环",
+        "params": {
+          "message": {
+            "value": "按 Enter 停止手臂循环并退出行为树...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

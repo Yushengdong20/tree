@@ -1,0 +1,95 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "move_and_grab_http",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "HttpNavigateToPose",
+        "label": "navigate_to_target_pose",
+        "params": {
+          "x": {
+            "value": "1.2",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "-0.4",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "0.6",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://127.0.0.1:18081",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "30",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "HttpAlignWithBox",
+        "label": "align_with_box",
+        "params": {
+          "enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://127.0.0.1:18081",
+            "source": "CUSTOM"
+          },
+          "grab_url": {
+            "value": "http://127.0.0.1:18080",
+            "source": "CUSTOM"
+          },
+          "tolerance_m": {
+            "value": "0.06",
+            "source": "CUSTOM"
+          },
+          "target_distance_m": {
+            "value": "0.4",
+            "source": "CUSTOM"
+          },
+          "longitudinal_tolerance_m": {
+            "value": "0.06",
+            "source": "CUSTOM"
+          },
+          "yaw_tolerance_deg": {
+            "value": "5.0",
+            "source": "CUSTOM"
+          },
+          "max_attempts": {
+            "value": "3",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "HttpGrabBox",
+        "label": "grab_box",
+        "params": {
+          "grab_url": {
+            "value": "http://127.0.0.1:18080",
+            "source": "CUSTOM"
+          },
+          "arm": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

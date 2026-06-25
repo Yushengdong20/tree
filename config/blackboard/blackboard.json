@@ -1,0 +1,74 @@
+{
+  "arm_target_a": {
+    "pose": {
+      "left": [
+        {
+          "pos": [0.32, 0.18, 0.2],
+          "euler": [0.0, -90.0, 0.0],
+          "frame": "BASE",
+          "degrees": true
+        }
+      ],
+      "right": [
+        {
+          "pos": [0.32, -0.18, 0.2],
+          "euler": [0.0, -90.0, 0.0],
+          "frame": "BASE",
+          "degrees": true
+        }
+      ]
+    },
+    "wrench": {
+      "left": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+      "right": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+    }
+  },
+  "arm_target_b": {
+    "pose": {
+      "left": [
+        {
+          "pos": [0.32, 0.18, 0.1],
+          "euler": [0.0, -90.0, 0.0],
+          "frame": "BASE",
+          "degrees": true
+        }
+      ],
+      "right": [
+        {
+          "pos": [0.32, -0.18, 0.1],
+          "euler": [0.0, -90.0, 0.0],
+          "frame": "BASE",
+          "degrees": true
+        }
+      ]
+    },
+    "wrench": {
+      "left": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+      "right": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+    }
+  },
+  "arm_target": {
+    "pose": {
+      "left": [
+        {
+          "pos": [0.35, 0.2, 0.25],
+          "euler": [0.0, 0.0, 0.0],
+          "frame": "BASE",
+          "degrees": true
+        }
+      ],
+      "right": [
+        {
+          "pos": [0.35, -0.2, 0.25],
+          "euler": [0.0, 0.0, 0.0],
+          "frame": "BASE",
+          "degrees": true
+        }
+      ]
+    },
+    "wrench": {
+      "left": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+      "right": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+    }
+  }
+}

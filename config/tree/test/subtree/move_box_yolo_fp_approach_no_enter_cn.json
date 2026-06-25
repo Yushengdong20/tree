@@ -1,0 +1,270 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "YOLO粗靠近与FoundationPose精靠近流程（无暂停）",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "Parallel",
+        "label": "YOLO远距离粗靠近并提前重启FoundationPose",
+        "params": {
+          "policy": {
+            "value": "SuccessOnOne",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Parallel",
+            "label": "YOLO粗靠近期间摆臂",
+            "params": {
+              "policy": {
+                "value": "SuccessOnOne",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "MoveBoxGaitArmLoop",
+                "label": "YOLO导航过程摆臂",
+                "params": {
+                  "services_key": {
+                    "value": "move_box_services",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "MoveBoxYoloApproachToBox",
+                "label": "YOLO定位箱体并粗靠近",
+                "params": {
+                  "services_key": {
+                    "value": "move_box_services",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "target_distance_m": {
+                    "value": "1.2",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "move_box_yolo_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "keep_running_after_success": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "Sequence",
+            "label": "接近YOLO目标时重启并等待FoundationPose",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "WaitUntilNearNavigationGoal",
+                "label": "监听接近YOLO粗靠近目标",
+                "params": {
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "target_key": {
+                    "value": "move_box_yolo_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "distance_threshold": {
+                    "value": "0.8",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "EnsureMoveBoxDetectionReady",
+                "label": "提前重启并等待FoundationPose检测有效",
+                "params": {
+                  "services_key": {
+                    "value": "move_box_services",
+                    "source": "CUSTOM"
+                  },
+                  "grasp_pair_key": {
+                    "value": "move_box_latest_grasp_pair",
+                    "source": "CUSTOM"
+                  },
+                  "box_axes_key": {
+                    "value": "move_box_latest_box_axes",
+                    "source": "CUSTOM"
+                  },
+                  "box_center_key": {
+                    "value": "move_box_latest_box_center",
+                    "source": "CUSTOM"
+                  },
+                  "detect_timeout_sec": {
+                    "value": "10.0",
+                    "source": "CUSTOM"
+                  },
+                  "restart_before_wait": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "restart_on_timeout": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "detection_reset_service": {
+                    "value": "/foundationpose/reset",
+                    "source": "CUSTOM"
+                  },
+                  "detection_reset_timeout_sec": {
+                    "value": "5.0",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Parallel",
+        "label": "手臂回预备姿态并执行FoundationPose精靠近",
+        "params": {
+          "policy": {
+            "value": "SuccessOnAll",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "MoveBoxFpApproachToBox",
+            "label": "FoundationPose计算最终抓取站位并精靠近",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "target_distance_m": {
+                "value": "1.0",
+                "source": "CUSTOM"
+              },
+              "navigation_target_key": {
+                "value": "move_box_fp_navigation_target",
+                "source": "CUSTOM"
+              },
+              "arrival_box_center_key": {
+                "value": "move_box_fp_arrival_box_center",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "Sequence",
+            "label": "接近FP目标点后双臂回预备姿态并调整躯干",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "WaitUntilNearNavigationGoal",
+                "label": "监听接近FP精靠近目标",
+                "params": {
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "target_key": {
+                    "value": "move_box_fp_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "distance_threshold": {
+                    "value": "0.5",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "Parallel",
+                "label": "双臂回预备姿态并按到点后箱体中心调整躯干",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "MoveBoxArmsToInitialPose",
+                    "label": "双臂移动到预备姿态",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "MoveBoxTorsoToBoxCenter",
+                    "label": "根据FP到点后箱体中心调整躯干",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "box_center_key": {
+                        "value": "move_box_latest_box_center",
+                        "source": "CUSTOM"
+                      },
+                      "preferred_box_center_key": {
+                        "value": "move_box_fp_arrival_box_center",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

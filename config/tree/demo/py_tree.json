@@ -1,0 +1,67 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "root_sequence",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "MoveHead",
+        "label": "look_forward",
+        "params": {
+          "yaw": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "pitch": {
+            "source": "CUSTOM",
+            "value": "-0.3"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveToTarget",
+        "label": "approach_target",
+        "params": {
+          "x": {
+            "value": "1.2",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "-0.4",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "source": "CUSTOM",
+            "value": "0.6"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveClaw",
+        "label": "close_claw",
+        "params": {
+          "target_positions": {
+            "value": "0.1,0.1",
+            "source": "CUSTOM"
+          },
+          "velocity": {
+            "value": "60,60",
+            "source": "CUSTOM"
+          },
+          "torque": {
+            "value": "1.2,1.2",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

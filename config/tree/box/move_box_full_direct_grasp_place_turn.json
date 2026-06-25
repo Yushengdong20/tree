@@ -1,0 +1,297 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "抓箱对齐-直接抓取-放箱完整流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 视觉与控制实例",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化完成后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "move_box 视觉与控制实例已初始化，按 Enter 开始循环抓箱放箱流程...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Repeat",
+        "label": "循环执行抓箱放箱单轮流程",
+        "params": {
+          "num_success": {
+            "value": "-1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮抓箱放箱完整流程",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "SubTree",
+                "label": "抓箱前导航与底盘对齐",
+                "params": {
+                  "file": {
+                    "value": "subtree/move_box_yolo_fp_approach_no_enter_cn.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SetBlackboardValue",
+                "label": "置位抓取请求",
+                "params": {
+                  "key": {
+                    "value": "move_box_grasp_requested",
+                    "source": "CUSTOM"
+                  },
+                  "value": {
+                    "value": "true",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "直接抓取箱体到闭爪",
+                "params": {
+                  "file": {
+                    "value": "subtree/move_box_direct_grasp_before_lift_no_enter_cn.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "Parallel",
+                "label": "上提箱体同时导航到放置点",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到放置点",
+                    "params": {
+                      "x": {
+                        "value": "2.820933034031259",
+                        "source": "CUSTOM"
+                      },
+                      "y": {
+                        "value": "3.307197578516518",
+                        "source": "CUSTOM"
+                      },
+                      "yaw": {
+                        "value": "86.41201143492874",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "move_box_place_navigation_target",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "SubTree",
+                    "label": "上提箱体并回位",
+                    "params": {
+                      "file": {
+                        "value": "subtree/move_box_direct_grasp_lift_restore_no_enter_cn.json",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "接近放置点后调整躯干到放置高度",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "WaitUntilNearNavigationGoal",
+                        "label": "监听接近放置点",
+                        "params": {
+                          "odom_topic": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "target_key": {
+                            "value": "move_box_place_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "distance_threshold": {
+                            "value": "0.3",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "MoveBoxTorsoToPlaceHeight",
+                        "label": "根据放置平面调整躯干",
+                        "params": {
+                          "services_key": {
+                            "value": "move_box_services",
+                            "source": "CUSTOM"
+                          },
+                          "place_plane_height": {
+                            "value": "0.7",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_height_offset": {
+                            "value": "0.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_min_height": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_max_height": {
+                            "value": "1.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_x": {
+                            "value": "0.5",
+                            "source": "CUSTOM"
+                          },
+                          "wait_done": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          },
+                          "skip_torso_motion": {
+                            "value": "False",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "SetBlackboardValue",
+                "label": "置位放置请求",
+                "params": {
+                  "key": {
+                    "value": "move_box_place_requested",
+                    "source": "CUSTOM"
+                  },
+                  "value": {
+                    "value": "true",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "放置箱体",
+                "params": {
+                  "file": {
+                    "value": "subtree/move_box_place_request_flow_no_enter_cn.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "Parallel",
+                "label": "后退回等待区域并同步回到抓取初始位姿",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "回等待区域前先后退1米",
+                    "params": {
+                      "x": {
+                        "value": "2.820933034031259",
+                        "source": "CUSTOM"
+                      },
+                      "y": {
+                        "value": "2.307197578516518",
+                        "source": "CUSTOM"
+                      },
+                      "yaw": {
+                        "value": "-150.41201143492874",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "SubTree",
+                    "label": "放箱后通用节点回到抓取初始位姿",
+                    "params": {
+                      "file": {
+                        "value": "subtree/move_box_return_to_grasp_ready_common_cn.json",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+

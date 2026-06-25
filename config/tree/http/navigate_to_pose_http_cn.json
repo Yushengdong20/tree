@@ -1,0 +1,110 @@
+{
+  "tree": {
+    "name": "Repeat",
+    "label": "循环底盘双点导航测试",
+    "params": {
+      "num_success": {
+        "value": "-1",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "Sequence",
+        "label": "双点导航流程",
+        "params": {
+          "memory": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "HttpNavigateToPose",
+            "label": "导航到目标点1",
+            "params": {
+              "x": {
+                "value": "2.5819755121477326",
+                "source": "CUSTOM"
+              },
+              "y": {
+                "value": "-0.07860039878315368",
+                "source": "CUSTOM"
+              },
+              "yaw": {
+                "value": "88.62849374426415",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "WaitForEnter",
+            "label": "目标点1到达后暂停（按 Enter）",
+            "params": {
+              "message": {
+                "value": "目标点1已到达，按 Enter 开始导航到目标点2...",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "HttpNavigateToPose",
+            "label": "导航到目标点2",
+            "params": {
+              "x": {
+                "value": "2.0819755121477326",
+                "source": "CUSTOM"
+              },
+              "y": {
+                "value": "-0.07860039878315368",
+                "source": "CUSTOM"
+              },
+              "yaw": {
+                "value": "88.62849374426415",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "WaitForEnter",
+            "label": "目标点2到达后暂停（按 Enter）",
+            "params": {
+              "message": {
+                "value": "目标点2已到达，按 Enter 开始下一轮双点导航...",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          }
+        ]
+      }
+    ]
+  }
+}

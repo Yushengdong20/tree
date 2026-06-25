@@ -1,0 +1,60 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "通用节点回到抓取初始位姿",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "MoveBoxArmsToPose",
+        "label": "双臂回到抓取初始位姿（common ArmController）",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.351, 0.3, 0.2, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.351, -0.3, 0.2, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "腰部回到抓取 ready 位姿（通用腰部节点）",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose": {
+            "value": "[0.0, 0.0, 1.1, 0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "ros1_smoke_test",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "FakeStep",
+        "label": "bootstrap_check",
+        "params": {
+          "message": {
+            "value": "runner/timer/logging smoke test",
+            "source": "CUSTOM"
+          },
+          "running_ticks": {
+            "value": "3",
+            "source": "CUSTOM"
+          },
+          "result": {
+            "value": "SUCCESS",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveHead",
+        "label": "mock_head_move",
+        "params": {
+          "yaw": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "pitch": {
+            "value": "-5.0",
+            "source": "CUSTOM"
+          },
+          "result": {
+            "value": "SUCCESS",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveToTarget",
+        "label": "mock_nav_move",
+        "params": {
+          "x": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "15.0",
+            "source": "CUSTOM"
+          },
+          "result": {
+            "value": "SUCCESS",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveClaw",
+        "label": "mock_claw_move",
+        "params": {
+          "target_positions": {
+            "value": "0.0,0.0",
+            "source": "CUSTOM"
+          },
+          "velocity": {
+            "value": "50,50",
+            "source": "CUSTOM"
+          },
+          "torque": {
+            "value": "1.0,1.0",
+            "source": "CUSTOM"
+          },
+          "result": {
+            "value": "SUCCESS",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

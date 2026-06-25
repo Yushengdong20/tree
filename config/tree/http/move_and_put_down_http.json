@@ -1,0 +1,56 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "move_and_put_down_http",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "HttpNavigateToPose",
+        "label": "navigate_to_drop_pose",
+        "params": {
+          "x": {
+            "value": "0.8",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://127.0.0.1:18081",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "30",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "HttpPutDownBox",
+        "label": "put_down_box",
+        "params": {
+          "grab_url": {
+            "value": "http://127.0.0.1:18080",
+            "source": "CUSTOM"
+          },
+          "arm": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

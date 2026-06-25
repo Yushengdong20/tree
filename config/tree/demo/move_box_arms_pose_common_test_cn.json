@@ -1,0 +1,147 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "common手臂控制分段测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "只创建共享控制实例（跳过初始化动作）",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "skip_head_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "共享实例创建后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "共享实例已创建，按 Enter 使用 common ArmController 发布初始化手臂位姿...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveBoxArmsToPose",
+        "label": "双臂移动到初始化位姿（common ArmController）",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.351, 0.3, 0.2, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.351, -0.3, 0.2, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化位姿后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "初始化手臂位姿已发布，按 Enter 测试一组抓箱中间位姿...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "Selector",
+        "label": "测试中间位姿（失败则回初始化状态）",
+        "params": {
+          "memory": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "MoveBoxArmsToPose",
+            "label": "双臂移动到抓箱中间测试位姿（common ArmController）",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "pose_frame": {
+                "value": "waist_yaw_link",
+                "source": "CUSTOM"
+              },
+              "left_pose": {
+                "value": "[0.50, 0.30, 0.12, 0.0, -60.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "right_pose": {
+                "value": "[0.50, -0.30, 0.12, 0.0, -60.0, 0.0]",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "EnsureMoveBoxServices",
+            "label": "中间位姿失败后回到初始化状态",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "skip_torso_motion": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          }
+        ]
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "测试结束暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "common 手臂控制测试完成，按 Enter 结束...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

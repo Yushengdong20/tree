@@ -1,0 +1,221 @@
+"""使用 common ArmController 控制双臂。
+
+坐标系约定：
+- `base_link` 是机器人机体/底盘基准坐标系；其实体原点由 URDF/TF 定义，
+  不在行为树节点中定义。实机调试时可用 `rosrun tf tf_echo base_link waist_yaw_link`
+  或 `rosrun tf tf_echo base_link left_claw` 确认。
+- `waist_yaw_link` 是腰部 yaw 关节相关坐标系，ArmController 的初始化手臂位姿
+  默认按该坐标系填写。
+- 本节点内部会通过 ArmController 将 `base_link` 目标转换到 `waist_yaw_link`
+  后交给底层手臂事件和 IK。
+- `target_type=claw_point` 当前仅支持 `pose_frame=base_link`，用于保持与
+  MoveBoxBothClawsToPoints 的历史语义一致。
+
+数据来源优先级：
+1. JSON `left_pose/right_pose`，直接下发左右 eef 末端完整位姿。
+2. blackboard `left_pose_key/right_pose_key`，读取前置计算节点写入的 eef 完整位姿。
+3. `target_type=claw_point` 时读取 `left_point_key/right_point_key`，把夹爪目标点反算成 eef 位姿。
+4. 默认使用 ArmController 初始化位姿，避免缺参时下发危险目标。
+"""
+
+import ast
+
+import py_trees
+from py_trees.common import Status
+
+from ..base import TimedMockAction
+
+
+class MoveBoxArmsToPose(TimedMockAction):
+    """读取左右臂目标，并复用 move_box services 中的 common ArmController。
+
+    JSON 参数：
+    - left_pose/right_pose: [x, y, z, yaw, pitch, roll]
+    - left_pose_key/right_pose_key: blackboard 中的 eef 完整位姿 key
+    - target_type: eef_pose / claw_point
+    - left_point_key/right_point_key: blackboard 中的夹爪目标点 key
+    - pose_frame: 目标位姿坐标系，支持 base_link / waist_yaw_link。
+      注意：claw_point 模式目前只能使用 base_link。
+
+    默认使用 waist_yaw_link，是为了和 ArmController.move_to_initial_pose()
+    使用的初始化手臂位姿坐标系保持一致。
+    """
+
+    def __init__(self, name, config_label, ros_node, params):
+        super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
+        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.left_pose = self._parse_pose(params.get("left_pose", None), "left_pose")
+        self.right_pose = self._parse_pose(params.get("right_pose", None), "right_pose")
+        self.left_pose_key = str(params.get("left_pose_key", "")).strip()
+        self.right_pose_key = str(params.get("right_pose_key", "")).strip()
+        self.target_type = str(params.get("target_type", "eef_pose")).strip()
+        self.left_point_key = str(params.get("left_point_key", "")).strip()
+        self.right_point_key = str(params.get("right_point_key", "")).strip()
+        self.pose_frame = str(params.get("pose_frame", "waist_yaw_link")).strip()
+        self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
+        for key in [
+            self.left_pose_key,
+            self.right_pose_key,
+            self.left_point_key,
+            self.right_point_key,
+        ]:
+            if key:
+                self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
+
+    @staticmethod
+    def _parse_pose(value, name):
+        if value is None or value == "":
+            return None
+        if isinstance(value, str):
+            value = ast.literal_eval(value)
+        if not isinstance(value, (list, tuple)) or len(value) != 6:
+            raise ValueError(f"{name} 必须是长度为 6 的列表: [x, y, z, yaw, pitch, roll]")
+        return [float(item) for item in value]
+
+    @staticmethod
+    def _parse_point(value, name):
+        if value is None or value == "":
+            return None
+        if isinstance(value, str):
+            value = ast.literal_eval(value)
+        if hasattr(value, "tolist"):
+            value = value.tolist()
+        if not isinstance(value, (list, tuple)) or len(value) != 3:
+            raise ValueError(f"{name} 必须是长度为 3 的列表: [x, y, z]")
+        return [float(item) for item in value]
+
+    def _get_blackboard_value(self, key, label):
+        if not key:
+            self.ros_node.get_logger().error(f"[{self.config_label}] 缺少 {label}")
+            return None
+        if not self.blackboard.exists(key):
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] blackboard 缺少 {label}: key={key}"
+            )
+            return None
+        return self.blackboard.get(key)
+
+    def update(self):
+        if self.should_use_mock_execution():
+            return self.update_mock_result()
+
+        services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
+        if services is None or not hasattr(services, "arm_controller"):
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] move_box services 或 arm_controller 缺失: key={self.services_key}"
+            )
+            return Status.FAILURE
+        if self.should_skip_arm_motion():
+            self.log_skip_arm_motion()
+            return Status.SUCCESS
+
+        arm_controller = services.arm_controller
+        resolved = self._resolve_targets(arm_controller)
+        if resolved is None:
+            return Status.FAILURE
+        left_target, right_target, target_source = resolved
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 使用 common ArmController 发布双臂目标: "
+            f"source={target_source}, frame={self.pose_frame}, "
+            f"left={left_target}, right={right_target}"
+        )
+        arm_controller.reach_time = 0.0
+        ok = arm_controller.execute_arm_event(
+            left_target,
+            right_target,
+            pose_frame=self.pose_frame,
+        )
+        return Status.SUCCESS if ok else Status.FAILURE
+
+    def _resolve_targets(self, arm_controller):
+        if self.left_pose is not None and self.right_pose is not None:
+            return list(self.left_pose), list(self.right_pose), "json:eef_pose"
+
+        if self.left_pose_key and self.right_pose_key:
+            left_value = self._get_blackboard_value(self.left_pose_key, "left_pose_key")
+            right_value = self._get_blackboard_value(self.right_pose_key, "right_pose_key")
+            if left_value is None or right_value is None:
+                return None
+            return (
+                self._parse_pose(left_value, self.left_pose_key),
+                self._parse_pose(right_value, self.right_pose_key),
+                "blackboard:eef_pose",
+            )
+
+        if self.target_type == "claw_point":
+            return self._resolve_claw_point_targets(arm_controller)
+
+        if self.pose_frame == "waist_yaw_link":
+            return (
+                list(arm_controller.initial_left_pose_in_waist),
+                list(arm_controller.initial_right_pose_in_waist),
+                "default:initial_pose@waist_yaw_link",
+            )
+        if self.pose_frame == "base_link":
+            if hasattr(arm_controller, "refresh_initial_pose_in_base_link"):
+                arm_controller.refresh_initial_pose_in_base_link()
+            return (
+                list(arm_controller.initial_left_pose_in_baselink),
+                list(arm_controller.initial_right_pose_in_baselink),
+                "default:initial_pose@base_link",
+            )
+
+        raise ValueError("pose_frame 仅支持 base_link 或 waist_yaw_link")
+
+    def _resolve_claw_point_targets(self, arm_controller):
+        if self.pose_frame != "base_link":
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] claw_point 模式当前仅支持 base_link，当前 pose_frame={self.pose_frame}"
+            )
+            return None
+
+        left_value = self._get_blackboard_value(self.left_point_key, "left_point_key")
+        right_value = self._get_blackboard_value(self.right_point_key, "right_point_key")
+        if left_value is None or right_value is None:
+            return None
+
+        left_point = self._parse_point(left_value, self.left_point_key)
+        right_point = self._parse_point(right_value, self.right_point_key)
+        left_ee_point = arm_controller.claw_point_to_end_effector_point(left_point, "left")
+        right_ee_point = arm_controller.claw_point_to_end_effector_point(right_point, "right")
+        if left_ee_point is None or right_ee_point is None:
+            return None
+
+        left_ypr = arm_controller.get_initial_left_ypr()
+        right_ypr = arm_controller.get_initial_right_ypr()
+        left_target = [
+            left_ee_point[0],
+            left_ee_point[1],
+            left_ee_point[2],
+            left_ypr[0],
+            left_ypr[1],
+            left_ypr[2],
+        ]
+        right_target = [
+            right_ee_point[0],
+            right_ee_point[1],
+            right_ee_point[2],
+            right_ypr[0],
+            right_ypr[1],
+            right_ypr[2],
+        ]
+        return left_target, right_target, "blackboard:claw_point"
+
+    def describe_start(self):
+        if self.left_pose is not None or self.right_pose is not None:
+            left_desc = self.left_pose
+            right_desc = self.right_pose
+        elif self.left_pose_key or self.right_pose_key:
+            left_desc = f"blackboard:{self.left_pose_key}"
+            right_desc = f"blackboard:{self.right_pose_key}"
+        elif self.target_type == "claw_point":
+            left_desc = f"claw_point:{self.left_point_key}"
+            right_desc = f"claw_point:{self.right_point_key}"
+        else:
+            left_desc = f"initial_left_pose@{self.pose_frame}"
+            right_desc = f"initial_right_pose@{self.pose_frame}"
+        return (
+            f"[{self.config_label}] MoveBoxArmsToPose start: "
+            f"target_type={self.target_type}, frame={self.pose_frame}, "
+            f"left={left_desc}, right={right_desc}"
+        )

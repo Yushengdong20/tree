@@ -1,0 +1,36 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "move_grab_and_put_down_http",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "SubTree",
+        "label": "grab_phase",
+        "params": {
+          "file": {
+            "value": "move_and_grab_http.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SubTree",
+        "label": "put_down_phase",
+        "params": {
+          "file": {
+            "value": "move_and_put_down_http.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

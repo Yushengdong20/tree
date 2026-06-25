@@ -1,0 +1,161 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "直接抓取到闭爪流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "CheckMoveBoxRequestFlag",
+        "label": "检查抓取请求",
+        "params": {
+          "request_key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxDetectionReady",
+        "label": "确认视觉检测有效",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "detect_timeout_sec": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "restart_on_timeout": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "detection_reset_service": {
+            "value": "/foundationpose/reset",
+            "source": "CUSTOM"
+          },
+          "detection_reset_timeout_sec": {
+            "value": "5.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "CheckMoveBoxGraspDataReady",
+        "label": "检查抓取数据有效",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxDirectGraspTargets",
+        "label": "计算直接抓取目标",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "direct_approach_offset": {
+            "value": "0.05",
+            "source": "CUSTOM"
+          },
+          "direct_descend_below_offset": {
+            "value": "0.06",
+            "source": "CUSTOM"
+          },
+          "direct_lift_offset": {
+            "value": "0.3",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxBothClawsToPoints",
+        "label": "双夹爪同步移动到左右边缘上方",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_direct_left_above_edge",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_direct_right_above_edge",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxBothClawsToPoints",
+        "label": "双夹爪同步下降到左右边缘下方",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_direct_left_below_edge",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_direct_right_below_edge",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxCloseClaw",
+        "label": "同时闭合左右夹爪",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}
+

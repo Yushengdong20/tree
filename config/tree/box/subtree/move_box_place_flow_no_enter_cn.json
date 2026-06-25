@@ -1,0 +1,73 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "放置箱体流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "ComputeMoveBoxPlaceTargets",
+        "label": "计算双夹爪放置下降目标",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "place_plane_height": {
+            "value": "0.7",
+            "source": "CUSTOM"
+          },
+          "box_size_z": {
+            "value": "0.34",
+            "source": "CUSTOM"
+          },
+          "left_target_key": {
+            "value": "move_box_place_left_lower_claw_point",
+            "source": "CUSTOM"
+          },
+          "right_target_key": {
+            "value": "move_box_place_right_lower_claw_point",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxBothClawsToPoints",
+        "label": "双夹爪同步下降到放置高度",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_place_left_lower_claw_point",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_place_right_lower_claw_point",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxOpenClaw",
+        "label": "张开双夹爪释放箱体",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}
+

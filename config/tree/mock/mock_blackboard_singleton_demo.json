@@ -1,0 +1,50 @@
+{
+  "tree": {
+    "name": "Repeat",
+    "label": "repeat_shared_hello_three_times",
+    "params": {
+      "_comment": "Repeat 装饰器让同一段流程连续成功 3 次，用来观察共享实例是否被重复创建。",
+      "num_success": {
+        "value": "3",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "Sequence",
+        "label": "shared_hello_sequence",
+        "params": {
+          "_comment": "每一轮都先确保服务实例存在，再调用它打印 hello world。",
+          "memory": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "EnsureMockHelloService",
+            "label": "ensure_shared_service",
+            "params": {
+              "_comment": "第一次执行时创建共享实例，后续执行时直接复用同一个 blackboard key。",
+              "service_key": {
+                "value": "runtime_mock_hello_service",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "UseMockHelloService",
+            "label": "hello_once",
+            "params": {
+              "_comment": "从同一个 blackboard key 里取实例并调用 say_hello；验证 instance_id 不变、call_count 递增。",
+              "service_key": {
+                "value": "runtime_mock_hello_service",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

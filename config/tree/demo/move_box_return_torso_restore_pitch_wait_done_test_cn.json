@@ -1,0 +1,238 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "测试躯干回位并恢复双手pitch的wait_done差异",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "只创建共享控制实例（跳过初始化动作）",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "skip_head_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "共享实例创建后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "共享实例已创建，按 Enter 设置第一次相同测试起点姿态...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "设置相同起点腰部姿态1",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose": {
+            "value": "[0.5, 0.0, 1.1, 0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxArmsToPose",
+        "label": "设置相同起点双臂姿态1",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.351, 0.3, 0.2, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.351, -0.3, 0.2, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "起点姿态1完成后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "第一次起点姿态已完成，按 Enter 测试 wait_done=True...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxReturnTorsoAndRestorePitch",
+        "label": "测试 wait_done=True 的回位速度",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "post_torso_return_pitch": {
+            "value": "-60.0",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "wait_done=True测试后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "wait_done=True 已执行完成，按 Enter 重置到同一测试起点姿态...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "设置相同起点腰部姿态2",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose": {
+            "value": "[0.5, 0.0, 1.1, 0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxArmsToPose",
+        "label": "设置相同起点双臂姿态2",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.351, 0.3, 0.2, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.351, -0.3, 0.2, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "起点姿态2完成后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "第二次起点姿态已完成，按 Enter 测试 wait_done=False...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxReturnTorsoAndRestorePitch",
+        "label": "测试 wait_done=False 的回位速度",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "post_torso_return_pitch": {
+            "value": "-60.0",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "测试结束暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "wait_done=True/False 对比测试完成，按 Enter 结束...",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "move_claw_test",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "MoveClaw",
+        "label": "open_claw",
+        "params": {
+          "target_positions": {
+            "value": "0.0,0.0",
+            "source": "CUSTOM"
+          },
+          "velocity": {
+            "value": "80,80",
+            "source": "CUSTOM"
+          },
+          "torque": {
+            "value": "1.0,1.0",
+            "source": "CUSTOM"
+          },
+          "publish_count": {
+            "value": "20",
+            "source": "CUSTOM"
+          },
+          "publish_interval_sec": {
+            "value": "0.1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "等待继续闭合（按 Enter）",
+        "params": {
+          "message": {
+            "value": "夹爪已张开，按 Enter 继续执行闭合测试...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveClaw",
+        "label": "close_claw",
+        "params": {
+          "target_positions": {
+            "value": "20.0,20.0",
+            "source": "CUSTOM"
+          },
+          "velocity": {
+            "value": "80,80",
+            "source": "CUSTOM"
+          },
+          "torque": {
+            "value": "1.0,1.0",
+            "source": "CUSTOM"
+          },
+          "publish_count": {
+            "value": "20",
+            "source": "CUSTOM"
+          },
+          "publish_interval_sec": {
+            "value": "0.1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}
