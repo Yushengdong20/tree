@@ -1,0 +1,278 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "头部盯map两点循环切换测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 控制实例",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "共享实例创建后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "共享实例已创建，按 Enter 开始头部盯 map 点 A...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Repeat",
+        "label": "循环切换盯住map点A和点B",
+        "params": {
+          "num_success": {
+            "value": "-1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮A/B点位切换",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "Parallel",
+                "label": "持续盯住map点A，按Enter切到点B",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnOne",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "MoveBoxTrackHeadToMapPoint",
+                    "label": "头部持续盯住map点A",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "tracking_mode": {
+                        "value": "split_tf",
+                        "source": "CUSTOM"
+                      },
+                      "target_frame": {
+                        "value": "map",
+                        "source": "CUSTOM"
+                      },
+                      "target_point": {
+                        "value": "[3.0, 4.25, -0.25]",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_frame": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      },
+                      "track_interval_sec": {
+                        "value": "0.1",
+                        "source": "CUSTOM"
+                      },
+                      "max_delta_yaw_deg": {
+                        "value": "5.0",
+                        "source": "CUSTOM"
+                      },
+                      "max_delta_pitch_deg": {
+                        "value": "5.0",
+                        "source": "CUSTOM"
+                      },
+                      "head_control_mode": {
+                        "value": "pd",
+                        "source": "CUSTOM"
+                      },
+                      "head_kp_yaw": {
+                        "value": "0.40",
+                        "source": "CUSTOM"
+                      },
+                      "head_kp_pitch": {
+                        "value": "0.30",
+                        "source": "CUSTOM"
+                      },
+                      "head_kd_yaw": {
+                        "value": "0.06",
+                        "source": "CUSTOM"
+                      },
+                      "head_kd_pitch": {
+                        "value": "0.04",
+                        "source": "CUSTOM"
+                      },
+                      "head_derivative_filter_alpha": {
+                        "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "failure_log_interval_sec": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "axis_length_m": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "debug_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "debug_point_topic": {
+                        "value": "/head_map_point_switch_target",
+                        "source": "CUSTOM"
+                      },
+                      "debug_marker_topic": {
+                        "value": "/head_map_point_switch_marker",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "WaitForEnter",
+                    "label": "按Enter切换到map点B",
+                    "params": {
+                      "message": {
+                        "value": "当前盯住 map 点 A，按 Enter 切换到 map 点 B...",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "Parallel",
+                "label": "持续盯住map点B，按Enter切回点A",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnOne",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "MoveBoxTrackHeadToMapPoint",
+                    "label": "头部持续盯住map点B",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "tracking_mode": {
+                        "value": "split_tf",
+                        "source": "CUSTOM"
+                      },
+                      "target_frame": {
+                        "value": "map",
+                        "source": "CUSTOM"
+                      },
+                      "target_point": {
+                        "value": "[2.0, 1.0, 1.0]",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_frame": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      },
+                      "track_interval_sec": {
+                        "value": "0.1",
+                        "source": "CUSTOM"
+                      },
+                      "max_delta_yaw_deg": {
+                        "value": "5.0",
+                        "source": "CUSTOM"
+                      },
+                      "max_delta_pitch_deg": {
+                        "value": "5.0",
+                        "source": "CUSTOM"
+                      },
+                      "head_control_mode": {
+                        "value": "pd",
+                        "source": "CUSTOM"
+                      },
+                      "head_kp_yaw": {
+                        "value": "0.40",
+                        "source": "CUSTOM"
+                      },
+                      "head_kp_pitch": {
+                        "value": "0.30",
+                        "source": "CUSTOM"
+                      },
+                      "head_kd_yaw": {
+                        "value": "0.06",
+                        "source": "CUSTOM"
+                      },
+                      "head_kd_pitch": {
+                        "value": "0.04",
+                        "source": "CUSTOM"
+                      },
+                      "head_derivative_filter_alpha": {
+                        "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "failure_log_interval_sec": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "axis_length_m": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "debug_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "debug_point_topic": {
+                        "value": "/head_map_point_switch_target",
+                        "source": "CUSTOM"
+                      },
+                      "debug_marker_topic": {
+                        "value": "/head_map_point_switch_marker",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "WaitForEnter",
+                    "label": "按Enter切换回map点A",
+                    "params": {
+                      "message": {
+                        "value": "当前盯住 map 点 B，按 Enter 切换回 map 点 A...",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
