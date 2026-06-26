@@ -22,6 +22,7 @@ import ast
 
 import py_trees
 from py_trees.common import Status
+from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.base_event import EventStatus
 
 from ..base import TimedMockAction
 
@@ -52,6 +53,10 @@ class MoveBoxArmsToPose(TimedMockAction):
         self.left_point_key = str(params.get("left_point_key", "")).strip()
         self.right_point_key = str(params.get("right_point_key", "")).strip()
         self.pose_frame = str(params.get("pose_frame", "waist_yaw_link")).strip()
+        self.arm_controller = None
+        self.started = False
+        self.skipped = False
+        self.startup_error = None
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         for key in [
             self.left_pose_key,
@@ -61,6 +66,59 @@ class MoveBoxArmsToPose(TimedMockAction):
         ]:
             if key:
                 self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
+
+    def initialise(self):
+        """解析目标并启动非阻塞手臂事件。"""
+        super().initialise()
+        self.arm_controller = None
+        self.started = False
+        self.skipped = False
+        self.startup_error = None
+
+        if self.should_use_mock_execution():
+            return
+
+        services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
+        if services is None or not hasattr(services, "arm_controller"):
+            self.startup_error = RuntimeError(
+                f"move_box services 或 arm_controller 缺失: key={self.services_key}"
+            )
+            self.ros_node.get_logger().error(f"[{self.config_label}] {self.startup_error}")
+            return
+        if self.should_skip_arm_motion():
+            self.log_skip_arm_motion()
+            self.skipped = True
+            return
+
+        try:
+            self.arm_controller = services.arm_controller
+            resolved = self._resolve_targets(self.arm_controller)
+            if resolved is None:
+                self.startup_error = RuntimeError("解析双臂目标失败")
+                return
+            left_target, right_target, target_source = resolved
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] 使用 common ArmController 启动双臂目标: "
+                f"source={target_source}, frame={self.pose_frame}, "
+                f"left={left_target}, right={right_target}"
+            )
+
+            # 关键步骤：只在 initialise 中启动一次手臂事件，后续 tick 只查询事件状态。
+            self.arm_controller.reach_time = 0.0
+            if not self.arm_controller.start_arm_event(
+                left_target,
+                right_target,
+                pose_frame=self.pose_frame,
+            ):
+                self.startup_error = RuntimeError("启动手臂事件失败")
+                return
+        except Exception as exc:
+            self.startup_error = exc
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 启动双臂目标失败: {exc}"
+            )
+            return
+        self.started = True
 
     @staticmethod
     def _parse_pose(value, name):
@@ -99,33 +157,34 @@ class MoveBoxArmsToPose(TimedMockAction):
         if self.should_use_mock_execution():
             return self.update_mock_result()
 
-        services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
-        if services is None or not hasattr(services, "arm_controller"):
-            self.ros_node.get_logger().error(
-                f"[{self.config_label}] move_box services 或 arm_controller 缺失: key={self.services_key}"
-            )
+        if self.skipped:
+            return Status.SUCCESS
+        if self.startup_error is not None:
             return Status.FAILURE
-        if self.should_skip_arm_motion():
-            self.log_skip_arm_motion()
+        if not self.started or self.arm_controller is None:
+            return Status.FAILURE
+
+        arm_status = self.arm_controller.get_arm_event_status()
+        if arm_status == EventStatus.RUNNING:
+            return Status.RUNNING
+        if arm_status == EventStatus.SUCCESS:
+            self.started = False
             return Status.SUCCESS
 
-        arm_controller = services.arm_controller
-        resolved = self._resolve_targets(arm_controller)
-        if resolved is None:
-            return Status.FAILURE
-        left_target, right_target, target_source = resolved
-        self.ros_node.get_logger().info(
-            f"[{self.config_label}] 使用 common ArmController 发布双臂目标: "
-            f"source={target_source}, frame={self.pose_frame}, "
-            f"left={left_target}, right={right_target}"
-        )
-        arm_controller.reach_time = 0.0
-        ok = arm_controller.execute_arm_event(
-            left_target,
-            right_target,
-            pose_frame=self.pose_frame,
-        )
-        return Status.SUCCESS if ok else Status.FAILURE
+        self.started = False
+        return Status.FAILURE
+
+    def terminate(self, new_status):
+        """节点被中断时关闭未完成的手臂事件。"""
+        if (
+            self.started
+            and self.arm_controller is not None
+            and new_status != Status.SUCCESS
+        ):
+            # 关键步骤：上层切走 RUNNING 节点时关闭事件，避免手臂后台事件残留。
+            self.arm_controller.stop_arm_event()
+        self.started = False
+        super().terminate(new_status)
 
     def _resolve_targets(self, arm_controller):
         if self.left_pose is not None and self.right_pose is not None:

@@ -85,7 +85,7 @@ def main(args=None):
         # 这里优先推荐只改文件名，路径会自动拼到包内 config 目录。
         tree_json_file=tree_json_file,
         # tick 周期，单位毫秒。调大后更容易观察执行过程。
-        tick_period_ms=50,
+        tick_period_ms=20,
         # 自定义网页可视化开关。
         enable_web_viewer=True,
         # web_viewer_host="127.0.0.1",

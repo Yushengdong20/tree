@@ -1,5 +1,6 @@
 """确保 move_box 视觉检测结果可用，必要时通过 ROS 服务重置 FoundationPose。"""
 
+import threading
 import time
 
 import py_trees
@@ -25,6 +26,15 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
             params.get("detection_reset_service", "/foundationpose/reset")
         ).strip()
         self.detection_reset_timeout_sec = float(params.get("detection_reset_timeout_sec", 5.0))
+        self.services = None
+        self._phase = "IDLE"
+        self._wait_reason = ""
+        self._wait_deadline = 0.0
+        self._next_poll_at = 0.0
+        self._reset_thread = None
+        self._reset_result = None
+        self._reset_generation = 0
+        self._reset_lock = threading.Lock()
 
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.grasp_pair_key, access=py_trees.common.Access.WRITE)
@@ -37,66 +47,131 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
             return value.lower() in ("true", "1", "yes", "on")
         return bool(value)
 
+    def initialise(self):
+        """初始化非阻塞检测等待状态。"""
+        super().initialise()
+        self.services = None
+        self._reset_thread = None
+        self._reset_result = None
+        self._reset_generation += 1
+        if self.restart_before_wait:
+            self._phase = "RESTART_BEFORE_WAIT"
+        else:
+            self._start_wait("WAIT_INITIAL", "初次等待视觉检测")
+
     def update(self):
         if self.should_use_mock_execution():
             return self.update_mock_result()
 
-        services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
-        if services is None:
+        self.services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
+        if self.services is None:
             self.ros_node.get_logger().error(
                 f"[{self.config_label}] move_box services missing on blackboard: key={self.services_key}"
             )
             return Status.FAILURE
 
-        if self.restart_before_wait:
-            if not self._restart_detection_service():
-                return Status.FAILURE
+        if self._phase in ("WAIT_INITIAL", "WAIT_AFTER_RESTART"):
+            return self._update_wait_detection()
+        if self._phase in ("RESTART_BEFORE_WAIT", "RESTART_AFTER_TIMEOUT"):
+            return self._update_restart_detection()
 
-        if self._wait_detection_ready(services, reason="初次等待视觉检测"):
-            return Status.SUCCESS
-
-        if not self.restart_on_timeout:
-            self.ros_node.get_logger().error(f"[{self.config_label}] 视觉检测超时，未配置自动重启")
-            return Status.FAILURE
-
-        if not self._restart_detection_service():
-            return Status.FAILURE
-
-        if self._wait_detection_ready(services, reason="重启后等待视觉检测"):
-            return Status.SUCCESS
-
-        self.ros_node.get_logger().error(f"[{self.config_label}] 重启视觉服务后仍未获得有效箱体检测")
+        self.ros_node.get_logger().error(f"[{self.config_label}] 不支持的检测等待阶段: {self._phase}")
         return Status.FAILURE
 
-    def _wait_detection_ready(self, services, reason):
-        """轮询检测器，并在拿到完整抓取数据后写入 blackboard。"""
-        deadline = time.monotonic() + self.detect_timeout_sec
-        while time.monotonic() <= deadline:
-            services.box_detector.update_latest_grasp_pose(
-                services.arm_controller.get_initial_left_ypr(),
-                services.arm_controller.get_initial_right_ypr(),
+    def _start_wait(self, phase, reason):
+        """开始一个非阻塞检测等待阶段。"""
+        self._phase = phase
+        self._wait_reason = reason
+        self._wait_deadline = time.monotonic() + self.detect_timeout_sec
+        self._next_poll_at = 0.0
+
+    def _update_wait_detection(self):
+        """每次 tick 最多轮询一次检测结果。"""
+        now = time.monotonic()
+        if now > self._wait_deadline:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] {self._wait_reason}超时: "
+                f"{self.detect_timeout_sec:.1f}s 内未获得完整检测数据"
             )
-            grasp_pair = services.box_detector.get_latest_grasp_pair()
-            box_axes = services.box_detector.get_latest_box_axes()
-            box_center = services.box_detector.get_latest_box_center()
-            if grasp_pair is not None and box_axes is not None and box_center is not None:
-                self.blackboard.set(self.grasp_pair_key, grasp_pair, overwrite=True)
-                self.blackboard.set(self.box_axes_key, box_axes, overwrite=True)
-                self.blackboard.set(self.box_center_key, box_center, overwrite=True)
-                self.ros_node.get_logger().info(
-                    f"[{self.config_label}] {reason}成功: grasp_pair=True, box_axes=True, box_center=True"
-                )
-                return True
+            if self._phase == "WAIT_AFTER_RESTART":
+                self.ros_node.get_logger().error(f"[{self.config_label}] 重启视觉服务后仍未获得有效箱体检测")
+                return Status.FAILURE
+            if not self.restart_on_timeout:
+                self.ros_node.get_logger().error(f"[{self.config_label}] 视觉检测超时，未配置自动重启")
+                return Status.FAILURE
 
-            time.sleep(self.poll_interval_sec)
+            self._phase = "RESTART_AFTER_TIMEOUT"
+            self._reset_thread = None
+            self._reset_result = None
+            return Status.RUNNING
 
-        self.ros_node.get_logger().warning(
-            f"[{self.config_label}] {reason}超时: {self.detect_timeout_sec:.1f}s 内未获得完整检测数据"
+        if now < self._next_poll_at:
+            return Status.RUNNING
+
+        if self._poll_detection_ready(self._wait_reason):
+            return Status.SUCCESS
+
+        # 关键步骤：本 tick 未获得检测结果，只记录下次轮询时间并立即让出行为树 tick。
+        self._next_poll_at = now + self.poll_interval_sec
+        return Status.RUNNING
+
+    def _poll_detection_ready(self, reason):
+        """执行一次检测刷新，并在拿到完整抓取数据后写入 blackboard。"""
+        self.services.box_detector.update_latest_grasp_pose(
+            self.services.arm_controller.get_initial_left_ypr(),
+            self.services.arm_controller.get_initial_right_ypr(),
         )
-        return False
+        grasp_pair = self.services.box_detector.get_latest_grasp_pair()
+        box_axes = self.services.box_detector.get_latest_box_axes()
+        box_center = self.services.box_detector.get_latest_box_center()
+        if grasp_pair is None or box_axes is None or box_center is None:
+            return False
 
-    def _restart_detection_service(self):
-        """调用 Trigger 服务重置 FoundationPose，避免行为树直接 SSH 到视觉主机。"""
+        self.blackboard.set(self.grasp_pair_key, grasp_pair, overwrite=True)
+        self.blackboard.set(self.box_axes_key, box_axes, overwrite=True)
+        self.blackboard.set(self.box_center_key, box_center, overwrite=True)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] {reason}成功: grasp_pair=True, box_axes=True, box_center=True"
+        )
+        return True
+
+    def _update_restart_detection(self):
+        """用后台线程执行视觉重置，主 tick 只轮询结果。"""
+        if self._reset_thread is None:
+            self._reset_result = None
+            self._reset_generation += 1
+            reset_generation = self._reset_generation
+            self._reset_thread = threading.Thread(
+                target=self._restart_detection_service_worker,
+                args=(reset_generation,),
+                name=f"{self.config_label}_reset_detection",
+                daemon=True,
+            )
+            self._reset_thread.start()
+            return Status.RUNNING
+
+        if self._reset_thread.is_alive():
+            return Status.RUNNING
+
+        with self._reset_lock:
+            reset_result = self._reset_result
+        if not reset_result or not reset_result.get("ok", False):
+            error = "" if reset_result is None else reset_result.get("error", "")
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 视觉重置失败: {error}"
+            )
+            return Status.FAILURE
+
+        self._reset_thread = None
+        self._reset_result = None
+        if self._phase == "RESTART_BEFORE_WAIT":
+            self._start_wait("WAIT_INITIAL", "初次等待视觉检测")
+        else:
+            self._start_wait("WAIT_AFTER_RESTART", "重启后等待视觉检测")
+        return Status.RUNNING
+
+    def _restart_detection_service_worker(self, reset_generation):
+        """后台调用 Trigger 服务重置 FoundationPose，避免阻塞行为树 tick。"""
         self.ros_node.get_logger().warning(
             f"[{self.config_label}] 视觉检测不可用，调用重置服务: {self.detection_reset_service}"
         )
@@ -113,14 +188,16 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
                 f"[{self.config_label}] 视觉重置服务调用超时: "
                 f"elapsed={elapsed_time:.3f}s, error={exc}"
             )
-            return False
+            self._store_reset_result(reset_generation, False, str(exc))
+            return
         except Exception as exc:
             elapsed_time = time.monotonic() - start_time
             self.ros_node.get_logger().error(
                 f"[{self.config_label}] 视觉重置服务调用失败: "
                 f"elapsed={elapsed_time:.3f}s, error={exc}"
             )
-            return False
+            self._store_reset_result(reset_generation, False, str(exc))
+            return
 
         elapsed_time = time.monotonic() - start_time
         if getattr(response, "success", False):
@@ -128,10 +205,22 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
                 f"[{self.config_label}] 视觉重置服务调用成功: "
                 f"elapsed={elapsed_time:.3f}s, {getattr(response, 'message', '')}"
             )
-            return True
+            self._store_reset_result(reset_generation, True, "")
+            return
 
-        self.ros_node.get_logger().error(
-            f"[{self.config_label}] 视觉重置服务返回失败: "
+        error = (
+            "视觉重置服务返回失败: "
             f"elapsed={elapsed_time:.3f}s, {getattr(response, 'message', '')}"
         )
-        return False
+        self.ros_node.get_logger().error(f"[{self.config_label}] {error}")
+        self._store_reset_result(reset_generation, False, error)
+
+    def _store_reset_result(self, reset_generation, ok, error):
+        """保存后台 reset 线程的结果，供主 tick 读取。"""
+        with self._reset_lock:
+            if reset_generation != self._reset_generation:
+                return
+            self._reset_result = {
+                "ok": bool(ok),
+                "error": str(error),
+            }
