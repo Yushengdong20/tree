@@ -36,6 +36,7 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         self.services_key = str(params.get("services_key", "move_box_services")).strip()
         self.tracking_mode = str(params.get("tracking_mode", "tf")).strip().lower()
         self.target_frame = str(params.get("target_frame", "map")).strip()
+        self.target_point_key = str(params.get("target_point_key", "")).strip()
         self.target_point = self._parse_point(params.get("target_point", [2.0, 1.0, 1.0]))
         self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()
         # 不在节点内部限流，头部控制频率直接跟随行为树 tick。
@@ -68,6 +69,8 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         ).strip()
 
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
+        if self.target_point_key:
+            self.blackboard.register_key(key=self.target_point_key, access=py_trees.common.Access.READ)
         self.debug_point_pub = None
         self.debug_marker_pub = None
         if self.debug_enabled:
@@ -125,13 +128,20 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
             head_controller.reset_tracking_control_state()
             self._reset_head_controller_on_next_tick = False
         target_point_msg = self._build_target_point_msg()
+        if target_point_msg is None:
+            return Status.RUNNING
         split_target_to_head = None
         if self.tracking_mode == "split_tf":
             # split_tf 模式：不再让 TF 一次性查完整 target_frame -> camera。
             # 这里会先分段构造出 target_frame -> camera 的矩阵，并直接得到
             # camera/head_frame 下的目标点，供 HeadController 解算 yaw/pitch。
             target_in_head, split_target_to_head = self._build_split_tf_target_in_head(
-                head_controller
+                head_controller,
+                [
+                    target_point_msg.point.x,
+                    target_point_msg.point.y,
+                    target_point_msg.point.z,
+                ],
             )
             self._publish_debug_markers(
                 head_controller,
@@ -208,13 +218,34 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
 
     def _build_target_point_msg(self):
         """把 JSON 目标点发布成 PointStamped，方便 rostopic/RViz 检查输入点。"""
+        target_point = self._get_target_point()
+        if target_point is None:
+            return None
         point_msg = PointStamped()
         point_msg.header.stamp = self.ros_node.now()
         point_msg.header.frame_id = self.target_frame
-        point_msg.point.x = self.target_point[0]
-        point_msg.point.y = self.target_point[1]
-        point_msg.point.z = self.target_point[2]
+        point_msg.point.x = target_point[0]
+        point_msg.point.y = target_point[1]
+        point_msg.point.z = target_point[2]
         return point_msg
+
+    def _get_target_point(self):
+        """读取当前固定点；target_point_key 优先，否则使用 JSON target_point。"""
+        if not self.target_point_key:
+            return self.target_point
+        if not self.blackboard.exists(self.target_point_key):
+            self._log_failure(
+                f"[{self.config_label}] blackboard 缺少头部目标点: key={self.target_point_key}"
+            )
+            return None
+        try:
+            return self._parse_point(self.blackboard.get(self.target_point_key))
+        except Exception as err:
+            self._log_failure(
+                f"[{self.config_label}] blackboard 头部目标点格式异常: "
+                f"key={self.target_point_key}, err={err}"
+            )
+            return None
 
     def _turn_to_head_frame_point(self, head_controller, target_in_head):
         """复用 HeadController 通用 P/PD 控制，保持与 YOLO 盯箱节点一致的调参语义。"""
@@ -351,7 +382,7 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
             )
         )
 
-    def _build_split_tf_target_in_head(self, head_controller):
+    def _build_split_tf_target_in_head(self, head_controller, target_point):
         """方案 A：分段组合 TF，再把 map 目标点转换到 camera/head_frame。
 
         旧链路直接查询 target_frame -> head_frame，TF 会自行拼完整链路：
@@ -421,7 +452,7 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         #   y: 目标相对 camera x 轴的左右偏差
         #   z: 目标相对 camera x 轴的上下偏差
         target_xyz_in_head = head_to_target.dot(
-            [self.target_point[0], self.target_point[1], self.target_point[2], 1.0]
+            [target_point[0], target_point[1], target_point[2], 1.0]
         )
 
         # 6. 封装成 HeadController 需要的 PointStamped。

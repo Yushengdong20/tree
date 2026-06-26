@@ -64,86 +64,128 @@
                 },
                 "childs": [
                   {
-                    "name": "MoveBoxTrackHeadToLockedYoloBox",
-                    "label": "抓箱前单帧锁定YOLO箱体并持续盯住",
+                    "name": "Sequence",
+                    "label": "抓箱前单帧YOLO锁点后持续盯箱",
                     "params": {
-                      "services_key": {
-                        "value": "move_box_services",
-                        "source": "CUSTOM"
-                      },
-                      "yolo_topic": {
-                        "value": "/yolo/target_poses",
-                        "source": "CUSTOM"
-                      },
-                      "target_select_frame": {
-                        "value": "base_link",
-                        "source": "CUSTOM"
-                      },
-                      "control_frame": {
-                        "value": "map",
-                        "source": "CUSTOM"
-                      },
-                      "max_delta_yaw_deg": {
-                        "value": "5.0",
-                        "source": "CUSTOM"
-                      },
-                      "max_delta_pitch_deg": {
-                        "value": "5.0",
-                        "source": "CUSTOM"
-                      },
-                      "head_control_mode": {
-                        "value": "pd",
-                        "source": "CUSTOM"
-                      },
-                      "head_kp_yaw": {
-                        "value": "0.50",
-                        "source": "CUSTOM"
-                      },
-                      "head_kp_pitch": {
-                        "value": "0.50",
-                        "source": "CUSTOM"
-                      },
-                      "head_kd_yaw": {
-                        "value": "0.15",
-                        "source": "CUSTOM"
-                      },
-                      "head_kd_pitch": {
-                        "value": "0.08",
-                        "source": "CUSTOM"
-                      },
-                      "head_derivative_filter_alpha": {
-                        "value": "0.5",
-                        "source": "CUSTOM"
-                      },
-                      "no_target_log_interval_sec": {
-                        "value": "1.0",
-                        "source": "CUSTOM"
-                      },
-                      "failure_log_interval_sec": {
-                        "value": "1.0",
-                        "source": "CUSTOM"
-                      },
-                      "axis_length_m": {
-                        "value": "1.0",
-                        "source": "CUSTOM"
-                      },
-                      "debug_enabled": {
+                      "memory": {
                         "value": "True",
                         "source": "CUSTOM"
-                      },
-                      "debug_point_topic": {
-                        "value": "/head_track_yolo_target_point",
-                        "source": "CUSTOM"
-                      },
-                      "debug_marker_topic": {
-                        "value": "/head_track_yolo_marker",
-                        "source": "CUSTOM"
-                      },
-                      "chassis_frame": {
-                        "value": "melon_odom",
-                        "source": "CUSTOM"
                       }
-                    }
+                    },
+                    "childs": [
+                      {
+                        "name": "ComputeMoveBoxLockedYoloTarget",
+                        "label": "单帧YOLO计算箱体map锁点",
+                        "params": {
+                          "services_key": {
+                            "value": "move_box_services",
+                            "source": "CUSTOM"
+                          },
+                          "yolo_topic": {
+                            "value": "/yolo/target_poses",
+                            "source": "CUSTOM"
+                          },
+                          "target_select_frame": {
+                            "value": "base_link",
+                            "source": "CUSTOM"
+                          },
+                          "control_frame": {
+                            "value": "map",
+                            "source": "CUSTOM"
+                          },
+                          "chassis_frame": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "target_point_key": {
+                            "value": "move_box_locked_yolo_head_target_point",
+                            "source": "CUSTOM"
+                          },
+                          "no_target_log_interval_sec": {
+                            "value": "1.0",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "MoveBoxTrackHeadToMapPoint",
+                        "label": "抓箱前头部持续盯住YOLO锁点",
+                        "params": {
+                          "services_key": {
+                            "value": "move_box_services",
+                            "source": "CUSTOM"
+                          },
+                          "tracking_mode": {
+                            "value": "split_tf",
+                            "source": "CUSTOM"
+                          },
+                          "target_frame": {
+                            "value": "map",
+                            "source": "CUSTOM"
+                          },
+                          "target_point_key": {
+                            "value": "move_box_locked_yolo_head_target_point",
+                            "source": "CUSTOM"
+                          },
+                          "chassis_frame": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "max_delta_yaw_deg": {
+                            "value": "5.0",
+                            "source": "CUSTOM"
+                          },
+                          "max_delta_pitch_deg": {
+                            "value": "5.0",
+                            "source": "CUSTOM"
+                          },
+                          "head_control_mode": {
+                            "value": "pd",
+                            "source": "CUSTOM"
+                          },
+                          "head_kp_yaw": {
+                            "value": "0.50",
+                            "source": "CUSTOM"
+                          },
+                          "head_kp_pitch": {
+                            "value": "0.50",
+                            "source": "CUSTOM"
+                          },
+                          "head_kd_yaw": {
+                            "value": "0.15",
+                            "source": "CUSTOM"
+                          },
+                          "head_kd_pitch": {
+                            "value": "0.08",
+                            "source": "CUSTOM"
+                          },
+                          "head_derivative_filter_alpha": {
+                            "value": "0.5",
+                            "source": "CUSTOM"
+                          },
+                          "failure_log_interval_sec": {
+                            "value": "1.0",
+                            "source": "CUSTOM"
+                          },
+                          "axis_length_m": {
+                            "value": "1.0",
+                            "source": "CUSTOM"
+                          },
+                          "debug_enabled": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          },
+                          "debug_point_topic": {
+                            "value": "/head_track_yolo_target_point",
+                            "source": "CUSTOM"
+                          },
+                          "debug_marker_topic": {
+                            "value": "/head_track_yolo_marker",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      }
+                    ]
                   },
                   {
                     "name": "SubTree",
