@@ -40,6 +40,8 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()
         self.track_interval_sec = float(params.get("track_interval_sec", 0.2))
         self.failure_log_interval_sec = float(params.get("failure_log_interval_sec", 1.0))
+        self.tick_debug_enabled = self._to_bool(params.get("tick_debug_enabled", False))
+        self.tick_log_interval_sec = float(params.get("tick_log_interval_sec", 1.0))
         self.axis_length_m = float(params.get("axis_length_m", 1.0))
         # 与 YOLO 盯箱节点共用 HeadController 的 P/PD 增量控制：
         # 这里的参数只影响“目标点已经转换到 camera/head_frame 后怎么转头”，
@@ -83,25 +85,31 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
 
         self._last_track_time = 0.0
         self._last_failure_log_time = 0.0
+        self._last_tick_log_time = 0.0
+        self._tick_count = 0
         self._reset_head_controller_on_next_tick = True
         self._skip_logged = False
 
     def initialise(self):
         super().initialise()
         self._last_track_time = 0.0
+        self._last_tick_log_time = 0.0
+        self._tick_count = 0
         self._reset_head_controller_on_next_tick = True
         self._skip_logged = False
 
     def update(self):
         # 这个节点是持续 RUNNING 的跟踪节点，按 track_interval_sec 周期刷新一次头部目标。
         # 如果开启跳过头部动作，只保留节点运行状态，不会发布头部控制命令。
+        now = time.monotonic()
+        self._tick_count += 1
+        self._log_tick_debug(now)
         if self.should_skip_head_motion():
             if not self._skip_logged:
                 self.log_skip_head_motion()
                 self._skip_logged = True
             return Status.RUNNING
 
-        now = time.monotonic()
         if now - self._last_track_time < self.track_interval_sec:
             return Status.RUNNING
         self._last_track_time = now
@@ -167,6 +175,24 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         if now - self._last_failure_log_time >= self.failure_log_interval_sec:
             self.ros_node.get_logger().warning(message)
             self._last_failure_log_time = now
+
+    def _log_tick_debug(self, now):
+        """节流打印 update() 被 tick 的情况，用来排查并行节点是否被阻塞。"""
+        if not self.tick_debug_enabled:
+            return
+        if now - self._last_tick_log_time < self.tick_log_interval_sec:
+            return
+
+        elapsed_from_control = (
+            -1.0 if self._last_track_time <= 0.0 else now - self._last_track_time
+        )
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] tick alive: "
+            f"count={self._tick_count}, mode={self.tracking_mode}, "
+            f"elapsed_from_last_control={elapsed_from_control:.3f}s, "
+            f"track_interval={self.track_interval_sec:.3f}s"
+        )
+        self._last_tick_log_time = now
 
     @staticmethod
     def _optional_float(value):

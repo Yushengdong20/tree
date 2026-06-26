@@ -295,6 +295,14 @@
                         "value": "1.0",
                         "source": "CUSTOM"
                       },
+                      "tick_debug_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "tick_log_interval_sec": {
+                        "value": "0.5",
+                        "source": "CUSTOM"
+                      },
                       "axis_length_m": {
                         "value": "1.0",
                         "source": "CUSTOM"
