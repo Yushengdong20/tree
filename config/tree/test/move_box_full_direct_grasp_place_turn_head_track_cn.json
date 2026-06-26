@@ -488,60 +488,78 @@
                             "source": "CUSTOM"
                           }
                         }
-                      },
-                      {
-                        "name": "Parallel",
-                        "label": "后退回等待区域并同步回到抓取初始位姿",
-                        "params": {
-                          "policy": {
-                            "value": "SuccessOnAll",
-                            "source": "CUSTOM"
-                          }
-                        },
-                        "childs": [
-                          {
-                            "name": "HttpNavigateToPose",
-                            "label": "回等待区域前先后退1米",
-                            "params": {
-                              "x": {
-                                "value": "2.820933034031259",
-                                "source": "CUSTOM"
-                              },
-                              "y": {
-                                "value": "2.307197578516518",
-                                "source": "CUSTOM"
-                              },
-                              "yaw": {
-                                "value": "-150.41201143492874",
-                                "source": "CUSTOM"
-                              },
-                              "chassis_url": {
-                                "value": "http://localhost:8081",
-                                "source": "CUSTOM"
-                              },
-                              "navigation_timeout_sec": {
-                                "value": "600",
-                                "source": "CUSTOM"
-                              },
-                              "poll_interval_sec": {
-                                "value": "0.2",
-                                "source": "CUSTOM"
-                              }
-                            }
-                          },
-                          {
-                            "name": "SubTree",
-                            "label": "放箱后通用节点回到抓取初始位姿",
-                            "params": {
-                              "file": {
-                                "value": "subtree/move_box_return_to_grasp_ready_common_cn.json",
-                                "source": "CUSTOM"
-                              }
-                            }
-                          }
-                        ]
                       }
                     ]
+                  }
+                ]
+              },
+              {
+                "name": "MoveBoxHeadToPose",
+                "label": "放箱完成后头部回到下一轮抓取观测姿态",
+                "params": {
+                  "services_key": {
+                    "value": "move_box_services",
+                    "source": "CUSTOM"
+                  },
+                  "yaw": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  },
+                  "pitch": {
+                    "value": "20.0",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "Parallel",
+                "label": "后退回等待区域并同步回到抓取初始位姿",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "回等待区域前先后退1米",
+                    "params": {
+                      "x": {
+                        "value": "2.820933034031259",
+                        "source": "CUSTOM"
+                      },
+                      "y": {
+                        "value": "2.307197578516518",
+                        "source": "CUSTOM"
+                      },
+                      "yaw": {
+                        "value": "-150.41201143492874",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "SubTree",
+                    "label": "放箱后通用节点回到抓取初始位姿",
+                    "params": {
+                      "file": {
+                        "value": "subtree/move_box_return_to_grasp_ready_common_cn.json",
+                        "source": "CUSTOM"
+                      }
+                    }
                   }
                 ]
               }
