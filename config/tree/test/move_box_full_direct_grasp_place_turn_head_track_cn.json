@@ -64,8 +64,8 @@
                 },
                 "childs": [
                   {
-                    "name": "MoveBoxTrackHeadToYoloBox",
-                    "label": "抓箱前头部持续盯住YOLO箱体",
+                    "name": "MoveBoxTrackHeadToLockedYoloBox",
+                    "label": "抓箱前单帧锁定YOLO箱体并持续盯住",
                     "params": {
                       "services_key": {
                         "value": "move_box_services",
@@ -77,10 +77,6 @@
                       },
                       "target_select_frame": {
                         "value": "base_link",
-                        "source": "CUSTOM"
-                      },
-                      "control_mode": {
-                        "value": "latched_map_target",
                         "source": "CUSTOM"
                       },
                       "control_frame": {
@@ -119,34 +115,6 @@
                         "value": "0.5",
                         "source": "CUSTOM"
                       },
-                      "lock_residual_fast_m": {
-                        "value": "0.12",
-                        "source": "CUSTOM"
-                      },
-                      "lock_residual_slow_m": {
-                        "value": "0.35",
-                        "source": "CUSTOM"
-                      },
-                      "lock_fast_alpha": {
-                        "value": "0.5",
-                        "source": "CUSTOM"
-                      },
-                      "lock_slow_alpha": {
-                        "value": "0.2",
-                        "source": "CUSTOM"
-                      },
-                      "lock_pending_confirm_count": {
-                        "value": "2",
-                        "source": "CUSTOM"
-                      },
-                      "lock_pending_match_m": {
-                        "value": "0.2",
-                        "source": "CUSTOM"
-                      },
-                      "chassis_yaw_rate_slow_update_deg_s": {
-                        "value": "12.0",
-                        "source": "CUSTOM"
-                      },
                       "no_target_log_interval_sec": {
                         "value": "1.0",
                         "source": "CUSTOM"
@@ -169,10 +137,6 @@
                       },
                       "debug_marker_topic": {
                         "value": "/head_track_yolo_marker",
-                        "source": "CUSTOM"
-                      },
-                      "debug_frame": {
-                        "value": "map",
                         "source": "CUSTOM"
                       },
                       "chassis_frame": {

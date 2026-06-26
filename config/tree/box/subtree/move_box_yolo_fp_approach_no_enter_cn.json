@@ -59,6 +59,10 @@
                     "value": "move_box_yolo_navigation_target",
                     "source": "CUSTOM"
                   },
+                  "box_map_pose_topic": {
+                    "value": "/move_box/yolo_box_pose_map",
+                    "source": "CUSTOM"
+                  },
                   "navigation_timeout_sec": {
                     "value": "600",
                     "source": "CUSTOM"

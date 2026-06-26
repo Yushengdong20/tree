@@ -5,6 +5,7 @@ import time
 import uuid
 
 import py_trees
+from geometry_msgs.msg import PoseStamped
 from py_trees.common import Status
 
 from ..base import TimedMockAction
@@ -46,9 +47,20 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.navigation_target_key = str(
             params.get("navigation_target_key", "move_box_yolo_navigation_target")
         ).strip()
+        self.box_map_pose_topic = str(
+            params.get("box_map_pose_topic", "/move_box/yolo_box_pose_map")
+        ).strip()
         self.keep_running_after_success = self._to_bool(
             params.get("keep_running_after_success", False)
         )
+        self.box_map_pose_pub = None
+        if self.box_map_pose_topic:
+            self.box_map_pose_pub = self.ros_node.create_publisher(
+                self.box_map_pose_topic,
+                PoseStamped,
+                queue_size=1,
+                latch=True,
+            )
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="flow_result", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key="final_pose", access=py_trees.common.Access.WRITE)
@@ -119,6 +131,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     self._box_base_position["x"],
                     self._box_base_position["y"],
                 )
+                self._publish_box_map_pose()
                 box_distance_m = math.hypot(
                     self._box_global_position["x"] - self._current_pose.x,
                     self._box_global_position["y"] - self._current_pose.y,
@@ -279,6 +292,28 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "yaw": yaw,
             },
             overwrite=True,
+        )
+
+    def _publish_box_map_pose(self):
+        """发布 map 坐标系下的 YOLO 箱体中心位姿。"""
+        if self.box_map_pose_pub is None:
+            return
+
+        box_pose = PoseStamped()
+        box_pose.header.stamp = self.ros_node.now()
+        box_pose.header.frame_id = "map"
+        box_pose.pose.position.x = self._box_global_position["x"]
+        box_pose.pose.position.y = self._box_global_position["y"]
+        # 关键步骤：当前只对 x/y 做二维 map 转换，z 直接沿用 base_link 下的 YOLO 检测值。
+        box_pose.pose.position.z = self._box_base_position["z"]
+        # YOLO 只提供箱体中心位置，没有可靠朝向，使用单位四元数占位。
+        box_pose.pose.orientation.w = 1.0
+        self.box_map_pose_pub.publish(box_pose)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已发布 map 下 YOLO 箱体位姿: "
+            f"topic={self.box_map_pose_topic}, "
+            f"position=({box_pose.pose.position.x:.3f}, "
+            f"{box_pose.pose.position.y:.3f}, {box_pose.pose.position.z:.3f})"
         )
 
     def describe_start(self):
