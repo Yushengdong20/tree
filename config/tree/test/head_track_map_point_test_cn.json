@@ -65,10 +65,6 @@
             "value": "melon_odom",
             "source": "CUSTOM"
           },
-          "track_interval_sec": {
-            "value": "0.2",
-            "source": "CUSTOM"
-          },
           "max_delta_yaw_deg": {
             "value": "5.0",
             "source": "CUSTOM"

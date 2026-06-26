@@ -125,10 +125,6 @@
                         "value": "map",
                         "source": "CUSTOM"
                       },
-                      "track_interval_sec": {
-                        "value": "0.1",
-                        "source": "CUSTOM"
-                      },
                       "max_delta_yaw_deg": {
                         "value": "3.0",
                         "source": "CUSTOM"
@@ -421,10 +417,6 @@
                       },
                       "chassis_frame": {
                         "value": "melon_odom",
-                        "source": "CUSTOM"
-                      },
-                      "track_interval_sec": {
-                        "value": "0.2",
                         "source": "CUSTOM"
                       },
                       "max_delta_yaw_deg": {

@@ -65,10 +65,6 @@
             "value": "map",
             "source": "CUSTOM"
           },
-          "track_interval_sec": {
-            "value": "0.1",
-            "source": "CUSTOM"
-          },
           "max_delta_yaw_deg": {
             "value": "5.0",
             "source": "CUSTOM"

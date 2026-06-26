@@ -44,8 +44,8 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         # 多目标选择坐标系：默认先把 YOLO 候选点转到 base_link，再选离底盘最近的箱子。
         # 如果现场需要恢复旧行为，可在 JSON 中填 target_select_frame=camera。
         self.target_select_frame = str(params.get("target_select_frame", "base_link")).strip()
-        # 行为树 tick 很快，这里用 track_interval_sec 控制头部控制发布频率。
-        self.track_interval_sec = float(params.get("track_interval_sec", 0.2))
+        # 不在节点内部限流，头部控制频率直接跟随行为树 tick。
+        # 如需降频，应调整行为树 tick 频率或在上层流程控制。
         # latched_map_target：把 YOLO 点锁到 map，再高频重投影追踪。
         # legacy/其它值：只在新 YOLO 帧到来时直接按当前 YOLO 点控制一次。
         self.control_mode = str(params.get("control_mode", "latched_map_target")).strip()
@@ -169,9 +169,6 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
             return Status.RUNNING
 
         now = time.monotonic()
-        # 控制频率限流：避免树 tick 频率过高时连续刷头部目标。
-        if now - self._last_track_time < self.track_interval_sec:
-            return Status.RUNNING
         self._last_track_time = now
 
         services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
@@ -195,14 +192,11 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
             # 推荐模式：YOLO 负责低频刷新 map 锁点，头部高频重投影追踪。
             ok = self._track_latched_target(services.head_controller)
         else:
-            # 兼容旧模式：同一 YOLO 帧只控制一次，避免重复追同一 camera 观测导致超调。
+            # 兼容旧模式：每次 tick 都使用最新 YOLO camera 观测直接控制一次。
             if nearest_pose is None:
                 self._log_throttled("no_target", f"[{self.config_label}] 等待 YOLO 最近目标...")
                 return Status.RUNNING
-            current_stamp = self._stamp_key(pose_array.header.stamp)
-            if current_stamp == self._last_control_stamp:
-                return Status.RUNNING
-            self._last_control_stamp = current_stamp
+            self._last_control_stamp = self._stamp_key(pose_array.header.stamp)
             source_frame = pose_array.header.frame_id or services.head_controller.base_frame
             target_point_msg = self._build_target_point_msg(nearest_pose, source_frame)
             self._publish_debug_markers(services.head_controller, target_point_msg)
@@ -981,7 +975,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
             f"topic={self.yolo_topic}, "
             f"control_mode={self.control_mode}, "
             f"control_frame={self.control_frame}, "
-            f"track_interval={self.track_interval_sec:.2f}s, "
+            f"control_rate=tree_tick, "
             f"residual_fast={self.lock_residual_fast_m:.2f}m, "
             f"residual_slow={self.lock_residual_slow_m:.2f}m, "
             f"pending_confirm={self.lock_pending_confirm_count}, "

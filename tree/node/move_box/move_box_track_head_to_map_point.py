@@ -38,7 +38,8 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         self.target_frame = str(params.get("target_frame", "map")).strip()
         self.target_point = self._parse_point(params.get("target_point", [2.0, 1.0, 1.0]))
         self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()
-        self.track_interval_sec = float(params.get("track_interval_sec", 0.2))
+        # 不在节点内部限流，头部控制频率直接跟随行为树 tick。
+        # tick_debug 日志仍可用于确认并行流程里本节点是否被持续 tick。
         self.failure_log_interval_sec = float(params.get("failure_log_interval_sec", 1.0))
         self.tick_debug_enabled = self._to_bool(params.get("tick_debug_enabled", False))
         self.tick_log_interval_sec = float(params.get("tick_log_interval_sec", 1.0))
@@ -99,7 +100,7 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         self._skip_logged = False
 
     def update(self):
-        # 这个节点是持续 RUNNING 的跟踪节点，按 track_interval_sec 周期刷新一次头部目标。
+        # 这个节点是持续 RUNNING 的跟踪节点，每次被行为树 tick 到都会尝试刷新头部目标。
         # 如果开启跳过头部动作，只保留节点运行状态，不会发布头部控制命令。
         now = time.monotonic()
         self._tick_count += 1
@@ -110,8 +111,6 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
                 self._skip_logged = True
             return Status.RUNNING
 
-        if now - self._last_track_time < self.track_interval_sec:
-            return Status.RUNNING
         self._last_track_time = now
 
         services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
@@ -190,7 +189,7 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
             f"[{self.config_label}] tick alive: "
             f"count={self._tick_count}, mode={self.tracking_mode}, "
             f"elapsed_from_last_control={elapsed_from_control:.3f}s, "
-            f"track_interval={self.track_interval_sec:.3f}s"
+            f"control_rate=tree_tick"
         )
         self._last_tick_log_time = now
 
