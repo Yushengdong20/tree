@@ -82,19 +82,19 @@
             "source": "CUSTOM"
           },
           "head_kp_yaw": {
-            "value": "0.40",
+            "value": "0.50",
             "source": "CUSTOM"
           },
           "head_kp_pitch": {
-            "value": "0.30",
+            "value": "0.50",
             "source": "CUSTOM"
           },
           "head_kd_yaw": {
-            "value": "0.06",
+            "value": "0.15",
             "source": "CUSTOM"
           },
           "head_kd_pitch": {
-            "value": "0.04",
+            "value": "0.08",
             "source": "CUSTOM"
           },
           "head_derivative_filter_alpha": {

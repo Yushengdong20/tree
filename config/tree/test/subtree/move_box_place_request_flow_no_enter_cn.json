@@ -1,0 +1,45 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "按 p 触发放置流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "CheckMoveBoxRequestFlag",
+        "label": "检查放置请求",
+        "params": {
+          "request_key": {
+            "value": "move_box_place_requested",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "放置箱体流程",
+        "params": {
+          "file": {
+            "value": "move_box_place_flow_no_enter_cn.json",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ClearMoveBoxGraspRequest",
+        "label": "清除放置请求",
+        "params": {
+          "request_key": {
+            "value": "move_box_place_requested",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}
+
