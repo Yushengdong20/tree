@@ -163,6 +163,14 @@
                             "value": "0.5",
                             "source": "CUSTOM"
                           },
+                          "head_target_y_tolerance": {
+                            "value": "0.05",
+                            "source": "CUSTOM"
+                          },
+                          "head_target_z_tolerance": {
+                            "value": "0.05",
+                            "source": "CUSTOM"
+                          },
                           "failure_log_interval_sec": {
                             "value": "1.0",
                             "source": "CUSTOM"
@@ -287,6 +295,14 @@
                       },
                       "head_derivative_filter_alpha": {
                         "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "head_target_y_tolerance": {
+                        "value": "0.05",
+                        "source": "CUSTOM"
+                      },
+                      "head_target_z_tolerance": {
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "failure_log_interval_sec": {

@@ -88,7 +88,7 @@
                         "source": "CUSTOM"
                       },
                       "target_point": {
-                        "value": "[-1.0, 2.0, -0.25]",
+                        "value": "[-3.72, 3.85, -0.25]",
                         "source": "CUSTOM"
                       },
                       "chassis_frame": {
@@ -96,11 +96,11 @@
                         "source": "CUSTOM"
                       },
                       "max_delta_yaw_deg": {
-                        "value": "5.0",
+                        "value": "3.0",
                         "source": "CUSTOM"
                       },
                       "max_delta_pitch_deg": {
-                        "value": "5.0",
+                        "value": "3.0",
                         "source": "CUSTOM"
                       },
                       "head_control_mode": {
@@ -108,15 +108,15 @@
                         "source": "CUSTOM"
                       },
                       "head_kp_yaw": {
-                        "value": "0.50",
+                        "value": "0.30",
                         "source": "CUSTOM"
                       },
                       "head_kp_pitch": {
-                        "value": "0.50",
+                        "value": "0.20",
                         "source": "CUSTOM"
                       },
                       "head_kd_yaw": {
-                        "value": "0.15",
+                        "value": "0.08",
                         "source": "CUSTOM"
                       },
                       "head_kd_pitch": {
@@ -125,6 +125,14 @@
                       },
                       "head_derivative_filter_alpha": {
                         "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "head_target_y_tolerance": {
+                        "value": "0.05",
+                        "source": "CUSTOM"
+                      },
+                      "head_target_z_tolerance": {
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "failure_log_interval_sec": {
@@ -188,7 +196,7 @@
                         "source": "CUSTOM"
                       },
                       "target_point": {
-                        "value": "[-1.6, 0.4, 0.25]",
+                        "value": "[-3.65, -0.58, -0.25]",
                         "source": "CUSTOM"
                       },
                       "chassis_frame": {
@@ -196,11 +204,11 @@
                         "source": "CUSTOM"
                       },
                       "max_delta_yaw_deg": {
-                        "value": "5.0",
+                        "value": "3.0",
                         "source": "CUSTOM"
                       },
                       "max_delta_pitch_deg": {
-                        "value": "5.0",
+                        "value": "3.0",
                         "source": "CUSTOM"
                       },
                       "head_control_mode": {
@@ -208,15 +216,15 @@
                         "source": "CUSTOM"
                       },
                       "head_kp_yaw": {
-                        "value": "0.50",
+                        "value": "0.30",
                         "source": "CUSTOM"
                       },
                       "head_kp_pitch": {
-                        "value": "0.50",
+                        "value": "0.20",
                         "source": "CUSTOM"
                       },
                       "head_kd_yaw": {
-                        "value": "0.15",
+                        "value": "0.08",
                         "source": "CUSTOM"
                       },
                       "head_kd_pitch": {
@@ -225,6 +233,14 @@
                       },
                       "head_derivative_filter_alpha": {
                         "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "head_target_y_tolerance": {
+                        "value": "0.05",
+                        "source": "CUSTOM"
+                      },
+                      "head_target_z_tolerance": {
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "failure_log_interval_sec": {

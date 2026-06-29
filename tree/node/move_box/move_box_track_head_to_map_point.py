@@ -60,6 +60,13 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
             0.0,
             1.0,
         )
+        # camera 坐标系下 y/z 方向死区，单位 m；不填则沿用 HeadController 全局值。
+        self.head_target_y_tolerance = self._optional_float(
+            params.get("head_target_y_tolerance", None)
+        )
+        self.head_target_z_tolerance = self._optional_float(
+            params.get("head_target_z_tolerance", None)
+        )
         self.debug_enabled = self._to_bool(params.get("debug_enabled", True))
         self.debug_point_topic = str(
             params.get("debug_point_topic", "/head_x_axis_target_point")
@@ -259,6 +266,8 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
             derivative_filter_alpha=self.head_derivative_filter_alpha,
             max_delta_yaw_deg=self.max_delta_yaw_deg,
             max_delta_pitch_deg=self.max_delta_pitch_deg,
+            y_tolerance=self.head_target_y_tolerance,
+            z_tolerance=self.head_target_z_tolerance,
             log_prefix=f"[{self.config_label}] 固定点头部限幅控制",
         )
 
