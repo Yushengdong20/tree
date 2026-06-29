@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "YOLO粗靠近与FoundationPose精靠近流程（无暂停）",
+    "label": "YOLO记忆粗靠近与FoundationPose精靠近流程（无暂停）",
     "params": {
       "memory": {
         "value": "True",
@@ -41,7 +41,7 @@
               },
               {
                 "name": "MoveBoxYoloApproachToBox",
-                "label": "YOLO定位箱体并粗靠近",
+                "label": "YOLO定位箱体、更新记忆并粗靠近",
                 "params": {
                   "services_key": {
                     "value": "move_box_services",
@@ -75,6 +75,30 @@
                     "value": "True",
                     "source": "CUSTOM"
                   },
+                  "use_box_memory": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "box_memory_key": {
+                    "value": "move_box_box_memory",
+                    "source": "CUSTOM"
+                  },
+                  "current_box_target_key": {
+                    "value": "move_box_current_box_target",
+                    "source": "CUSTOM"
+                  },
+                  "finished_box_targets_key": {
+                    "value": "move_box_finished_box_targets",
+                    "source": "CUSTOM"
+                  },
+                  "memory_match_distance_m": {
+                    "value": "0.35",
+                    "source": "CUSTOM"
+                  },
+                  "min_detected_box_3d_distance_m": {
+                    "value": "0.25",
+                    "source": "CUSTOM"
+                  },
                   "use_tf_3d_transform": {
                     "value": "True",
                     "source": "CUSTOM"
@@ -93,6 +117,18 @@
                   },
                   "odom_topic": {
                     "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "valid_box_map_polygon": {
+                    "value": [[-1.5, 3.0], [-1.5, -1.3], [1.5, -1.3], [1.5, 3.0]],
+                    "source": "CUSTOM"
+                  },
+                  "valid_box_polygon_required": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  },
+                  "enable_colored_log": {
+                    "value": "True",
                     "source": "CUSTOM"
                   }
                 }

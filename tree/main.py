@@ -12,6 +12,7 @@
 import os
 
 from tree.core.blackboard_bootstrap import load_blackboard_from_json
+from tree.core.cli import build_argument_parser, resolve_tree_json_file
 from tree.core.runner import BehaviorTreeRunner
 from tree.core.runner_config import BehaviorTreeRunnerConfig
 from tree.ros_interface import create_ros_interface
@@ -25,30 +26,39 @@ def main(args=None):
     # 这里把“默认跑哪棵树”显式放在入口文件里，方便调试时直接切换。
     # 当前默认指向只靠近不抓取的往返测试树：
     # 只做底盘靠近与往返导航，头部盯箱和盯传送带。
-    # tree_file_name = "tree/test/move_box_approach_shuttle_no_grasp_test_cn.json"
+    # default_tree_file_name = "tree/test/move_box_approach_shuttle_no_grasp_test_cn.json"
 
     # 测试完整搬箱流程头部跟踪版：抓箱前盯 YOLO 箱体，抓箱后盯 map 传送带点。
-    tree_file_name = "tree/test/move_box_full_direct_grasp_place_turn_head_track_cn.json"
+    # default_tree_file_name = "tree/test/move_box_full_direct_grasp_place_turn_head_track_cn.json"
 
     # 测试头部持续盯住 YOLO 最近箱体 + 按 Enter 双点导航时，切换到下面这棵树。
-    # tree_file_name = "tree/test/head_track_yolo_box_parallel_navigation_test_cn.json"
+    # default_tree_file_name = "tree/test/head_track_yolo_box_parallel_navigation_test_cn.json"
 
     # 单独测试头部持续盯住 YOLO 最近箱体时，切换到下面这棵树。
-    # tree_file_name = "tree/test/head_track_yolo_box_test_cn.json"
+    # default_tree_file_name = "tree/test/head_track_yolo_box_test_cn.json"
 
     # 单独测试头部盯住 map 系固定坐标点时，切换到下面这棵树。
-    # tree_file_name = "tree/test/head_track_map_point_test_cn.json"
+    # default_tree_file_name = "tree/test/head_track_map_point_test_cn.json"
 
     # 单独测试头部在两个 map 固定坐标点之间按 Enter 循环切换时，切换到下面这棵树。
-    # tree_file_name = "tree/test/head_track_map_point_switch_test_cn.json"
+    default_tree_file_name = "tree/test/head_track_map_point_switch_test_cn.json"
 
     # 测试通用动作节点完整搬箱流程时，切换到下面这棵树。
-    # tree_file_name = "tree/test/move_box_full_direct_grasp_place_common_cn.json"
+    # default_tree_file_name = "tree/test/move_box_full_direct_grasp_place_common_cn.json"
     
     # 当前默认指向“抓箱对齐 -> 直接抓取 -> 放箱 -> 回等待区域”的完整实机流程。
-    # tree_file_name = "tree/box/move_box_full_direct_grasp_place_turn.json"
+    tree_file_name = "tree/box/move_box_full_direct_grasp_place_memory.json"
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # 只消费 MercuryTree 自己认识的参数，剩余参数继续交给 ROS 处理，
+    # 因此 __name/__ns remap 或 ROS2 --ros-args 等调用方式仍可保留。
+    argument_parser = build_argument_parser()
+    cli_args, ros_args = argument_parser.parse_known_args(args=args)
+    selected_tree_file_name = cli_args.tree_json_file or default_tree_file_name
+    tree_json_file = resolve_tree_json_file(project_root, selected_tree_file_name)
+    if not os.path.isfile(tree_json_file):
+        argument_parser.error(f"行为树 JSON 文件不存在: {tree_json_file}")
+
     # blackboard.json 用来放启动时就应该可见的共享参数。
     blackboard_json_file = os.path.join(
         project_root, "config", "blackboard", "blackboard.json"
@@ -60,29 +70,28 @@ def main(args=None):
     node_name = f"pytrees_{ros_runtime}_runner"
 
     ros = create_ros_interface(node_name=node_name, ros_version=ros_runtime)
-    ros.init(args=args)
+    ros.init(args=ros_args)
     # 实机部分执行器异常时的测试保护开关：
     # True 表示行为树节点保留流程与可视化状态，但不下发对应真实动作。
-    ros.set_parameters(
-        {
-            "skip_torso_motion": False,
-            "skip_head_motion": False,
-            "skip_arm_motion": False,
-            "skip_claw_motion": False,
-        }
-    )
+    runtime_parameters = {
+        "skip_torso_motion": False,
+        "skip_head_motion": False,
+        "skip_arm_motion": False,
+        "skip_claw_motion": False,
+    }
+    if cli_args.tree_json_file is not None:
+        # CLI 是本次启动的显式选择，应高于环境中可能残留的 ROS 参数。
+        runtime_parameters["tree_json_file"] = tree_json_file
+    ros.set_parameters(runtime_parameters)
     ros.get_logger().info(
         f"当前启动的 ROS 运行时为: {ros_runtime.upper()}，节点名: {node_name}"
     )
     # 启动前先把共享参数灌进全局 blackboard，供后续叶子节点复用。
     load_blackboard_from_json(ros, blackboard_json_file)
-    tree_json_file = os.path.join(project_root, "config", tree_file_name)
-    # 如果你想切回其他包内配置文件，只需要改上面的 tree_file_name。
-    # 如果你想直接使用绝对路径，也可以改成下面这种形式：
-    # tree_json_file = "/home/ysd/Desktop/ros2/pytrees_ros2/src/pytrees_ros2/config/py_tree.json"
+    ros.get_logger().info(f"本次行为树配置: {tree_json_file}")
 
     default_config = BehaviorTreeRunnerConfig.with_defaults(
-        # 这里优先推荐只改文件名，路径会自动拼到包内 config 目录。
+        # CLI/默认树最终都会在这里变成经过校验的绝对路径。
         tree_json_file=tree_json_file,
         # tick 周期，单位毫秒。调大后更容易观察执行过程。
         tick_period_ms=20,

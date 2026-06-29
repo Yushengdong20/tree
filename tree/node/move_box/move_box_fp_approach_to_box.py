@@ -23,9 +23,9 @@ from tree.runtime.http.move_and_grab_flow import (
     normalize_angle_deg,
     post_chassis_navigation,
     post_navigation_task_status,
-    transform_base_point_to_global,
     transform_global_point_to_base,
 )
+from tree.utils.geometry import transform_base_point_to_map_with_pose2d
 
 
 class MoveBoxFpApproachToBox(TimedMockAction):
@@ -88,6 +88,8 @@ class MoveBoxFpApproachToBox(TimedMockAction):
     def initialise(self):
         super().initialise()
         self._reset_state()
+        self._clear_navigation_target_pose()
+        self._clear_arrival_box_center()
         self._phase = "GET_POSE"
         self._deadline = time.monotonic() + self.navigation_timeout_sec
 
@@ -144,10 +146,9 @@ class MoveBoxFpApproachToBox(TimedMockAction):
                     "y": float(front_axis[1]),
                     "z": float(front_axis[2]),
                 }
-                self._box_global_position = transform_base_point_to_global(
+                self._box_global_position = transform_base_point_to_map_with_pose2d(
                     self._current_pose,
-                    self._box_center["x"],
-                    self._box_center["y"],
+                    self._box_center,
                 )
                 self._target_pose = build_fp_approach_pose(
                     self._current_pose,
@@ -156,8 +157,6 @@ class MoveBoxFpApproachToBox(TimedMockAction):
                     self.target_distance_m,
                 )
                 self._arrival_box_center = self._calculate_arrival_box_center()
-                self._store_arrival_box_center()
-                self._store_navigation_target_pose()
                 self._latest_errors = self._calculate_world_errors()
                 self.ros_node.get_logger().info(
                     f"[{self.config_label}] FP 精靠近目标与误差: "
@@ -191,6 +190,8 @@ class MoveBoxFpApproachToBox(TimedMockAction):
                     coarse=False,
                 )
                 self._task_instance_id = extract_navigation_task_id(self._navigation_response)
+                self._store_navigation_target_pose()
+                self._store_arrival_box_center()
                 self._next_poll_at = now
                 self._phase = "POLL_NAVIGATION"
                 return Status.RUNNING
@@ -306,12 +307,18 @@ class MoveBoxFpApproachToBox(TimedMockAction):
             overwrite=True,
         )
 
+    def _clear_arrival_box_center(self):
+        """清空上一轮预计到点箱体中心，避免并行节点读取旧值。"""
+        if not self.arrival_box_center_key:
+            return
+        self.blackboard.set(self.arrival_box_center_key, None, overwrite=True)
+
     def _store_navigation_target_pose(self):
         """把 FP 精靠近目标写入黑板，供接近目标监听节点读取。"""
         if not self.navigation_target_key or self._target_pose is None:
             return
 
-        # 关键步骤：目标点一旦算出就写入黑板，让并行节点可以在导航途中触发手臂动作。
+        # 关键步骤：导航任务真正创建后才写入目标，避免监听节点在发车前抢跑。
         self.blackboard.set(
             self.navigation_target_key,
             {
@@ -321,6 +328,12 @@ class MoveBoxFpApproachToBox(TimedMockAction):
             },
             overwrite=True,
         )
+
+    def _clear_navigation_target_pose(self):
+        """清空上一轮 FP 导航目标，避免监听节点误用旧目标。"""
+        if not self.navigation_target_key:
+            return
+        self.blackboard.set(self.navigation_target_key, None, overwrite=True)
 
     def describe_start(self):
         return f"[{self.config_label}] MoveBoxFpApproachToBox start"

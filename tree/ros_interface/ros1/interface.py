@@ -21,11 +21,12 @@ class Ros1Interface(RosInterface):
         self._initialized = False
 
     def init(self, args=None):
-        del args
         if self._initialized:
             return
         # ROS1 init_node 只能执行一次，这里由接口层统一管理。
-        self._rospy.init_node(self._node_name, anonymous=False)
+        # main.py 会先消费 MercuryTree 自己的参数，这里只把剩下的 ROS remap
+        # 参数交给 rospy，避免 --tree 之类的应用参数混入 ROS 解析。
+        self._rospy.init_node(self._node_name, argv=args, anonymous=False)
         self._initialized = True
 
     def shutdown(self):
