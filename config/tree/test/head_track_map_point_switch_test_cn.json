@@ -108,19 +108,19 @@
                         "source": "CUSTOM"
                       },
                       "head_kp_yaw": {
-                        "value": "0.30",
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "head_kp_pitch": {
-                        "value": "0.20",
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "head_kd_yaw": {
-                        "value": "0.08",
+                        "value": "0.02",
                         "source": "CUSTOM"
                       },
                       "head_kd_pitch": {
-                        "value": "0.08",
+                        "value": "0.02",
                         "source": "CUSTOM"
                       },
                       "head_derivative_filter_alpha": {
@@ -216,19 +216,19 @@
                         "source": "CUSTOM"
                       },
                       "head_kp_yaw": {
-                        "value": "0.30",
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "head_kp_pitch": {
-                        "value": "0.20",
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "head_kd_yaw": {
-                        "value": "0.08",
+                        "value": "0.02",
                         "source": "CUSTOM"
                       },
                       "head_kd_pitch": {
-                        "value": "0.08",
+                        "value": "0.02",
                         "source": "CUSTOM"
                       },
                       "head_derivative_filter_alpha": {

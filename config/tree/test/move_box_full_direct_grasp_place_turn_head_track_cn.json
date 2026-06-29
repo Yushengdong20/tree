@@ -132,11 +132,11 @@
                             "source": "CUSTOM"
                           },
                           "max_delta_yaw_deg": {
-                            "value": "5.0",
+                            "value": "3.0",
                             "source": "CUSTOM"
                           },
                           "max_delta_pitch_deg": {
-                            "value": "5.0",
+                            "value": "3.0",
                             "source": "CUSTOM"
                           },
                           "head_control_mode": {
@@ -144,19 +144,19 @@
                             "source": "CUSTOM"
                           },
                           "head_kp_yaw": {
-                            "value": "0.50",
+                            "value": "0.05",
                             "source": "CUSTOM"
                           },
                           "head_kp_pitch": {
-                            "value": "0.50",
+                            "value": "0.05",
                             "source": "CUSTOM"
                           },
                           "head_kd_yaw": {
-                            "value": "0.15",
+                            "value": "0.02",
                             "source": "CUSTOM"
                           },
                           "head_kd_pitch": {
-                            "value": "0.08",
+                            "value": "0.02",
                             "source": "CUSTOM"
                           },
                           "head_derivative_filter_alpha": {
@@ -266,11 +266,11 @@
                         "source": "CUSTOM"
                       },
                       "max_delta_yaw_deg": {
-                        "value": "5.0",
+                        "value": "3.0",
                         "source": "CUSTOM"
                       },
                       "max_delta_pitch_deg": {
-                        "value": "5.0",
+                        "value": "3.0",
                         "source": "CUSTOM"
                       },
                       "head_control_mode": {
@@ -278,19 +278,19 @@
                         "source": "CUSTOM"
                       },
                       "head_kp_yaw": {
-                        "value": "0.40",
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "head_kp_pitch": {
-                        "value": "0.30",
+                        "value": "0.05",
                         "source": "CUSTOM"
                       },
                       "head_kd_yaw": {
-                        "value": "0.06",
+                        "value": "0.02",
                         "source": "CUSTOM"
                       },
                       "head_kd_pitch": {
-                        "value": "0.04",
+                        "value": "0.02",
                         "source": "CUSTOM"
                       },
                       "head_derivative_filter_alpha": {

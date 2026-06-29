@@ -28,7 +28,7 @@ def main(args=None):
     # tree_file_name = "tree/test/move_box_approach_shuttle_no_grasp_test_cn.json"
 
     # 测试完整搬箱流程头部跟踪版：抓箱前盯 YOLO 箱体，抓箱后盯 map 传送带点。
-    # tree_file_name = "tree/test/move_box_full_direct_grasp_place_turn_head_track_cn.json"
+    tree_file_name = "tree/test/move_box_full_direct_grasp_place_turn_head_track_cn.json"
 
     # 测试头部持续盯住 YOLO 最近箱体 + 按 Enter 双点导航时，切换到下面这棵树。
     # tree_file_name = "tree/test/head_track_yolo_box_parallel_navigation_test_cn.json"
@@ -40,7 +40,7 @@ def main(args=None):
     # tree_file_name = "tree/test/head_track_map_point_test_cn.json"
 
     # 单独测试头部在两个 map 固定坐标点之间按 Enter 循环切换时，切换到下面这棵树。
-    tree_file_name = "tree/test/head_track_map_point_switch_test_cn.json"
+    # tree_file_name = "tree/test/head_track_map_point_switch_test_cn.json"
 
     # 测试通用动作节点完整搬箱流程时，切换到下面这棵树。
     # tree_file_name = "tree/test/move_box_full_direct_grasp_place_common_cn.json"
