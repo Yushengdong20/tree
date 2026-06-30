@@ -100,6 +100,56 @@
         }
       },
       {
+        "name": "ComputeMoveBoxTorsoToBoxCenterPose",
+        "label": "根据箱体中心计算抓取腰部目标",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "target_pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认腰部开始对准箱体",
+        "params": {
+          "message": {
+            "value": "已根据箱体中心计算腰部目标。确认腰部运动空间安全后，按 Enter 调整腰部高度和前伸位置...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "腰部对准箱体抓取高度",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
         "name": "ComputeMoveBoxLeftTargets",
         "label": "计算左手靠近-下探-上提-外拉目标",
         "params": {
@@ -112,11 +162,11 @@
             "source": "CUSTOM"
           },
           "left_approach_offset": {
-            "value": "0.10",
+            "value": "0.05",
             "source": "CUSTOM"
           },
           "left_descend_below_offset": {
-            "value": "0.01",
+            "value": "0.06",
             "source": "CUSTOM"
           },
           "left_lift_offset": {
@@ -282,11 +332,11 @@
             "source": "CUSTOM"
           },
           "left_approach_offset": {
-            "value": "0.10",
+            "value": "0.05",
             "source": "CUSTOM"
           },
           "left_descend_below_offset": {
-            "value": "0.01",
+            "value": "0.06",
             "source": "CUSTOM"
           },
           "left_lift_offset": {
@@ -295,6 +345,10 @@
           },
           "left_pull_left_offset": {
             "value": "0.15",
+            "source": "CUSTOM"
+          },
+          "carry_lift_offset": {
+            "value": "0.30",
             "source": "CUSTOM"
           }
         }
@@ -409,17 +463,17 @@
       },
       {
         "name": "WaitForEnter",
-        "label": "确认双手回中抬箱",
+        "label": "确认双手上提回拉",
         "params": {
           "message": {
-            "value": "双手已处于上提高度。确认回中路径安全后，按 Enter 双手同步将箱体移回中心...",
+            "value": "双手已完成小幅上提。确认路径安全后，按 Enter 同步回拉箱体到中心并上提到 0.30m 搬运高度...",
             "source": "CUSTOM"
           }
         }
       },
       {
         "name": "ArmsToPose",
-        "label": "双手同步回中并保持抬箱",
+        "label": "双手同步上提并回拉箱体到中心",
         "params": {
           "services_key": {
             "value": "move_box_services",
@@ -444,6 +498,78 @@
         }
       },
       {
+        "name": "ComputeMoveBoxRestorePitchArmPoses",
+        "label": "计算腰部回位后的双手 pitch 恢复目标",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pitch": {
+            "value": "-80.0",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "move_box_restore_pitch_left_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "move_box_restore_pitch_right_pose",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认腰部回位和双手姿态恢复",
+        "params": {
+          "message": {
+            "value": "箱体已上提并回拉到中心。确认双手抓取稳定后，按 Enter 回腰并将双手 pitch 恢复到 -80 度...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "腰部回到初始位姿",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "保持双手位置并恢复 pitch",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "move_box_restore_pitch_left_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "move_box_restore_pitch_right_pose",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
         "name": "ClearMoveBoxGraspRequest",
         "label": "清除抓取请求标志",
         "params": {
@@ -458,7 +584,7 @@
         "label": "测试完成保持抓取",
         "params": {
           "message": {
-            "value": "分步抓取测试完成，当前双手保持闭合并托住箱体；本测试不会自动松爪。按 Enter 结束行为树...",
+            "value": "左拉抓取、双手上提回拉和腰部回位测试完成；当前双手保持闭合，本测试不会自动松爪。按 Enter 结束行为树...",
             "source": "CUSTOM"
           }
         }

@@ -323,10 +323,14 @@ class ArmsToPose(TimedMockAction):
             ee_point = arm_controller.claw_point_to_end_effector_point(point, side)
             if ee_point is None:
                 return None, None
+            # claw_point_to_end_effector_point() 内部使用的是这组缓存 YPR
+            # 来旋转“末端 -> 夹爪”平移。这里必须使用同一组姿态下发目标；
+            # 若腰部动作后改用 *_by_frame() 刷新的另一组 YPR，位置反算与
+            # 末端姿态会不一致，左右单臂都会产生固定的夹爪空间偏差。
             ypr = (
-                arm_controller.get_initial_left_ypr_by_frame(self.pose_frame)
+                arm_controller.get_initial_left_ypr()
                 if side == "left"
-                else arm_controller.get_initial_right_ypr_by_frame(self.pose_frame)
+                else arm_controller.get_initial_right_ypr()
             )
             return [*ee_point, *ypr], f"blackboard:claw_point:{point_key}"
 

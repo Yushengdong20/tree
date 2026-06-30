@@ -8,7 +8,7 @@ from ..base import TimedMockAction
 
 
 class ComputeMoveBoxRightTargets(TimedMockAction):
-    """生成右手补偿目标以及后续双手回中、下降目标。"""
+    """生成右手补偿目标以及后续双手回中、搬运高度和下降目标。"""
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
@@ -75,18 +75,36 @@ class ComputeMoveBoxRightTargets(TimedMockAction):
         descend_below_offset = self._get_float_param("left_descend_below_offset", 0.01)
         lift_offset = self._get_float_param("left_lift_offset", 0.1)
         pull_left_offset = self._get_float_param("left_pull_left_offset", 0.15)
+        carry_lift_offset = self._get_float_param("carry_lift_offset", 0.3)
+        if carry_lift_offset < lift_offset:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 搬运上提高度不能小于单手上提高度: "
+                f"carry_lift={carry_lift_offset:.3f}, single_lift={lift_offset:.3f}"
+            )
+            return Status.FAILURE
 
         moved_right_edge = right_edge_point + left_axis * pull_left_offset
         above_right_edge = moved_right_edge + up_axis * approach_offset
         below_right_edge = moved_right_edge - up_axis * descend_below_offset
-        right_lift_target = below_right_edge + up_axis * (
-            descend_below_offset + lift_offset
-        )
+        # 右手先单独上提到和左手相同的小幅上提高度，避免闭爪后立刻大幅抬箱。
+        right_lift_target = below_right_edge + up_axis * lift_offset
+
+        # 双手均抓牢后，同步回拉到原箱体中心，并从边缘下探点上提到统一搬运高度。
+        # 左手已经上提 lift_offset，因此只补足 carry_lift_offset - lift_offset。
         return_center_offset = -left_axis * pull_left_offset
-        return_center_left_target = left_pull_target + return_center_offset
-        return_center_right_target = right_lift_target + return_center_offset
-        lower_left_target = return_center_left_target - up_axis * lift_offset
-        lower_right_target = return_center_right_target - up_axis * lift_offset
+        additional_lift_offset = carry_lift_offset - lift_offset
+        return_center_left_target = (
+            left_pull_target
+            + return_center_offset
+            + up_axis * additional_lift_offset
+        )
+        return_center_right_target = (
+            below_right_edge
+            + return_center_offset
+            + up_axis * carry_lift_offset
+        )
+        lower_left_target = return_center_left_target - up_axis * carry_lift_offset
+        lower_right_target = return_center_right_target - up_axis * carry_lift_offset
 
         values = {
             "moved_right_edge": moved_right_edge,
@@ -103,7 +121,7 @@ class ComputeMoveBoxRightTargets(TimedMockAction):
 
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算右手补偿及双手回中目标: "
-            f"pull={pull_left_offset:.3f}"
+            f"pull={pull_left_offset:.3f}, carry_lift={carry_lift_offset:.3f}"
         )
         return Status.SUCCESS
 

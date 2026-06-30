@@ -1,0 +1,292 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "双爪同步抓箱独立测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 视觉与控制实例",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化完成确认",
+        "params": {
+          "message": {
+            "value": "控制器已初始化。确认双爪张开、箱体和人员位置安全后，按 Enter 获取抓取目标...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "置位抓取请求",
+        "params": {
+          "key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "true",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxDetectionReady",
+        "label": "确认 FoundationPose 抓取数据有效",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "detect_timeout_sec": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "restart_on_timeout": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "detection_reset_timeout_sec": {
+            "value": "5.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "CheckMoveBoxGraspDataReady",
+        "label": "检查抓取点与箱体方向",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxTorsoToBoxCenterPose",
+        "label": "根据箱体中心计算抓取腰部目标",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "target_pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认腰部对准",
+        "params": {
+          "message": {
+            "value": "腰部目标已计算。确认运动空间安全后，按 Enter 调整腰部到抓取高度...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "腰部对准箱体抓取高度",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxDirectGraspTargets",
+        "label": "计算双爪同步抓取目标",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "direct_approach_offset": {
+            "value": "0.05",
+            "source": "CUSTOM"
+          },
+          "direct_descend_below_offset": {
+            "value": "0.06",
+            "source": "CUSTOM"
+          },
+          "direct_lift_offset": {
+            "value": "0.30",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认双爪开始靠近",
+        "params": {
+          "message": {
+            "value": "双爪目标已计算。确认路径安全后，按 Enter 同步移动到箱体左右边缘上方 5cm...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双爪同步移动到左右边缘上方",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_direct_left_above_edge",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_direct_right_above_edge",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认双爪下探",
+        "params": {
+          "message": {
+            "value": "双爪已到左右边缘上方。确认位置合理后，按 Enter 同步下探到边缘下方 6cm...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双爪同步下探到左右边缘下方",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_direct_left_below_edge",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_direct_right_below_edge",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认闭合双爪",
+        "params": {
+          "message": {
+            "value": "请现场确认双爪是否已经接触箱体。确认安全后按 Enter 闭合双爪；若仍有偏差请停止测试...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "CloseClaw",
+        "label": "同时闭合左右夹爪",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ClearMoveBoxGraspRequest",
+        "label": "清除抓取请求标志",
+        "params": {
+          "request_key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "双爪抓取测试完成",
+        "params": {
+          "message": {
+            "value": "双爪抓取测试完成，当前不会自动抬箱或松爪。按 Enter 结束行为树...",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

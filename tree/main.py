@@ -48,8 +48,11 @@ def main(args=None):
     # 完整实机搬箱流程：抓箱对齐 -> 直接抓取 -> 放箱 -> 回等待区域。
     # tree_file_name = "tree/box/move_box_full_direct_grasp_place_memory.json"
 
-    # 当前默认：独立测试左手外拉、右手补抓、双手抬箱流程。
+    # 独立测试左手外拉、右手补抓、双手抬箱流程。
     tree_file_name = "tree/test/move_box_left_pull_right_grasp_test_cn.json"
+
+    # 当前默认：独立测试腰部配合下的双爪同步抓箱，不自动抬箱或松爪。
+    # tree_file_name = "tree/test/move_box_dual_claw_grasp_test_cn.json"
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     # blackboard.json 用来放启动时就应该可见的共享参数。
