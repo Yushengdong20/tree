@@ -7,7 +7,7 @@ from py_trees.common import Status
 from ..base import TimedMockAction
 
 
-class ComputeMoveBoxRightTargets(TimedMockAction):
+class ComputeMoveBoxRightCompensationTargets(TimedMockAction):
     """生成右手补偿目标以及后续双手回中、搬运高度和下降目标。"""
 
     def __init__(self, name, config_label, ros_node, params):
@@ -25,9 +25,9 @@ class ComputeMoveBoxRightTargets(TimedMockAction):
             "moved_right_edge": str(
                 params.get("moved_right_edge_key", "move_box_moved_right_edge")
             ).strip(),
-            "right_above": str(params.get("right_above_key", "move_box_right_above_edge")).strip(),
-            "right_below": str(params.get("right_below_key", "move_box_right_below_edge")).strip(),
-            "right_lift": str(params.get("right_lift_key", "move_box_right_lift_target")).strip(),
+            "right_above": str(params.get("right_above_key", "move_box_right_compensation_above_edge")).strip(),
+            "right_below": str(params.get("right_below_key", "move_box_right_compensation_below_edge")).strip(),
+            "right_lift": str(params.get("right_lift_key", "move_box_right_compensation_lift_target")).strip(),
             "return_center_left": str(
                 params.get("return_center_left_key", "move_box_return_center_left_target")
             ).strip(),

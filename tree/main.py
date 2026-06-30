@@ -37,10 +37,14 @@ from tree.ros_interface import create_ros_interface
 # DEFAULT_TREE_FILE_NAME = "tree/box/move_box_full_direct_grasp_place_memory.json"
 # 独立测试左手外拉、右手补抓、双手抬箱。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_left_pull_right_grasp_test_cn.json"
+# 当前启用：独立测试右手外拉、左手补抓、双手抬箱。
+DEFAULT_TREE_FILE_NAME = "tree/test/move_box_right_pull_left_grasp_test_cn.json"
 # 独立测试腰部配合下的双爪同步抓箱。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_dual_claw_grasp_test_cn.json"
+# 固定点位前方两箱的 FoundationPose 右拉拆垛测试。
+# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_right_pull_left_grasp_stack_cn.json"
 # 固定点位前方两箱的 FoundationPose 左拉拆垛测试。
-DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_left_pull_right_grasp_stack_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_left_pull_right_grasp_stack_cn.json"
 
 
 def parse_main_args(args=None):
