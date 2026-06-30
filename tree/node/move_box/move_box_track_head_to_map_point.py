@@ -9,6 +9,8 @@ from geometry_msgs.msg import Point, PointStamped
 from py_trees.common import Status
 from visualization_msgs.msg import Marker
 
+from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -33,9 +35,9 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.tracking_mode = str(params.get("tracking_mode", "tf")).strip().lower()
-        self.target_frame = str(params.get("target_frame", "map")).strip()
+        self.target_frame = str(params.get("target_frame", MAP_FRAME)).strip()
         self.target_point_key = str(params.get("target_point_key", "")).strip()
         self.target_point = self._parse_point(params.get("target_point", [2.0, 1.0, 1.0]))
         self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()

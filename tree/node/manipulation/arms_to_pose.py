@@ -29,6 +29,8 @@ import py_trees
 from py_trees.common import Status
 from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.base_event import EventStatus
 
+from tree.constants import BASE_LINK_FRAME, ROBOT_SERVICES_KEY, WAIST_YAW_LINK_FRAME
+
 from ..base import TimedMockAction
 
 
@@ -52,7 +54,7 @@ class ArmsToPose(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.left_pose = self._parse_pose(params.get("left_pose", None), "left_pose")
         self.right_pose = self._parse_pose(params.get("right_pose", None), "right_pose")
         self.left_pose_key = str(params.get("left_pose_key", "")).strip()
@@ -225,14 +227,14 @@ class ArmsToPose(TimedMockAction):
         if self.target_type == "claw_point":
             return self._resolve_claw_point_targets(arm_controller)
 
-        if self.pose_frame == "waist_yaw_link":
+        if self.pose_frame == WAIST_YAW_LINK_FRAME:
             return (
                 list(arm_controller.initial_left_pose_in_waist),
                 list(arm_controller.initial_right_pose_in_waist),
                 "default:initial_pose@waist_yaw_link",
                 None,
             )
-        if self.pose_frame == "base_link":
+        if self.pose_frame == BASE_LINK_FRAME:
             if hasattr(arm_controller, "refresh_initial_pose_in_base_link"):
                 arm_controller.refresh_initial_pose_in_base_link()
             return (
@@ -245,7 +247,7 @@ class ArmsToPose(TimedMockAction):
         raise ValueError("pose_frame 仅支持 base_link 或 waist_yaw_link")
 
     def _resolve_claw_point_targets(self, arm_controller):
-        if self.pose_frame != "base_link":
+        if self.pose_frame != BASE_LINK_FRAME:
             self.ros_node.get_logger().error(
                 f"[{self.config_label}] claw_point 模式当前仅支持 base_link，当前 pose_frame={self.pose_frame}"
             )

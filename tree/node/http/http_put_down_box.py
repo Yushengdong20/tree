@@ -14,6 +14,7 @@
 
 from py_trees import common
 
+from tree.constants import FLOW_RESULT_KEY
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
     DEFAULT_GRAB_URL,
@@ -28,8 +29,8 @@ class HttpPutDownBox(TimedMockAction):
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         # 放箱节点会在已有流程结果上追加 putDown 结果。
-        self.blackboard.register_key(key="flow_result", access=common.Access.READ)
-        self.blackboard.register_key(key="flow_result", access=common.Access.WRITE)
+        self.blackboard.register_key(key=FLOW_RESULT_KEY, access=common.Access.READ)
+        self.blackboard.register_key(key=FLOW_RESULT_KEY, access=common.Access.WRITE)
         self.grab_config = build_grab_config(
             base_url=str(params.get("grab_url", DEFAULT_GRAB_URL)).strip(),
             arm=params.get("arm"),

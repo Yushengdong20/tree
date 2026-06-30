@@ -9,6 +9,8 @@ import tf.transformations as tf_trans
 from geometry_msgs.msg import PoseArray
 from py_trees.common import Status
 
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -23,10 +25,10 @@ class ComputeMoveBoxLockedYoloTarget(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.yolo_topic = str(params.get("yolo_topic", "/yolo/target_poses")).strip()
-        self.target_select_frame = str(params.get("target_select_frame", "base_link")).strip()
-        self.control_frame = str(params.get("control_frame", "map")).strip()
+        self.target_select_frame = str(params.get("target_select_frame", BASE_LINK_FRAME)).strip()
+        self.control_frame = str(params.get("control_frame", MAP_FRAME)).strip()
         self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()
         self.target_point_key = str(
             params.get("target_point_key", "move_box_locked_yolo_head_target_point")

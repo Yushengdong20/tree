@@ -3,6 +3,8 @@
 import py_trees
 from py_trees.common import Status
 
+from tree.constants import ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -11,7 +13,7 @@ class EnsureMoveBoxServices(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.WRITE)
 
@@ -22,16 +24,16 @@ class EnsureMoveBoxServices(TimedMockAction):
 
         services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
         if services is None:
-            from tree.runtime.move_box.move_box_real import build_move_box_services
+            from tree.runtime.move_box.move_box_real import build_robot_services
 
-            services = build_move_box_services()
+            services = build_robot_services()
             self.blackboard.set(self.services_key, services, overwrite=True)
             self.ros_node.get_logger().info(
-                f"[{self.config_label}] created move_box services: services_id={id(services)}"
+                f"[{self.config_label}] created robot services: services_id={id(services)}"
             )
         else:
             self.ros_node.get_logger().info(
-                f"[{self.config_label}] reused move_box services: services_id={id(services)}"
+                f"[{self.config_label}] reused robot services: services_id={id(services)}"
             )
         self._prepare_robot(services)
         return Status.SUCCESS

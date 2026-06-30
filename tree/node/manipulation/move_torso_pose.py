@@ -11,6 +11,8 @@ import ast
 import py_trees
 from py_trees.common import Status
 
+from tree.constants import ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -19,7 +21,7 @@ class MoveTorsoPose(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         raw_pose = params.get("pose", None)
         self.pose = self._parse_pose(raw_pose) if raw_pose not in (None, "") else None
         self.pose_key = str(params.get("pose_key", "")).strip()

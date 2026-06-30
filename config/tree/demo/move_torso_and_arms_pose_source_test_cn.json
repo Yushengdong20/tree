@@ -13,10 +13,6 @@
         "name": "EnsureMoveBoxServices",
         "label": "只创建共享控制实例（跳过初始化动作）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "skip_head_motion": {
             "value": "True",
             "source": "CUSTOM"
@@ -49,10 +45,6 @@
         "name": "MoveTorsoPose",
         "label": "腰部移动到 ready 位姿（JSON pose）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose": {
             "value": "[0.0, 0.0, 1.1, 0.0, 0.0, 0.0]",
             "source": "CUSTOM"
@@ -95,10 +87,6 @@
         "name": "MoveTorsoPose",
         "label": "腰部移动到前伸位姿（blackboard pose_key）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_key": {
             "value": "test_torso_pose",
             "source": "CUSTOM"
@@ -127,10 +115,6 @@
         "name": "ArmsToPose",
         "label": "双臂回到抓取初始化位姿（JSON pose）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
@@ -187,10 +171,6 @@
         "name": "ArmsToPose",
         "label": "双臂移动到抓箱中间测试位姿（blackboard pose_key）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
@@ -247,10 +227,6 @@
         "name": "ArmsToPose",
         "label": "双臂移动到相同 xyz 的夹爪点（claw_point 模式）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "target_type": {
             "value": "claw_point",
             "source": "CUSTOM"

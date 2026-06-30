@@ -3,6 +3,8 @@
 import py_trees
 from py_trees.common import Status
 
+from tree.constants import ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -11,7 +13,7 @@ class OpenClaw(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.side = str(params.get("side", "both")).strip().lower()
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
 

@@ -13,10 +13,6 @@
         "name": "EnsureMoveBoxServices",
         "label": "初始化 move_box 控制实例",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "skip_arm_motion": {
             "value": "True",
             "source": "CUSTOM"
@@ -45,10 +41,6 @@
         "name": "MoveBoxTrackHeadToMapPoint",
         "label": "头部camera x轴持续对准map固定点",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "tracking_mode": {
             "value": "split_tf",
             "source": "CUSTOM"

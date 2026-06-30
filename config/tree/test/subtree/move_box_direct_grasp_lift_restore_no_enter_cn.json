@@ -13,10 +13,6 @@
         "name": "ArmsToPose",
         "label": "双夹爪同步上提箱体（通用手臂节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "target_type": {
             "value": "claw_point",
             "source": "CUSTOM"
@@ -39,10 +35,6 @@
         "name": "ComputeMoveBoxRestorePitchArmPoses",
         "label": "计算躯干回位后的双手 pitch 恢复目标",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pitch": {
             "value": "-60.0",
             "source": "CUSTOM"
@@ -61,10 +53,6 @@
         "name": "MoveTorsoPose",
         "label": "躯干回到初始位姿（通用腰部节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "wait_done": {
             "value": "False",
             "source": "CUSTOM"
@@ -79,10 +67,6 @@
         "name": "ArmsToPose",
         "label": "保持双手位置并恢复 pitch（通用手臂节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"

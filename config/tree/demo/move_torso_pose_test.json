@@ -12,12 +12,7 @@
       {
         "name": "EnsureMoveBoxServices",
         "label": "初始化躯干控制实例",
-        "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          }
-        },
+        "params": {},
         "childs": []
       },
       {
@@ -35,10 +30,6 @@
         "name": "MoveTorsoPose",
         "label": "发布躯干测试目标",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose": {
             "value": "[0.1, 0.0, 1.1, 0.0, 0.0, 0.0]",
             "source": "CUSTOM"

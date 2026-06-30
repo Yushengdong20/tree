@@ -13,10 +13,6 @@
         "name": "ArmsToPose",
         "label": "双臂回到抓取初始位姿（common ArmController）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
@@ -36,10 +32,6 @@
         "name": "MoveTorsoPose",
         "label": "腰部回到抓取 ready 位姿（通用腰部节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose": {
             "value": "[0.0, 0.0, 1.1, 0.0, 0.0, 0.0]",
             "source": "CUSTOM"
@@ -58,4 +50,3 @@
     ]
   }
 }
-

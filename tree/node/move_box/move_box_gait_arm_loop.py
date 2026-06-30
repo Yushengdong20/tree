@@ -3,6 +3,8 @@
 import py_trees
 from py_trees.common import Status
 
+from tree.constants import ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -13,7 +15,7 @@ class MoveBoxGaitArmLoop(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.services = None
         self.started = False
@@ -35,7 +37,7 @@ class MoveBoxGaitArmLoop(TimedMockAction):
         self.services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
         if self.services is None or not hasattr(self.services, "arm_controller"):
             self.startup_error = RuntimeError(
-                f"move_box services 或 arm_controller 缺失: key={self.services_key}"
+                f"robot services 或 arm_controller 缺失: key={self.services_key}"
             )
             self.ros_node.get_logger().error(f"[{self.config_label}] {self.startup_error}")
             return

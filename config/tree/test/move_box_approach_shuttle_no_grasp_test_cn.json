@@ -13,10 +13,6 @@
         "name": "EnsureMoveBoxServices",
         "label": "初始化 move_box 控制实例（禁用手臂/腰部/夹爪动作）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "skip_arm_motion": {
             "value": "True",
             "source": "CUSTOM"
@@ -105,10 +101,6 @@
                     "name": "MoveBoxTrackHeadToYoloBox",
                     "label": "头部持续盯住YOLO箱体",
                     "params": {
-                      "services_key": {
-                        "value": "move_box_services",
-                        "source": "CUSTOM"
-                      },
                       "yolo_topic": {
                         "value": "/yolo/target_poses",
                         "source": "CUSTOM"
@@ -243,10 +235,6 @@
                             "name": "MoveBoxYoloApproachToBox",
                             "label": "YOLO定位箱体并粗靠近",
                             "params": {
-                              "services_key": {
-                                "value": "move_box_services",
-                                "source": "CUSTOM"
-                              },
                               "chassis_url": {
                                 "value": "http://localhost:8081",
                                 "source": "CUSTOM"
@@ -305,10 +293,6 @@
                                 "name": "EnsureMoveBoxDetectionReady",
                                 "label": "提前重启并等待FoundationPose检测有效",
                                 "params": {
-                                  "services_key": {
-                                    "value": "move_box_services",
-                                    "source": "CUSTOM"
-                                  },
                                   "grasp_pair_key": {
                                     "value": "move_box_latest_grasp_pair",
                                     "source": "CUSTOM"
@@ -351,10 +335,6 @@
                         "name": "MoveBoxFpApproachToBox",
                         "label": "FoundationPose计算最终站位并精靠近",
                         "params": {
-                          "services_key": {
-                            "value": "move_box_services",
-                            "source": "CUSTOM"
-                          },
                           "chassis_url": {
                             "value": "http://localhost:8081",
                             "source": "CUSTOM"
@@ -399,10 +379,6 @@
                     "name": "MoveBoxTrackHeadToMapPoint",
                     "label": "头部持续盯住传送带",
                     "params": {
-                      "services_key": {
-                        "value": "move_box_services",
-                        "source": "CUSTOM"
-                      },
                       "tracking_mode": {
                         "value": "split_tf",
                         "source": "CUSTOM"

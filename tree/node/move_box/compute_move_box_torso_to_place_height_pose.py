@@ -7,6 +7,8 @@
 import py_trees
 from py_trees.common import Status
 
+from tree.constants import ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -15,7 +17,7 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.place_plane_height = float(params.get("place_plane_height", ros_node.get_param("place_plane_height", 0.0)))
         self.height_offset = float(
             params.get("place_torso_height_offset", ros_node.get_param("place_torso_height_offset", 0.4))

@@ -1,0 +1,436 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "FoundationPose最近箱左拉抓取与放置（2行2列确认版）",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "WaitForEnter",
+        "label": "确认初始化机器人抓箱姿态",
+        "params": {
+          "message": {
+            "value": "确认机器人周围安全后，按 Enter 初始化头部、双臂和腰部抓箱预备姿态...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 视觉与控制实例",
+        "params": {
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认首次导航到箱子堆",
+        "params": {
+          "message": {
+            "value": "确认导航路径安全后，按 Enter 前往箱子堆固定抓取点 (0.71, 1.23, -179.479度)...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "导航到箱子堆固定抓取点",
+        "params": {
+          "x": {
+            "value": "0.71",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "1.23",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "-179.47902932473036",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "navigation_target_key": {
+            "value": "move_box_grasp_navigation_target",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Repeat",
+        "label": "依次搬运固定点位正前方的两个箱子",
+        "params": {
+          "num_success": {
+            "value": "2",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "FoundationPose最近箱左拉抓取放置单轮流程",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "EnsureMoveBoxDetectionReady",
+                "label": "每轮重启FoundationPose并锁定最近箱体",
+                "params": {
+                  "grasp_pair_key": {
+                    "value": "move_box_latest_grasp_pair",
+                    "source": "CUSTOM"
+                  },
+                  "box_axes_key": {
+                    "value": "move_box_latest_box_axes",
+                    "source": "CUSTOM"
+                  },
+                  "box_center_key": {
+                    "value": "move_box_latest_box_center",
+                    "source": "CUSTOM"
+                  },
+                  "detect_timeout_sec": {
+                    "value": "10.0",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "restart_on_timeout": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "restart_before_wait": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "detection_reset_timeout_sec": {
+                    "value": "5.0",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认进入左拉抓箱流程",
+                "params": {
+                  "message": {
+                    "value": "FoundationPose 已重新锁定当前最近箱体。请结合日志中的 box_center 高度确认目标箱，确认预备姿态运动空间安全后，按 Enter 开始逐动作左拉抓箱...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "重启FoundationPose并逐动作确认左拉抓箱",
+                "params": {
+                  "file": {
+                    "value": "move_box_left_pull_right_grasp_test_cn.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认导航到放置点",
+                "params": {
+                  "message": {
+                    "value": "箱体已完成左拉、双手补抓和上提回拉。确认搬运路径安全后，按 Enter 导航到放置点...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "HttpNavigateToPose",
+                "label": "导航到放置点",
+                "params": {
+                  "x": {
+                    "value": "2.820933034031259",
+                    "source": "CUSTOM"
+                  },
+                  "y": {
+                    "value": "3.307197578516518",
+                    "source": "CUSTOM"
+                  },
+                  "yaw": {
+                    "value": "86.41201143492874",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "move_box_place_navigation_target",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                "label": "计算放置高度对应的腰部目标",
+                "params": {
+                  "place_plane_height": {
+                    "value": "0.7",
+                    "source": "CUSTOM"
+                  },
+                  "place_torso_height_offset": {
+                    "value": "0.4",
+                    "source": "CUSTOM"
+                  },
+                  "place_torso_min_height": {
+                    "value": "0.6",
+                    "source": "CUSTOM"
+                  },
+                  "place_torso_max_height": {
+                    "value": "1.4",
+                    "source": "CUSTOM"
+                  },
+                  "place_torso_x": {
+                    "value": "0.5",
+                    "source": "CUSTOM"
+                  },
+                  "target_pose_key": {
+                    "value": "move_box_place_torso_pose",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认腰部调整到放置高度",
+                "params": {
+                  "message": {
+                    "value": "已到放置点并计算腰部目标。确认腰部空间安全后，按 Enter 调整到放置高度...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "MoveTorsoPose",
+                "label": "腰部调整到放置高度",
+                "params": {
+                  "pose_key": {
+                    "value": "move_box_place_torso_pose",
+                    "source": "CUSTOM"
+                  },
+                  "wait_done": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "skip_torso_motion": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ComputeMoveBoxPlaceTargets",
+                "label": "计算双夹爪放置下降目标",
+                "params": {
+                  "place_plane_height": {
+                    "value": "0.7",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_z": {
+                    "value": "0.34",
+                    "source": "CUSTOM"
+                  },
+                  "left_target_key": {
+                    "value": "move_box_place_left_lower_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_target_key": {
+                    "value": "move_box_place_right_lower_claw_point",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认双手下降放箱",
+                "params": {
+                  "message": {
+                    "value": "放置下降目标已计算。确认箱体下方和双臂路径安全后，按 Enter 下降箱体...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "双夹爪同步下降到放置高度",
+                "params": {
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_point_key": {
+                    "value": "move_box_place_left_lower_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_point_key": {
+                    "value": "move_box_place_right_lower_claw_point",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认松开双爪",
+                "params": {
+                  "message": {
+                    "value": "箱体已下降到放置高度。确认箱体落稳后，按 Enter 张开双夹爪...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "张开双夹爪释放箱体",
+                "params": {
+                  "side": {
+                    "value": "both",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认双臂回抓取预备姿态",
+                "params": {
+                  "message": {
+                    "value": "箱体已释放。确认双臂回程空间安全后，按 Enter 将双臂恢复到抓取预备姿态...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "双臂回到抓取预备姿态",
+                "params": {
+                  "pose_frame": {
+                    "value": "waist_yaw_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_pose": {
+                    "value": "[0.351, 0.3, 0.2, 0.0, -80.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "right_pose": {
+                    "value": "[0.351, -0.3, 0.2, 0.0, -80.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认腰部回抓取预备姿态",
+                "params": {
+                  "message": {
+                    "value": "双臂已回预备姿态。确认腰部空间安全后，按 Enter 恢复腰部抓取预备姿态...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "MoveTorsoPose",
+                "label": "腰部回到抓取预备姿态",
+                "params": {
+                  "pose": {
+                    "value": "[0.0, 0.0, 1.1, 0.0, 0.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "wait_done": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  },
+                  "skip_torso_motion": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认返回箱子堆固定抓取点",
+                "params": {
+                  "message": {
+                    "value": "本箱已放置并恢复预备姿态。确认路径安全后，按 Enter 返回箱子堆固定抓取点...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "HttpNavigateToPose",
+                "label": "返回箱子堆固定抓取点",
+                "params": {
+                  "x": {
+                    "value": "0.71",
+                    "source": "CUSTOM"
+                  },
+                  "y": {
+                    "value": "1.23",
+                    "source": "CUSTOM"
+                  },
+                  "yaw": {
+                    "value": "-179.47902932473036",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "move_box_grasp_navigation_target",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

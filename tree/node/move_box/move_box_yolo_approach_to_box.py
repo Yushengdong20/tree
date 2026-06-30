@@ -8,6 +8,14 @@ import py_trees
 from geometry_msgs.msg import PoseStamped
 from py_trees.common import Status
 
+from tree.constants import (
+    BASE_LINK_FRAME,
+    FINAL_POSE_KEY,
+    FLOW_RESULT_KEY,
+    MAP_FRAME,
+    ROBOT_SERVICES_KEY,
+)
+
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
     DEFAULT_CHASSIS_URL,
@@ -35,7 +43,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.chassis_config = build_chassis_config(
             base_url=str(params.get("chassis_url", DEFAULT_CHASSIS_URL)).strip(),
         )
@@ -68,8 +76,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             params.get("min_detected_box_3d_distance_m", 0.25)
         )
         self.use_tf_3d_transform = self._to_bool(params.get("use_tf_3d_transform", True))
-        self.tf_target_frame = str(params.get("tf_target_frame", "map")).strip()
-        self.tf_base_frame = str(params.get("tf_base_frame", "base_link")).strip()
+        self.tf_target_frame = str(params.get("tf_target_frame", MAP_FRAME)).strip()
+        self.tf_base_frame = str(params.get("tf_base_frame", BASE_LINK_FRAME)).strip()
         self.tf_timeout_sec = float(params.get("tf_timeout_sec", 0.2))
         self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
         self.valid_box_map_polygon = parse_map_polygon(
@@ -97,8 +105,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             base_frame=self.tf_base_frame,
         )
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="flow_result", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="final_pose", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key=FLOW_RESULT_KEY, access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key=FINAL_POSE_KEY, access=py_trees.common.Access.WRITE)
         if self.navigation_target_key:
             self.blackboard.register_key(key=self.navigation_target_key, access=py_trees.common.Access.WRITE)
         if self.use_box_memory:
@@ -290,9 +298,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
     def _get_services(self):
         services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
         if services is None:
-            raise RuntimeError(f"move_box services missing on blackboard: key={self.services_key}")
+            raise RuntimeError(f"robot services missing on blackboard: key={self.services_key}")
         if not hasattr(services, "yolo_detector"):
-            raise RuntimeError("move_box services 缺少 yolo_detector")
+            raise RuntimeError("robot services 缺少 yolo_detector")
         return services
 
     def _update_yolo_targets(self, services):
@@ -325,7 +333,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "y": float(target_pose.pose.position.y),
                 "z": float(target_pose.pose.position.z),
             }
-            source_frame = getattr(target_pose.header, "frame_id", "") or "base_link"
+            source_frame = getattr(target_pose.header, "frame_id", "") or BASE_LINK_FRAME
             map_position = self._transform_base_position_to_map_position(
                 services,
                 base_position,
@@ -839,7 +847,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
         box_pose = PoseStamped()
         box_pose.header.stamp = self.ros_node.now()
-        box_pose.header.frame_id = "map"
+        box_pose.header.frame_id = MAP_FRAME
         box_pose.pose.position.x = self._box_global_position["x"]
         box_pose.pose.position.y = self._box_global_position["y"]
         # 关键步骤：启用 3D TF 时 z 也是 map 下高度；回退路径中 z 仍是 base_link 高度近似值。

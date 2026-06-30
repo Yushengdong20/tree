@@ -13,10 +13,6 @@
         "name": "EnsureMoveBoxServices",
         "label": "只创建共享控制实例（跳过初始化动作）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "skip_head_motion": {
             "value": "True",
             "source": "CUSTOM"

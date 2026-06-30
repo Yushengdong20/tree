@@ -13,10 +13,6 @@
         "name": "EnsureMoveBoxServices",
         "label": "初始化 move_box 控制实例",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "skip_arm_motion": {
             "value": "True",
             "source": "CUSTOM"
@@ -59,10 +55,6 @@
             "name": "MoveBoxTrackHeadToYoloBox",
             "label": "头部持续盯住YOLO最近箱体",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "yolo_topic": {
                 "value": "/yolo/target_poses",
                 "source": "CUSTOM"

@@ -13,10 +13,6 @@
         "name": "EnsureMoveBoxServices",
         "label": "只创建共享控制实例（跳过初始化动作）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "skip_head_motion": {
             "value": "True",
             "source": "CUSTOM"
@@ -51,10 +47,6 @@
         "name": "MoveTorsoPose",
         "label": "腰部移动到 ready 位姿",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose": {
             "value": "[0.0, 0.0, 1.1, 0.0, 0.0, 0.0]",
             "source": "CUSTOM"
@@ -85,10 +77,6 @@
         "name": "MoveTorsoPose",
         "label": "腰部移动到前伸测试位姿",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose": {
             "value": "[0.2, 0.0, 1.1, 0.0, 0.0, 0.0]",
             "source": "CUSTOM"

@@ -23,10 +23,6 @@
         "name": "EnsureMoveBoxDetectionReady",
         "label": "确认视觉检测有效",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "grasp_pair_key": {
             "value": "move_box_latest_grasp_pair",
             "source": "CUSTOM"
@@ -43,7 +39,15 @@
             "value": "10.0",
             "source": "CUSTOM"
           },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
           "restart_on_timeout": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "restart_before_wait": {
             "value": "False",
             "source": "CUSTOM"
           },
@@ -105,10 +109,6 @@
         "name": "ArmsToPose",
         "label": "双夹爪同步移动到左右边缘上方（通用手臂节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "target_type": {
             "value": "claw_point",
             "source": "CUSTOM"
@@ -131,10 +131,6 @@
         "name": "ArmsToPose",
         "label": "双夹爪同步下降到左右边缘下方（通用手臂节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "target_type": {
             "value": "claw_point",
             "source": "CUSTOM"
@@ -157,10 +153,6 @@
         "name": "CloseClaw",
         "label": "同时闭合左右夹爪",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "side": {
             "value": "both",
             "source": "CUSTOM"

@@ -23,10 +23,6 @@
         "name": "EnsureMoveBoxDetectionReady",
         "label": "确认视觉检测有效",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "grasp_pair_key": {
             "value": "move_box_latest_grasp_pair",
             "source": "CUSTOM"
@@ -43,12 +39,16 @@
             "value": "10.0",
             "source": "CUSTOM"
           },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
           "restart_on_timeout": {
             "value": "False",
             "source": "CUSTOM"
           },
-          "restart_wait_sec": {
-            "value": "5.0",
+          "restart_before_wait": {
+            "value": "False",
             "source": "CUSTOM"
           },
           "detection_reset_timeout_sec": {
@@ -83,16 +83,24 @@
         "name": "ComputeMoveBoxTorsoToBoxCenterPose",
         "label": "计算抓取前躯干目标位姿",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "box_center_key": {
             "value": "move_box_latest_box_center",
             "source": "CUSTOM"
           },
+          "preferred_box_center_key": {
+            "value": "",
+            "source": "CUSTOM"
+          },
           "target_pose_key": {
             "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "knee_origin_z": {
+            "value": "0.1055",
+            "source": "CUSTOM"
+          },
+          "ik_angle_step_deg": {
+            "value": "1.0",
             "source": "CUSTOM"
           }
         }
@@ -101,10 +109,6 @@
         "name": "MoveTorsoPose",
         "label": "根据箱体中心调整躯干（通用节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_key": {
             "value": "move_box_torso_box_center_pose",
             "source": "CUSTOM"
@@ -149,10 +153,6 @@
         "name": "ArmsToPose",
         "label": "双夹爪同步移动到左右边缘上方（通用手臂节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "target_type": {
             "value": "claw_point",
             "source": "CUSTOM"
@@ -175,10 +175,6 @@
         "name": "ArmsToPose",
         "label": "双夹爪同步下降到左右边缘下方（通用手臂节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "target_type": {
             "value": "claw_point",
             "source": "CUSTOM"
@@ -201,10 +197,6 @@
         "name": "CloseClaw",
         "label": "同时闭合左右夹爪",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "side": {
             "value": "both",
             "source": "CUSTOM"

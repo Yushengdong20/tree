@@ -13,10 +13,6 @@
         "name": "EnsureMoveBoxServices",
         "label": "只创建共享控制实例（跳过初始化动作）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "skip_head_motion": {
             "value": "True",
             "source": "CUSTOM"
@@ -51,10 +47,6 @@
         "name": "ArmsToPose",
         "label": "双臂移动到初始化位姿（common ArmController）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
@@ -95,10 +87,6 @@
             "name": "ArmsToPose",
             "label": "双臂移动到抓箱中间测试位姿（common ArmController）",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "pose_frame": {
                 "value": "waist_yaw_link",
                 "source": "CUSTOM"
@@ -118,10 +106,6 @@
             "name": "EnsureMoveBoxServices",
             "label": "中间位姿失败后回到初始化状态",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "skip_torso_motion": {
                 "value": "False",
                 "source": "CUSTOM"

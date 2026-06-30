@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "抓箱对齐-直接抓取-放箱完整流程（通用节点版）",
+    "label": "左拉抓箱-放箱完整流程（左手外拉-右手补抓-双手抬箱，箱子记忆版）",
     "params": {
       "memory": {
         "value": "True",
@@ -24,14 +24,14 @@
         "label": "初始化完成后暂停（按 Enter）",
         "params": {
           "message": {
-            "value": "move_box 视觉与控制实例已初始化，按 Enter 开始循环抓箱放箱流程...",
+            "value": "move_box 视觉与控制实例已初始化，按 Enter 开始循环左拉抓箱放箱流程（箱子记忆版）...",
             "source": "CUSTOM"
           }
         }
       },
       {
         "name": "Repeat",
-        "label": "循环执行抓箱放箱单轮流程",
+        "label": "循环执行左拉抓箱放箱单轮流程",
         "params": {
           "num_success": {
             "value": "-1",
@@ -41,7 +41,7 @@
         "childs": [
           {
             "name": "Sequence",
-            "label": "单轮抓箱放箱完整流程（通用节点版）",
+            "label": "单轮左拉抓箱放箱完整流程（更新箱子记忆）",
             "params": {
               "memory": {
                 "value": "True",
@@ -51,10 +51,10 @@
             "childs": [
               {
                 "name": "SubTree",
-                "label": "抓箱前导航与底盘对齐",
+                "label": "抓箱前导航、更新记忆与底盘对齐",
                 "params": {
                   "file": {
-                    "value": "subtree/move_box_yolo_fp_approach_no_enter_cn.json",
+                    "value": "subtree/move_box_yolo_memory_fp_approach_no_enter_cn.json",
                     "source": "CUSTOM"
                   }
                 }
@@ -75,10 +75,10 @@
               },
               {
                 "name": "SubTree",
-                "label": "直接抓取箱体到闭爪（通用节点版）",
+                "label": "左拉抓箱流程（左手外拉-右手补抓-双手抬箱）",
                 "params": {
                   "file": {
-                    "value": "subtree/move_box_direct_grasp_before_lift_common_cn.json",
+                    "value": "subtree/move_box_left_pull_right_grasp_no_enter_cn.json",
                     "source": "CUSTOM"
                   }
                 }
@@ -129,10 +129,10 @@
                   },
                   {
                     "name": "SubTree",
-                    "label": "上提箱体并回位（通用节点版）",
+                    "label": "上提箱体并回位",
                     "params": {
                       "file": {
-                        "value": "subtree/move_box_direct_grasp_lift_restore_common_cn.json",
+                        "value": "subtree/move_box_direct_grasp_lift_restore_no_enter_cn.json",
                         "source": "CUSTOM"
                       }
                     }
@@ -160,7 +160,7 @@
                             "source": "CUSTOM"
                           },
                           "distance_threshold": {
-                            "value": "0.3",
+                            "value": "0.6",
                             "source": "CUSTOM"
                           }
                         }
@@ -233,17 +233,17 @@
               },
               {
                 "name": "SubTree",
-                "label": "放置箱体（通用节点版）",
+                "label": "放置箱体",
                 "params": {
                   "file": {
-                    "value": "subtree/move_box_place_request_flow_common_cn.json",
+                    "value": "subtree/move_box_place_request_flow_no_enter_cn.json",
                     "source": "CUSTOM"
                   }
                 }
               },
               {
                 "name": "Parallel",
-                "label": "后退回等待区域并同步回到抓取初始位姿",
+                "label": "放箱后后退0.5米并回到抓取预备姿态",
                 "params": {
                   "policy": {
                     "value": "SuccessOnAll",
@@ -252,38 +252,72 @@
                 },
                 "childs": [
                   {
-                    "name": "HttpNavigateToPose",
-                    "label": "回等待区域前先后退1米",
+                    "name": "Parallel",
+                    "label": "放箱后后退1米并在0.5米处提前完成",
                     "params": {
-                      "x": {
-                        "value": "2.820933034031259",
-                        "source": "CUSTOM"
-                      },
-                      "y": {
-                        "value": "2.307197578516518",
-                        "source": "CUSTOM"
-                      },
-                      "yaw": {
-                        "value": "-150.41201143492874",
-                        "source": "CUSTOM"
-                      },
-                      "chassis_url": {
-                        "value": "http://localhost:8081",
-                        "source": "CUSTOM"
-                      },
-                      "navigation_timeout_sec": {
-                        "value": "600",
-                        "source": "CUSTOM"
-                      },
-                      "poll_interval_sec": {
-                        "value": "0.2",
+                      "policy": {
+                        "value": "SuccessOnOne",
                         "source": "CUSTOM"
                       }
-                    }
+                    },
+                    "childs": [
+                      {
+                        "name": "HttpNavigateToPose",
+                        "label": "放箱后后退1米避免碰到箱子",
+                        "params": {
+                          "x": {
+                            "value": "2.820933034031259",
+                            "source": "CUSTOM"
+                          },
+                          "y": {
+                            "value": "2.307197578516518",
+                            "source": "CUSTOM"
+                          },
+                          "yaw": {
+                            "value": "86.41201143492874",
+                            "source": "CUSTOM"
+                          },
+                          "chassis_url": {
+                            "value": "http://localhost:8081",
+                            "source": "CUSTOM"
+                          },
+                          "navigation_timeout_sec": {
+                            "value": "600",
+                            "source": "CUSTOM"
+                          },
+                          "poll_interval_sec": {
+                            "value": "0.2",
+                            "source": "CUSTOM"
+                          },
+                          "navigation_target_key": {
+                            "value": "move_box_retreat_navigation_target",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "WaitUntilNearNavigationGoal",
+                        "label": "后退到0.5米安全距离后提前完成",
+                        "params": {
+                          "odom_topic": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "target_key": {
+                            "value": "move_box_retreat_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "distance_threshold": {
+                            "value": "0.5",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      }
+                    ]
                   },
                   {
                     "name": "SubTree",
-                    "label": "放箱后通用节点回到抓取初始位姿",
+                    "label": "放箱后通用节点回到抓取预备姿态",
                     "params": {
                       "file": {
                         "value": "subtree/move_box_return_to_grasp_ready_common_cn.json",
@@ -292,6 +326,61 @@
                     }
                   }
                 ]
+              },
+              {
+                "name": "MoveBoxSelectNextMemoryBox",
+                "label": "放箱后选择下一个记忆箱子",
+                "params": {
+                  "box_memory_key": {
+                    "value": "move_box_box_memory",
+                    "source": "CUSTOM"
+                  },
+                  "current_box_target_key": {
+                    "value": "move_box_current_box_target",
+                    "source": "CUSTOM"
+                  },
+                  "finished_box_targets_key": {
+                    "value": "move_box_finished_box_targets",
+                    "source": "CUSTOM"
+                  },
+                  "select_policy": {
+                    "value": "nearest",
+                    "source": "CUSTOM"
+                  },
+                  "valid_box_map_polygon": {
+                    "value": [
+                      [
+                        -1.5,
+                        3.0
+                      ],
+                      [
+                        -1.5,
+                        -1.3
+                      ],
+                      [
+                        1.5,
+                        -1.3
+                      ],
+                      [
+                        1.5,
+                        3.0
+                      ]
+                    ],
+                    "source": "CUSTOM"
+                  },
+                  "valid_box_polygon_required": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  },
+                  "enable_colored_log": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  }
+                }
               }
             ]
           }

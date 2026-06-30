@@ -17,6 +17,8 @@ from geometry_msgs.msg import Point, PointStamped, PoseArray
 from py_trees.common import Status
 from visualization_msgs.msg import Marker
 
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -38,18 +40,18 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         # 共享服务实例由 EnsureMoveBoxServices 创建，里面包含 head_controller/tf_listener。
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         # YOLO 输出 PoseArray：通常 header.frame_id=camera，pose.position 为目标点。
         self.yolo_topic = str(params.get("yolo_topic", "/yolo/target_poses")).strip()
         # 多目标选择坐标系：默认先把 YOLO 候选点转到 base_link，再选离底盘最近的箱子。
         # 如果现场需要恢复旧行为，可在 JSON 中填 target_select_frame=camera。
-        self.target_select_frame = str(params.get("target_select_frame", "base_link")).strip()
+        self.target_select_frame = str(params.get("target_select_frame", BASE_LINK_FRAME)).strip()
         # 不在节点内部限流，头部控制频率直接跟随行为树 tick。
         # 如需降频，应调整行为树 tick 频率或在上层流程控制。
         # latched_map_target：把 YOLO 点锁到 map，再高频重投影追踪。
         # legacy/其它值：只在新 YOLO 帧到来时直接按当前 YOLO 点控制一次。
         self.control_mode = str(params.get("control_mode", "latched_map_target")).strip()
-        self.control_frame = str(params.get("control_frame", "map")).strip()
+        self.control_frame = str(params.get("control_frame", MAP_FRAME)).strip()
         self.no_target_log_interval_sec = float(params.get("no_target_log_interval_sec", 1.0))
         self.failure_log_interval_sec = float(params.get("failure_log_interval_sec", 1.0))
         # 单次控制增量限幅。它限制的是“每次发布目标角度变化”，不是头部硬限位。
@@ -318,7 +320,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         target_to_head = None
         source_frame = pose_array.header.frame_id or head_controller.base_frame
         source_point_msg = self._build_target_point_msg(nearest_pose, source_frame)
-        if self.control_frame == "map" and source_frame == head_controller.head_frame:
+        if self.control_frame == MAP_FRAME and source_frame == head_controller.head_frame:
             # 关键路径：camera 点 -> map 点。
             # 不直接查 map->camera 整链 TF，而是分段组合 map->melon_odom 与 base_link->camera。
             target_to_head = self._build_split_tf_target_to_head(
@@ -507,7 +509,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
             return True
 
         target_to_head = None
-        if self.control_frame == "map":
+        if self.control_frame == MAP_FRAME:
             # 当前 TF 下的 T_map_camera。取逆矩阵后可把 map 锁点转回 camera/head_frame。
             target_to_head = self._build_split_tf_target_to_head(head_controller, self.control_frame)
             if target_to_head is None:
@@ -683,7 +685,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         source_frame = target_point_msg.header.frame_id
         display_frame = self.debug_frame or source_frame
         target_to_head = target_to_head_matrix
-        if target_to_head is None and display_frame == "map" and source_frame == head_controller.head_frame:
+        if target_to_head is None and display_frame == MAP_FRAME and source_frame == head_controller.head_frame:
             # debug_frame=map 且目标在 camera 下时，沿用分段 TF，避免 map->camera 整链跳变。
             target_to_head = self._build_split_tf_target_to_head(head_controller, display_frame)
             if target_to_head is None:

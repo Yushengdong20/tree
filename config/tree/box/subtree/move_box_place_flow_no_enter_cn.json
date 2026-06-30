@@ -13,10 +13,6 @@
         "name": "ComputeMoveBoxPlaceTargets",
         "label": "计算双夹爪放置下降目标",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "place_plane_height": {
             "value": "0.7",
             "source": "CUSTOM"
@@ -39,10 +35,6 @@
         "name": "ArmsToPose",
         "label": "双夹爪同步下降到放置高度（通用手臂节点）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "target_type": {
             "value": "claw_point",
             "source": "CUSTOM"
@@ -65,10 +57,6 @@
         "name": "OpenClaw",
         "label": "张开双夹爪释放箱体",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "side": {
             "value": "both",
             "source": "CUSTOM"

@@ -1,0 +1,290 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "箱体中心三连杆腰部IK循环测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化服务并进入抓取预备姿态",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "skip_arm_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxDetectionReady",
+        "label": "首次重启FoundationPose并读取箱体",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "detect_timeout_sec": {
+            "value": "15.0",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "restart_before_wait": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "restart_on_timeout": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "detection_reset_timeout_sec": {
+            "value": "5.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxTorsoToBoxCenterPose",
+        "label": "首次计算腰部x-z-pitch目标",
+        "params": {
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "preferred_box_center_key": {
+            "value": "",
+            "source": "CUSTOM"
+          },
+          "target_pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "knee_origin_z": {
+            "value": "0.1055",
+            "source": "CUSTOM"
+          },
+          "ik_angle_step_deg": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "首次计算完成后等待移动",
+        "params": {
+          "message": {
+            "value": "首次腰部目标已计算完成，按 Enter 执行腰部移动...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "首次执行计算得到的腰部目标",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Repeat",
+        "label": "循环回初始位-重新计算-移动腰部",
+        "params": {
+          "num_success": {
+            "value": "-1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮腰部IK交互测试",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "WaitForEnter",
+                "label": "等待回到初始状态",
+                "params": {
+                  "message": {
+                    "value": "腰部移动完成，按 Enter 让手臂和腰部回到抓取初始状态...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "手臂和腰部回到抓取初始状态",
+                "params": {
+                  "file": {
+                    "value": "subtree/move_box_return_to_grasp_ready_common_cn.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "等待重新检测并计算",
+                "params": {
+                  "message": {
+                    "value": "已回到抓取初始状态，按 Enter 重启 FoundationPose 并重新计算腰部目标...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "EnsureMoveBoxDetectionReady",
+                "label": "重启FoundationPose并读取最新箱体",
+                "params": {
+                  "services_key": {
+                    "value": "move_box_services",
+                    "source": "CUSTOM"
+                  },
+                  "grasp_pair_key": {
+                    "value": "move_box_latest_grasp_pair",
+                    "source": "CUSTOM"
+                  },
+                  "box_axes_key": {
+                    "value": "move_box_latest_box_axes",
+                    "source": "CUSTOM"
+                  },
+                  "box_center_key": {
+                    "value": "move_box_latest_box_center",
+                    "source": "CUSTOM"
+                  },
+                  "detect_timeout_sec": {
+                    "value": "15.0",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "restart_before_wait": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "restart_on_timeout": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "detection_reset_timeout_sec": {
+                    "value": "5.0",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ComputeMoveBoxTorsoToBoxCenterPose",
+                "label": "重新计算腰部x-z-pitch目标",
+                "params": {
+                  "box_center_key": {
+                    "value": "move_box_latest_box_center",
+                    "source": "CUSTOM"
+                  },
+                  "preferred_box_center_key": {
+                    "value": "",
+                    "source": "CUSTOM"
+                  },
+                  "target_pose_key": {
+                    "value": "move_box_torso_box_center_pose",
+                    "source": "CUSTOM"
+                  },
+                  "knee_origin_z": {
+                    "value": "0.1055",
+                    "source": "CUSTOM"
+                  },
+                  "ik_angle_step_deg": {
+                    "value": "1.0",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "重新计算完成后等待移动",
+                "params": {
+                  "message": {
+                    "value": "新的腰部目标已计算完成，按 Enter 执行腰部移动...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "MoveTorsoPose",
+                "label": "执行重新计算得到的腰部目标",
+                "params": {
+                  "services_key": {
+                    "value": "move_box_services",
+                    "source": "CUSTOM"
+                  },
+                  "pose_key": {
+                    "value": "move_box_torso_box_center_pose",
+                    "source": "CUSTOM"
+                  },
+                  "wait_done": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "skip_torso_motion": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

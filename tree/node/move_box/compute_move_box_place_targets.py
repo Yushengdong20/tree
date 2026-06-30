@@ -11,6 +11,8 @@ from py_trees.common import Status
 
 from tree.utils.geometry import ypr_to_rotation_matrix
 
+from tree.constants import ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 
 
@@ -19,7 +21,7 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.place_plane_height = float(params.get("place_plane_height", ros_node.get_param("place_plane_height", 0.0)))
         self.box_size_z = float(params.get("box_size_z", ros_node.get_param("box_size_z", 0.34)))
         self.left_target_key = str(params.get("left_target_key", "move_box_place_left_lower_claw_point")).strip()

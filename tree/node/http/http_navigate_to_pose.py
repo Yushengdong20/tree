@@ -17,6 +17,7 @@ import uuid
 
 from py_trees import common
 
+from tree.constants import FLOW_RESULT_KEY
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
     DEFAULT_CHASSIS_URL,
@@ -39,7 +40,7 @@ class HttpNavigateToPose(TimedMockAction):
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         # 导航节点负责写入流程结果，供后续节点读取。
-        self.blackboard.register_key(key="flow_result", access=common.Access.WRITE)
+        self.blackboard.register_key(key=FLOW_RESULT_KEY, access=common.Access.WRITE)
         self.x = float(params.get("x", 0.0))
         self.y = float(params.get("y", 0.0))
         self.yaw = float(params.get("yaw", 0.0))

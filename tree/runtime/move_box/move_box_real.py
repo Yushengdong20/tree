@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import rospy
 import tf
 
+from tree.constants import BASE_LINK_FRAME
 from kuavo_humanoid_sdk.common.arm_controller import ArmController
 from kuavo_humanoid_sdk.common.box_detection import (
     BoxGraspDetector,
@@ -18,7 +19,7 @@ from kuavo_humanoid_sdk.common.torso_controller import TorsoController
 
 
 @dataclass
-class MoveBoxServices:
+class RobotServices:
     """集中保存 move_box 流程要复用的真实控制器和检测器实例。"""
 
     target_frame: str
@@ -33,7 +34,7 @@ class MoveBoxServices:
     head_controller: HeadController
 
 
-def build_move_box_services() -> MoveBoxServices:
+def build_robot_services() -> RobotServices:
     """创建一套可被行为树节点复用的 move_box 真实服务对象。"""
     if bool(rospy.get_param("~auto_set_quick_mode", True)):
         set_quick_mode(int(rospy.get_param("~quick_mode", 2)))
@@ -42,13 +43,13 @@ def build_move_box_services() -> MoveBoxServices:
     marker_topic = rospy.get_param("~marker_topic", "/aruco_single/poses")
     box_pose_topic = rospy.get_param("~box_pose_topic", "/foundationpose/pose")
     yolo_target_poses_topic = rospy.get_param("~yolo_target_poses_topic", "/yolo/target_poses")
-    target_frame = rospy.get_param("~target_frame", "base_link")
-    if target_frame != "base_link":
+    target_frame = rospy.get_param("~target_frame", BASE_LINK_FRAME)
+    if target_frame != BASE_LINK_FRAME:
         rospy.logwarn(
             "当前手臂 IK 事件只支持 base_link 目标，已将 target_frame 从 %s 改为 base_link",
             target_frame,
         )
-        target_frame = "base_link"
+        target_frame = BASE_LINK_FRAME
 
     static_tf_publisher = StaticTfPublisher()
     tf_listener = tf.TransformListener()
@@ -63,7 +64,7 @@ def build_move_box_services() -> MoveBoxServices:
     arm_controller = ArmController(tf_listener, target_frame)
     torso_controller = TorsoController()
     head_controller = HeadController()
-    return MoveBoxServices(
+    return RobotServices(
         target_frame=target_frame,
         detector_topic=detector_topic,
         detector_type=detector_type,

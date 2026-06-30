@@ -32,21 +32,12 @@
               {
                 "name": "MoveBoxGaitArmLoop",
                 "label": "YOLO导航过程摆臂",
-                "params": {
-                  "services_key": {
-                    "value": "move_box_services",
-                    "source": "CUSTOM"
-                  }
-                }
+                "params": {}
               },
               {
                 "name": "MoveBoxYoloApproachToBox",
                 "label": "YOLO定位箱体并粗靠近",
                 "params": {
-                  "services_key": {
-                    "value": "move_box_services",
-                    "source": "CUSTOM"
-                  },
                   "chassis_url": {
                     "value": "http://localhost:8081",
                     "source": "CUSTOM"
@@ -111,10 +102,6 @@
                 "name": "EnsureMoveBoxDetectionReady",
                 "label": "提前重启并等待FoundationPose检测有效",
                 "params": {
-                  "services_key": {
-                    "value": "move_box_services",
-                    "source": "CUSTOM"
-                  },
                   "grasp_pair_key": {
                     "value": "move_box_latest_grasp_pair",
                     "source": "CUSTOM"
@@ -163,10 +150,6 @@
             "name": "MoveBoxFpApproachToBox",
             "label": "FoundationPose计算最终抓取站位并精靠近",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "chassis_url": {
                 "value": "http://localhost:8081",
                 "source": "CUSTOM"
@@ -235,10 +218,6 @@
                     "name": "ArmsToPose",
                     "label": "双臂移动到预备姿态（通用手臂节点）",
                     "params": {
-                      "services_key": {
-                        "value": "move_box_services",
-                        "source": "CUSTOM"
-                      },
                       "pose_frame": {
                         "value": "waist_yaw_link",
                         "source": "CUSTOM"
@@ -259,10 +238,6 @@
                         "name": "ComputeMoveBoxTorsoToBoxCenterPose",
                         "label": "根据FP到点后箱体中心计算躯干目标",
                         "params": {
-                          "services_key": {
-                            "value": "move_box_services",
-                            "source": "CUSTOM"
-                          },
                           "box_center_key": {
                             "value": "move_box_latest_box_center",
                             "source": "CUSTOM"
@@ -274,6 +249,14 @@
                           "target_pose_key": {
                             "value": "move_box_torso_box_center_pose",
                             "source": "CUSTOM"
+                          },
+                          "knee_origin_z": {
+                            "value": "0.1055",
+                            "source": "CUSTOM"
+                          },
+                          "ik_angle_step_deg": {
+                            "value": "1.0",
+                            "source": "CUSTOM"
                           }
                         }
                       },
@@ -281,10 +264,6 @@
                         "name": "MoveTorsoPose",
                         "label": "根据箱体中心调整躯干（通用腰部节点）",
                         "params": {
-                          "services_key": {
-                            "value": "move_box_services",
-                            "source": "CUSTOM"
-                          },
                           "pose_key": {
                             "value": "move_box_torso_box_center_pose",
                             "source": "CUSTOM"

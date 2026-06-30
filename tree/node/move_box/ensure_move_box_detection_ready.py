@@ -6,6 +6,8 @@ import time
 import py_trees
 from py_trees.common import Status
 
+from tree.constants import ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import post_json
 
@@ -18,7 +20,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.grasp_pair_key = str(params.get("grasp_pair_key", "move_box_latest_grasp_pair")).strip()
         self.box_axes_key = str(params.get("box_axes_key", "move_box_latest_box_axes")).strip()
         self.box_center_key = str(params.get("box_center_key", "move_box_latest_box_center")).strip()
@@ -67,7 +69,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self.services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
         if self.services is None:
             self.ros_node.get_logger().error(
-                f"[{self.config_label}] move_box services missing on blackboard: key={self.services_key}"
+                f"[{self.config_label}] robot services missing on blackboard: key={self.services_key}"
             )
             return Status.FAILURE
 
@@ -132,7 +134,8 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self.blackboard.set(self.box_axes_key, box_axes, overwrite=True)
         self.blackboard.set(self.box_center_key, box_center, overwrite=True)
         self.ros_node.get_logger().info(
-            f"[{self.config_label}] {reason}成功: grasp_pair=True, box_axes=True, box_center=True"
+            f"[{self.config_label}] {reason}成功: grasp_pair=True, box_axes=True, "
+            f"box_center={box_center}（z 为当前 FoundationPose 目标高度）"
         )
         return True
 

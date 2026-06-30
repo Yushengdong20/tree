@@ -13,10 +13,6 @@
         "name": "EnsureMoveBoxServices",
         "label": "只创建共享控制实例（跳过初始化动作）",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "skip_head_motion": {
             "value": "True",
             "source": "CUSTOM"
@@ -49,10 +45,6 @@
         "name": "MoveTorsoPose",
         "label": "设置相同起点腰部姿态1",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose": {
             "value": "[0.5, 0.0, 1.1, 0.0, 0.0, 0.0]",
             "source": "CUSTOM"
@@ -71,10 +63,6 @@
         "name": "ArmsToPose",
         "label": "设置相同起点双臂姿态1",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
@@ -117,10 +105,6 @@
             "name": "ComputeMoveBoxRestorePitchArmPoses",
             "label": "记录当前双手位置并计算 pitch 恢复目标",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "pitch": {
                 "value": "-80.0",
                 "source": "CUSTOM"
@@ -139,10 +123,6 @@
             "name": "MoveTorsoPose",
             "label": "通用腰部节点回位（wait_done=True）",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "wait_done": {
                 "value": "True",
                 "source": "CUSTOM"
@@ -157,10 +137,6 @@
             "name": "ArmsToPose",
             "label": "通用手臂节点恢复双手 pitch",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "pose_frame": {
                 "value": "waist_yaw_link",
                 "source": "CUSTOM"
@@ -195,10 +171,6 @@
         "name": "MoveTorsoPose",
         "label": "设置相同起点腰部姿态2",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose": {
             "value": "[0.5, 0.0, 1.1, 0.0, 0.0, 0.0]",
             "source": "CUSTOM"
@@ -217,10 +189,6 @@
         "name": "ArmsToPose",
         "label": "设置相同起点双臂姿态2",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
@@ -263,10 +231,6 @@
             "name": "ComputeMoveBoxRestorePitchArmPoses",
             "label": "记录当前双手位置并计算 pitch 恢复目标",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "pitch": {
                 "value": "-80.0",
                 "source": "CUSTOM"
@@ -285,10 +249,6 @@
             "name": "MoveTorsoPose",
             "label": "通用腰部节点回位（wait_done=False）",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "wait_done": {
                 "value": "False",
                 "source": "CUSTOM"
@@ -303,10 +263,6 @@
             "name": "ArmsToPose",
             "label": "通用手臂节点恢复双手 pitch",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
-                "source": "CUSTOM"
-              },
               "pose_frame": {
                 "value": "waist_yaw_link",
                 "source": "CUSTOM"

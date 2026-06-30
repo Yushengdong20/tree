@@ -6,6 +6,8 @@ import uuid
 import py_trees
 from py_trees.common import Status
 
+from tree.constants import FINAL_POSE_KEY, FLOW_RESULT_KEY, ROBOT_SERVICES_KEY
+
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
     DEFAULT_CHASSIS_URL,
@@ -33,7 +35,7 @@ class MoveBoxFpApproachToBox(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.services_key = str(params.get("services_key", "move_box_services")).strip()
+        self.services_key = ROBOT_SERVICES_KEY
         self.grasp_pair_key = str(params.get("grasp_pair_key", "move_box_latest_grasp_pair")).strip()
         self.box_axes_key = str(params.get("box_axes_key", "move_box_latest_box_axes")).strip()
         self.box_center_key = str(params.get("box_center_key", "move_box_latest_box_center")).strip()
@@ -55,8 +57,8 @@ class MoveBoxFpApproachToBox(TimedMockAction):
         self.blackboard.register_key(key=self.grasp_pair_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.box_axes_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.box_center_key, access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="flow_result", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="final_pose", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key=FLOW_RESULT_KEY, access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key=FINAL_POSE_KEY, access=py_trees.common.Access.WRITE)
         if self.arrival_box_center_key:
             self.blackboard.register_key(
                 key=self.arrival_box_center_key,
@@ -238,9 +240,9 @@ class MoveBoxFpApproachToBox(TimedMockAction):
     def _get_services(self):
         services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
         if services is None:
-            raise RuntimeError(f"move_box services missing on blackboard: key={self.services_key}")
+            raise RuntimeError(f"robot services missing on blackboard: key={self.services_key}")
         if not hasattr(services, "box_detector"):
-            raise RuntimeError("move_box services 缺少 box_detector")
+            raise RuntimeError("robot services 缺少 box_detector")
         return services
 
     def _store_result(self):

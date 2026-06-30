@@ -34,6 +34,7 @@ import uuid
 
 from py_trees import common
 
+from tree.constants import FINAL_POSE_KEY, FLOW_RESULT_KEY
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
     DEFAULT_CHASSIS_URL,
@@ -63,9 +64,9 @@ class HttpAlignWithBox(TimedMockAction):
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         # 对正节点会读取/追加流程结果，并写入最终位姿。
-        self.blackboard.register_key(key="flow_result", access=common.Access.READ)
-        self.blackboard.register_key(key="flow_result", access=common.Access.WRITE)
-        self.blackboard.register_key(key="final_pose", access=common.Access.WRITE)
+        self.blackboard.register_key(key=FLOW_RESULT_KEY, access=common.Access.READ)
+        self.blackboard.register_key(key=FLOW_RESULT_KEY, access=common.Access.WRITE)
+        self.blackboard.register_key(key=FINAL_POSE_KEY, access=common.Access.WRITE)
         chassis_url = str(params.get("chassis_url", DEFAULT_CHASSIS_URL)).strip()
         grab_url = str(params.get("grab_url", DEFAULT_GRAB_URL)).strip()
         self.chassis_config = build_chassis_config(base_url=chassis_url)
