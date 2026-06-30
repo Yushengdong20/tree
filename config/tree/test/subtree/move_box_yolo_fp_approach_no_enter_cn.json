@@ -139,10 +139,6 @@
                     "value": "True",
                     "source": "CUSTOM"
                   },
-                  "detection_reset_service": {
-                    "value": "/foundationpose/reset",
-                    "source": "CUSTOM"
-                  },
                   "detection_reset_timeout_sec": {
                     "value": "5.0",
                     "source": "CUSTOM"
@@ -236,7 +232,7 @@
                 },
                 "childs": [
                   {
-                    "name": "MoveBoxArmsToPose",
+                    "name": "ArmsToPose",
                     "label": "双臂移动到预备姿态（通用手臂节点）",
                     "params": {
                       "services_key": {

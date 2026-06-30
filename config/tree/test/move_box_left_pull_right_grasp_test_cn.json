@@ -1,0 +1,468 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "左拉搬箱独立测试（左手外拉-右手补抓-双手抬箱）",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 视觉与控制实例",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化完成确认",
+        "params": {
+          "message": {
+            "value": "控制器已初始化。确认双夹爪张开、箱体和人员位置安全后，按 Enter 获取抓取目标...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "置位抓取请求",
+        "params": {
+          "key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "true",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxDetectionReady",
+        "label": "确认 FoundationPose 抓取数据有效",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "detect_timeout_sec": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "restart_on_timeout": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "detection_reset_service": {
+            "value": "/foundationpose/reset",
+            "source": "CUSTOM"
+          },
+          "detection_reset_timeout_sec": {
+            "value": "5.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "CheckMoveBoxGraspDataReady",
+        "label": "检查抓取点与箱体方向",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxLeftTargets",
+        "label": "计算左手靠近-下探-上提-外拉目标",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "left_approach_offset": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "left_descend_below_offset": {
+            "value": "0.01",
+            "source": "CUSTOM"
+          },
+          "left_lift_offset": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "left_pull_left_offset": {
+            "value": "0.15",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认左手开始靠近",
+        "params": {
+          "message": {
+            "value": "已计算左手目标。确认左手运动路径安全后，按 Enter 移动到箱体左边缘上方...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "左夹爪移动到左边缘上方",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "left",
+            "source": "CUSTOM"
+          },
+          "point_key": {
+            "value": "move_box_left_above_edge",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认左手下探",
+        "params": {
+          "message": {
+            "value": "左手已到箱体边缘上方。确认定位正确后，按 Enter 下探到边缘下方...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "左夹爪下降到左边缘下方",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "left",
+            "source": "CUSTOM"
+          },
+          "point_key": {
+            "value": "move_box_left_below_edge",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认闭合左爪",
+        "params": {
+          "message": {
+            "value": "左手已下探。确认夹爪位于箱体边缘后，按 Enter 闭合左夹爪...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "CloseClaw",
+        "label": "闭合左夹爪",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "left",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认左手上提",
+        "params": {
+          "message": {
+            "value": "左夹爪已闭合。确认抓取牢固后，按 Enter 由左手小幅上提箱体...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "左手小幅上提箱体",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "left",
+            "source": "CUSTOM"
+          },
+          "point_key": {
+            "value": "move_box_left_lift_target",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认左手外拉",
+        "params": {
+          "message": {
+            "value": "左手已上提。确认箱体可向机器人左侧外拉且无碰撞后，按 Enter 外拉 0.15m...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "左手向外拉出箱体",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "left",
+            "source": "CUSTOM"
+          },
+          "point_key": {
+            "value": "move_box_left_pull_target",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxRightTargets",
+        "label": "根据左手外拉计算右手补偿目标",
+        "params": {
+          "right_edge_key": {
+            "value": "move_box_right_edge_point",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "left_pull_key": {
+            "value": "move_box_left_pull_target",
+            "source": "CUSTOM"
+          },
+          "left_approach_offset": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "left_descend_below_offset": {
+            "value": "0.01",
+            "source": "CUSTOM"
+          },
+          "left_lift_offset": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "left_pull_left_offset": {
+            "value": "0.15",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认右手开始靠近",
+        "params": {
+          "message": {
+            "value": "右手补偿目标已计算。确认左手持箱稳定后，按 Enter 移动右手到箱体右边缘上方...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右夹爪移动到补偿后右边缘上方",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          },
+          "point_key": {
+            "value": "move_box_right_above_edge",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认右手下探",
+        "params": {
+          "message": {
+            "value": "右手已到补偿后边缘上方。确认定位正确后，按 Enter 下探...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右夹爪下降到补偿后右边缘下方",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          },
+          "point_key": {
+            "value": "move_box_right_below_edge",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认闭合右爪",
+        "params": {
+          "message": {
+            "value": "右手已下探。确认夹爪位于箱体右边缘后，按 Enter 闭合右夹爪...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "CloseClaw",
+        "label": "闭合右夹爪",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认右手上提",
+        "params": {
+          "message": {
+            "value": "左右夹爪均已闭合。确认双手抓牢后，按 Enter 由右手小幅上提至与左手一致高度...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右手小幅上提箱体",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          },
+          "point_key": {
+            "value": "move_box_right_lift_target",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认双手回中抬箱",
+        "params": {
+          "message": {
+            "value": "双手已处于上提高度。确认回中路径安全后，按 Enter 双手同步将箱体移回中心...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双手同步回中并保持抬箱",
+        "params": {
+          "services_key": {
+            "value": "move_box_services",
+            "source": "CUSTOM"
+          },
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_return_center_left_target",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_return_center_right_target",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ClearMoveBoxGraspRequest",
+        "label": "清除抓取请求标志",
+        "params": {
+          "request_key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "测试完成保持抓取",
+        "params": {
+          "message": {
+            "value": "分步抓取测试完成，当前双手保持闭合并托住箱体；本测试不会自动松爪。按 Enter 结束行为树...",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

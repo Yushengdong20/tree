@@ -118,13 +118,13 @@
         "label": "blackboard 腰部位姿后暂停（按 Enter）",
         "params": {
           "message": {
-            "value": "观察腰部 blackboard pose 效果，按 Enter 测试 MoveBoxArmsToPose 的 JSON pose 输入...",
+            "value": "观察腰部 blackboard pose 效果，按 Enter 测试 ArmsToPose 的 JSON pose 输入...",
             "source": "CUSTOM"
           }
         }
       },
       {
-        "name": "MoveBoxArmsToPose",
+        "name": "ArmsToPose",
         "label": "双臂回到抓取初始化位姿（JSON pose）",
         "params": {
           "services_key": {
@@ -136,11 +136,11 @@
             "source": "CUSTOM"
           },
           "left_pose": {
-            "value": "[0.351, 0.3, 0.2, 0.0, -60.0, 0.0]",
+            "value": "[0.351, 0.3, 0.2, 0.0, -80.0, 0.0]",
             "source": "CUSTOM"
           },
           "right_pose": {
-            "value": "[0.351, -0.3, 0.2, 0.0, -60.0, 0.0]",
+            "value": "[0.351, -0.3, 0.2, 0.0, -80.0, 0.0]",
             "source": "CUSTOM"
           }
         }
@@ -164,7 +164,7 @@
             "source": "CUSTOM"
           },
           "value": {
-            "value": "[0.50, 0.30, 0.12, 0.0, -60.0, 0.0]",
+            "value": "[0.50, 0.30, 0.12, 0.0, -80.0, 0.0]",
             "source": "CUSTOM"
           }
         }
@@ -178,13 +178,13 @@
             "source": "CUSTOM"
           },
           "value": {
-            "value": "[0.50, -0.30, 0.12, 0.0, -60.0, 0.0]",
+            "value": "[0.50, -0.30, 0.12, 0.0, -80.0, 0.0]",
             "source": "CUSTOM"
           }
         }
       },
       {
-        "name": "MoveBoxArmsToPose",
+        "name": "ArmsToPose",
         "label": "双臂移动到抓箱中间测试位姿（blackboard pose_key）",
         "params": {
           "services_key": {
@@ -244,7 +244,7 @@
         }
       },
       {
-        "name": "MoveBoxArmsToPose",
+        "name": "ArmsToPose",
         "label": "双臂移动到相同 xyz 的夹爪点（claw_point 模式）",
         "params": {
           "services_key": {

@@ -36,7 +36,7 @@
         }
       },
       {
-        "name": "MoveBoxArmsToPose",
+        "name": "ArmsToPose",
         "label": "双夹爪同步下降到放置高度（通用手臂节点）",
         "params": {
           "services_key": {
@@ -62,7 +62,7 @@
         }
       },
       {
-        "name": "MoveBoxOpenClaw",
+        "name": "OpenClaw",
         "label": "张开双夹爪释放箱体",
         "params": {
           "services_key": {

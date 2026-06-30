@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""MoveArmBaseTargetPose node."""
+"""ArmEventWrapper node."""
 
 import py_trees
 from py_trees.common import Status
@@ -16,7 +16,7 @@ from tree.utils.arm_target import is_pose_object_pair, looks_like_arm_pose_pair,
 from tree.utils.params import parse_param_value
 
 
-class MoveArmBaseTargetPose(TimedMockAction):
+class ArmEventWrapper(TimedMockAction):
     """
     V3.0 标准版机械臂移动节点
 
@@ -24,7 +24,7 @@ class MoveArmBaseTargetPose(TimedMockAction):
     """
 
     def __init__(self, name, config_label, ros_node, params):
-        super(MoveArmBaseTargetPose, self).__init__(name, config_label, ros_node, params)
+        super(ArmEventWrapper, self).__init__(name, config_label, ros_node, params)
         self.control_mode = self.params.get("arm_control_mode", "fixed_base")
         self.arm_timeout = int(self.params.get("arm_timeout", 40))
         self.pos_threshold = float(self.params.get("pos_threshold", 0.21))
@@ -60,11 +60,11 @@ class MoveArmBaseTargetPose(TimedMockAction):
         )
 
         self.ros_node.get_logger().info(
-            f"[{self.config_label}] MoveArmBaseTargetPose configured: control_mode={self.control_mode}"
+            f"[{self.config_label}] ArmEventWrapper configured: control_mode={self.control_mode}"
         )
 
     def initialise(self):
-        super(MoveArmBaseTargetPose, self).initialise()
+        super(ArmEventWrapper, self).initialise()
         self.feedback_message = "准备移动手臂"
         self.target_pose = None
         self.target_wrench = None

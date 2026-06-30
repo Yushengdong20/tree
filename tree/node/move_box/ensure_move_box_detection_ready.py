@@ -1,4 +1,4 @@
-"""确保 move_box 视觉检测结果可用，必要时通过 ROS 服务重置 FoundationPose。"""
+"""确保 move_box 视觉检测结果可用，必要时通过 HTTP 重置 FoundationPose。"""
 
 import threading
 import time
@@ -7,10 +7,14 @@ import py_trees
 from py_trees.common import Status
 
 from ..base import TimedMockAction
+from tree.runtime.http.move_and_grab_flow import post_json
+
+
+FOUNDATIONPOSE_RESET_URL = "http://192.168.26.12:13604/foundationpose/reset"
 
 
 class EnsureMoveBoxDetectionReady(TimedMockAction):
-    """等待箱体检测数据有效，超时后调用 /foundationpose/reset。"""
+    """等待箱体检测数据有效，超时后调用 FoundationPose HTTP reset。"""
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
@@ -22,9 +26,6 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self.poll_interval_sec = float(params.get("poll_interval_sec", 0.2))
         self.restart_on_timeout = self._to_bool(params.get("restart_on_timeout", True))
         self.restart_before_wait = self._to_bool(params.get("restart_before_wait", False))
-        self.detection_reset_service = str(
-            params.get("detection_reset_service", "/foundationpose/reset")
-        ).strip()
         self.detection_reset_timeout_sec = float(params.get("detection_reset_timeout_sec", 5.0))
         self.services = None
         self._phase = "IDLE"
@@ -171,21 +172,23 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         return Status.RUNNING
 
     def _restart_detection_service_worker(self, reset_generation):
-        """后台调用 Trigger 服务重置 FoundationPose，避免阻塞行为树 tick。"""
+        """后台调用 HTTP 服务重置 FoundationPose，避免阻塞行为树 tick。"""
         self.ros_node.get_logger().warning(
-            f"[{self.config_label}] 视觉检测不可用，调用重置服务: {self.detection_reset_service}"
+            f"[{self.config_label}] 视觉检测不可用，调用重置 HTTP: {FOUNDATIONPOSE_RESET_URL}"
         )
-        # 关键步骤：记录服务调用耗时，便于判断 reset 卡在等待服务还是服务内部执行慢。
+        # 关键步骤：记录 HTTP 调用耗时，便于判断 reset 卡在网络请求还是服务内部执行慢。
         start_time = time.monotonic()
         try:
-            response = self.ros_node.call_trigger_service(
-                self.detection_reset_service,
-                timeout_sec=self.detection_reset_timeout_sec,
+            response_payload = post_json(
+                FOUNDATIONPOSE_RESET_URL,
+                {},
+                self.detection_reset_timeout_sec,
+                "foundationpose_reset",
             )
         except TimeoutError as exc:
             elapsed_time = time.monotonic() - start_time
             self.ros_node.get_logger().error(
-                f"[{self.config_label}] 视觉重置服务调用超时: "
+                f"[{self.config_label}] 视觉重置 HTTP 调用超时: "
                 f"elapsed={elapsed_time:.3f}s, error={exc}"
             )
             self._store_reset_result(reset_generation, False, str(exc))
@@ -193,24 +196,25 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         except Exception as exc:
             elapsed_time = time.monotonic() - start_time
             self.ros_node.get_logger().error(
-                f"[{self.config_label}] 视觉重置服务调用失败: "
+                f"[{self.config_label}] 视觉重置 HTTP 调用失败: "
                 f"elapsed={elapsed_time:.3f}s, error={exc}"
             )
             self._store_reset_result(reset_generation, False, str(exc))
             return
 
         elapsed_time = time.monotonic() - start_time
-        if getattr(response, "success", False):
+        response_message = str(response_payload.get("message", ""))
+        if response_payload.get("success") is True:
             self.ros_node.get_logger().info(
-                f"[{self.config_label}] 视觉重置服务调用成功: "
-                f"elapsed={elapsed_time:.3f}s, {getattr(response, 'message', '')}"
+                f"[{self.config_label}] 视觉重置 HTTP 调用成功: "
+                f"elapsed={elapsed_time:.3f}s, {response_message}"
             )
             self._store_reset_result(reset_generation, True, "")
             return
 
         error = (
-            "视觉重置服务返回失败: "
-            f"elapsed={elapsed_time:.3f}s, {getattr(response, 'message', '')}"
+            "视觉重置 HTTP 返回失败: "
+            f"elapsed={elapsed_time:.3f}s, {response_message}"
         )
         self.ros_node.get_logger().error(f"[{self.config_label}] {error}")
         self._store_reset_result(reset_generation, False, error)

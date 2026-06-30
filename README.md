@@ -111,7 +111,7 @@ src/
 - `arm_target_a`
 - `arm_target_b`
 
-`MoveArmBaseTargetPose` 当前的取参顺序是：
+`ArmEventWrapper` 当前的取参顺序是：
 
 1. 先读 blackboard
 2. blackboard 没值时回退到节点自身 `params`
@@ -133,7 +133,7 @@ src/
 
 用途：
 
-- 验证 `MoveArmBaseTargetPose` 从节点自身 `params` 读取目标
+- 验证 `ArmEventWrapper` 从节点自身 `params` 读取目标
 - 通过把 `blackboard_*_key` 指到不存在的 key，避免 blackboard 抢占参数来源
 
 ### 3. `move_arm_target_pose_from_blackboard_demo.json`
@@ -142,7 +142,7 @@ src/
 
 用途：
 
-- 验证 `MoveArmBaseTargetPose` 从 blackboard 读取目标
+- 验证 `ArmEventWrapper` 从 blackboard 读取目标
 
 ### 4. `move_arm_repeat_until_enter_demo.json`
 
@@ -333,8 +333,8 @@ python3 -m tree.main
 
 ## 这轮新增或重构过的节点
 
-- [tree/node/manipulation/move\_arm\_base\_target\_pose.py](tree/node/manipulation/move_arm_base_target_pose.py)
-- [tree/node/manipulation/move\_arm\_base\_target\_pose.py](tree/node/manipulation/move_arm_base_target_pose.py)
+- [tree/node/manipulation/arm\_event\_wrapper.py](tree/node/manipulation/arm_event_wrapper.py)
+- [tree/node/manipulation/arm\_event\_wrapper.py](tree/node/manipulation/arm_event_wrapper.py)
   - 支持 blackboard 优先 / params 回退
   - 支持双臂目标结构
 - [tree/node/manipulation/move\_claw.py](tree/node/manipulation/move_claw.py)

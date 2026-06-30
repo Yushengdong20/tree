@@ -1,7 +1,7 @@
 """计算躯干回位后用于恢复双手 pitch 的目标位姿。
 
 本节点只读取当前双手位姿并写入 blackboard，不直接控制手臂。
-后续由 MoveBoxArmsToPose 读取目标位姿并执行。
+后续由 ArmsToPose 读取目标位姿并执行。
 """
 
 import py_trees
@@ -18,7 +18,7 @@ class ComputeMoveBoxRestorePitchArmPoses(TimedMockAction):
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.services_key = str(params.get("services_key", "move_box_services")).strip()
-        self.pitch = float(params.get("pitch", ros_node.get_param("post_torso_return_pitch", -60.0)))
+        self.pitch = float(params.get("pitch", ros_node.get_param("post_torso_return_pitch", -80.0)))
         self.left_pose_key = str(
             params.get("left_pose_key", "move_box_restore_pitch_left_pose")
         ).strip()

@@ -10,7 +10,7 @@
     },
     "childs": [
       {
-        "name": "MoveArmBaseTargetPose",
+        "name": "ArmEventWrapper",
         "label": "move_arm_to_blackboard_target",
         "params": {
           "arm_control_mode": {

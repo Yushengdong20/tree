@@ -30,7 +30,7 @@
             },
             "childs": [
               {
-                "name": "MoveArmBaseTargetPose",
+                "name": "ArmEventWrapper",
                 "label": "move_arm_to_target_a",
                 "params": {
                   "arm_control_mode": {
@@ -57,7 +57,7 @@
                 "childs": []
               },
               {
-                "name": "MoveArmBaseTargetPose",
+                "name": "ArmEventWrapper",
                 "label": "move_arm_to_target_b",
                 "params": {
                   "arm_control_mode": {

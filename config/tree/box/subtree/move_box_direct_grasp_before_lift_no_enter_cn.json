@@ -47,10 +47,6 @@
             "value": "False",
             "source": "CUSTOM"
           },
-          "detection_reset_service": {
-            "value": "/foundationpose/reset",
-            "source": "CUSTOM"
-          },
           "detection_reset_timeout_sec": {
             "value": "5.0",
             "source": "CUSTOM"
@@ -106,7 +102,7 @@
         }
       },
       {
-        "name": "MoveBoxArmsToPose",
+        "name": "ArmsToPose",
         "label": "双夹爪同步移动到左右边缘上方（通用手臂节点）",
         "params": {
           "services_key": {
@@ -132,7 +128,7 @@
         }
       },
       {
-        "name": "MoveBoxArmsToPose",
+        "name": "ArmsToPose",
         "label": "双夹爪同步下降到左右边缘下方（通用手臂节点）",
         "params": {
           "services_key": {
@@ -158,7 +154,7 @@
         }
       },
       {
-        "name": "MoveBoxCloseClaw",
+        "name": "CloseClaw",
         "label": "同时闭合左右夹爪",
         "params": {
           "services_key": {

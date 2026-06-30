@@ -10,7 +10,7 @@
     },
     "childs": [
       {
-        "name": "MoveBoxArmsToPose",
+        "name": "ArmsToPose",
         "label": "双夹爪同步上提箱体（通用手臂节点）",
         "params": {
           "services_key": {
@@ -44,7 +44,7 @@
             "source": "CUSTOM"
           },
           "pitch": {
-            "value": "-60.0",
+            "value": "-80.0",
             "source": "CUSTOM"
           },
           "left_pose_key": {
@@ -76,7 +76,7 @@
         }
       },
       {
-        "name": "MoveBoxArmsToPose",
+        "name": "ArmsToPose",
         "label": "保持双手位置并恢复 pitch（通用手臂节点）",
         "params": {
           "services_key": {

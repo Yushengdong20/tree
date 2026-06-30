@@ -166,7 +166,7 @@
                     "source": "CUSTOM"
                   },
                   "yaw_threshold_deg": {
-                    "value": "15.0",
+                    "value": "30.0",
                     "source": "CUSTOM"
                   }
                 }
@@ -201,10 +201,6 @@
                   },
                   "restart_on_timeout": {
                     "value": "True",
-                    "source": "CUSTOM"
-                  },
-                  "detection_reset_service": {
-                    "value": "/foundationpose/reset",
                     "source": "CUSTOM"
                   },
                   "detection_reset_timeout_sec": {
@@ -300,7 +296,7 @@
                 },
                 "childs": [
                   {
-                    "name": "MoveBoxArmsToPose",
+                    "name": "ArmsToPose",
                     "label": "双臂移动到预备姿态（通用手臂节点）",
                     "params": {
                       "services_key": {
