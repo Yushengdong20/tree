@@ -64,11 +64,7 @@
             "source": "CUSTOM"
           },
           "restart_on_timeout": {
-            "value": "True",
-            "source": "CUSTOM"
-          },
-          "restart_before_wait": {
-            "value": "True",
+            "value": "False",
             "source": "CUSTOM"
           },
           "detection_reset_service": {
