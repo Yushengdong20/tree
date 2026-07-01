@@ -7,6 +7,7 @@ import numpy as np
 import py_trees
 from geometry_msgs.msg import PoseStamped
 from py_trees.common import Status
+from kuavo_humanoid_sdk.common.three_link_torso_ik import ThreeLinkTorsoIk
 from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.mobile_manipulate.ik_library import IKAnalytical
 
 from tree.constants import MODEL_TYPE_KEY, ROBOT_SERVICES_KEY
@@ -16,6 +17,7 @@ from ..base import TimedMockAction
 
 SOURCE_FRAME = "camera"
 TARGET_FRAME = "waist_yaw_link"
+KNEE_FRAME = "knee_link"
 SDK_AXIS_TRANSFORM = np.array(
     [
         [1.0, 0.0, 0.0, 0.0],
@@ -72,6 +74,20 @@ class MoveRightArmToGrasp(TimedMockAction):
         self.lift_distance_m = float(params.get("lift_distance_m", 0.05))
         self.left_offset_m = float(params.get("left_offset_m", 0.10))
         self.left_shift_z_offset_m = float(params.get("left_shift_z_offset_m", 0.02))
+        self.torso_pose_key = str(
+            params.get("torso_pose_key", "grasp_object_torso_pose")
+        ).strip()
+        self.torso_enabled_key = str(
+            params.get("torso_enabled_key", "grasp_object_use_torso")
+        ).strip()
+        self.torso_sample_x_min_m = float(params.get("torso_sample_x_min_m", -0.2))
+        self.torso_sample_x_max_m = float(params.get("torso_sample_x_max_m", 0.2))
+        self.torso_sample_z_min_m = float(params.get("torso_sample_z_min_m", 0.5))
+        self.torso_sample_z_max_m = float(params.get("torso_sample_z_max_m", 0.9))
+        self.torso_sample_step_m = float(params.get("torso_sample_step_m", 0.05))
+        self.torso_pitch_abs_max_rad = float(params.get("torso_pitch_abs_max_rad", 0.05))
+        self.knee_origin_x = float(params.get("knee_origin_x", 0.098))
+        self.knee_origin_z = float(params.get("knee_origin_z", 0.376))
         self.blackboard.register_key(
             key=self.services_key,
             access=py_trees.common.Access.READ,
@@ -86,10 +102,17 @@ class MoveRightArmToGrasp(TimedMockAction):
             self.grasp_pose_key,
             self.lift_pose_key,
             self.left_shift_pose_key,
+            self.torso_pose_key,
         ]:
             if not key:
                 raise ValueError("blackboard pose key 不能为空")
             self.blackboard.register_key(key=key, access=py_trees.common.Access.WRITE)
+        if not self.torso_enabled_key:
+            raise ValueError("torso_enabled_key 不能为空")
+        self.blackboard.register_key(
+            key=self.torso_enabled_key,
+            access=py_trees.common.Access.WRITE,
+        )
         if self.max_attempts < 1:
             raise ValueError("max_attempts 必须大于等于 1")
         if self.pregrasp_offset_min_m <= self.grasp_offset_m:
@@ -98,6 +121,14 @@ class MoveRightArmToGrasp(TimedMockAction):
             raise ValueError("pregrasp_offset_max_m 必须大于等于 pregrasp_offset_min_m")
         if self.pregrasp_offset_samples < 1:
             raise ValueError("pregrasp_offset_samples 必须大于等于 1")
+        if self.torso_sample_x_max_m < self.torso_sample_x_min_m:
+            raise ValueError("torso_sample_x_max_m 必须大于等于 torso_sample_x_min_m")
+        if self.torso_sample_z_max_m < self.torso_sample_z_min_m:
+            raise ValueError("torso_sample_z_max_m 必须大于等于 torso_sample_z_min_m")
+        if self.torso_sample_step_m <= 0.0:
+            raise ValueError("torso_sample_step_m 必须大于 0")
+        if self.torso_pitch_abs_max_rad < 0.0:
+            raise ValueError("torso_pitch_abs_max_rad 必须大于等于 0")
         offsets = np.linspace(
             self.pregrasp_offset_min_m,
             self.pregrasp_offset_max_m,
@@ -134,6 +165,7 @@ class MoveRightArmToGrasp(TimedMockAction):
         self._tf = None
         self._tf_listener = None
         self._arm_controller = None
+        self._torso_controller = None
 
     def initialise(self):
         super().initialise()
@@ -178,13 +210,13 @@ class MoveRightArmToGrasp(TimedMockAction):
 
         try:
             self._ensure_arm_controller()
-            target_from_camera = self._lookup_transform_matrix()
-            selected = None
+            knee_from_camera = self._lookup_transform_matrix(KNEE_FRAME, SOURCE_FRAME)
+            current_knee_from_waist = self._lookup_transform_matrix(KNEE_FRAME, TARGET_FRAME)
 
             self.ros_node.set_live_runtime(
                 self.config_label,
                 "GRASP_COMPUTE",
-                "Computing pregrasp and grasp targets",
+                "Computing pregrasp and grasp targets with current torso",
             )
             left_target = self._arm_controller.get_current_end_effector_pose(
                 "left",
@@ -193,123 +225,50 @@ class MoveRightArmToGrasp(TimedMockAction):
             if left_target is None or len(left_target) != 6:
                 raise RuntimeError("无法获取左臂当前末端位姿")
 
-            for index, grasp_pose in enumerate(grasp_poses):
-                for rotate_z_180 in (False, True):
-                    grasp_target, grasp_target_pose = self._build_right_target(
-                        grasp_pose,
-                        target_from_camera,
-                        offset_m=self.grasp_offset_m,
-                        rotate_z_180=rotate_z_180,
+            check_sample_count = 0
+            check_total_sec = 0.0
+            check_start = time.monotonic()
+            selected = self._find_valid_targets_for_torso_sample(
+                self._current_torso_sample(current_knee_from_waist),
+                grasp_poses,
+                knee_from_camera,
+                left_target,
+            )
+            check_total_sec += time.monotonic() - check_start
+            check_sample_count += 1
+            if selected is None:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 当前腰部位姿下纯右臂未找到可达抓取位姿，开始腰部采样"
+                )
+                self.ros_node.set_live_runtime(
+                    self.config_label,
+                    "TORSO_SAMPLE",
+                    "Sampling torso-assisted grasp targets",
+                )
+                current_torso_pose = self._get_current_torso_pose()
+                for sample in self._torso_ik_samples(current_knee_from_waist, current_torso_pose):
+                    check_start = time.monotonic()
+                    selected = self._find_valid_targets_for_torso_sample(
+                        sample,
+                        grasp_poses,
+                        knee_from_camera,
+                        left_target,
                     )
-                    pose_label = "z轴旋转180度后" if rotate_z_180 else "原始"
-                    try:
-                        grasp_valid, _, pos_error, angle_error = IKAnalytical.check_pose_validity(
-                            eef_pos=grasp_target_pose[:3, 3],
-                            eef_quat_xyzw=self._tf.transformations.quaternion_from_matrix(grasp_target_pose),
-                            eef_frame="zarm_r7_link",
-                            model_type=self.model_type,
-                            pos_threshold=0.01,
-                            angle_threshold=0.05,
-                        )
-                    except Exception as exc:
-                        self.ros_node.get_logger().warning(
-                            f"[{self.config_label}] 第 {index + 1} 个{pose_label}抓取位姿检查失败: {exc}"
-                        )
-                        continue
-                    if not grasp_valid:
-                        self.ros_node.get_logger().warning(
-                            f"[{self.config_label}] 第 {index + 1} 个{pose_label}抓取位姿IK-FK检查不通过: "
-                            f"pos={pos_error:.4f}m/0.0100m, angle={angle_error:.4f}rad/0.0500rad"
-                        )
-                        continue
-
-                    for pregrasp_offset_m in self.pregrasp_offsets_m:
-                        pregrasp_pose = np.array(grasp_target_pose, copy=True)
-                        pregrasp_pose[:3, 3] += (
-                            pregrasp_offset_m - self.grasp_offset_m
-                        ) * grasp_target_pose[:3, 2]
-                        pregrasp_target = self._target_from_pose(pregrasp_pose)
-                        try:
-                            pregrasp_valid, _, pos_error, angle_error = IKAnalytical.check_pose_validity(
-                                eef_pos=pregrasp_pose[:3, 3],
-                                eef_quat_xyzw=self._tf.transformations.quaternion_from_matrix(pregrasp_pose),
-                                eef_frame="zarm_r7_link",
-                                model_type=self.model_type,
-                                pos_threshold=0.03,
-                                angle_threshold=0.20,
-                            )
-                        except Exception as exc:
-                            self.ros_node.get_logger().warning(
-                                f"[{self.config_label}] 第 {index + 1} 个{pose_label}预抓取位姿 "
-                                f"offset={pregrasp_offset_m:.3f}m 检查失败: {exc}"
-                            )
-                            continue
-                        if not pregrasp_valid:
-                            self.ros_node.get_logger().info(
-                                f"[{self.config_label}] 第 {index + 1} 个{pose_label}预抓取位姿 "
-                                f"offset={pregrasp_offset_m:.3f}m IK-FK检查不通过: "
-                                f"pos={pos_error:.4f}m/0.0300m, angle={angle_error:.4f}rad/0.2000rad"
-                            )
-                            continue
-
-                        self._publish_target_pose(pregrasp_pose)
-                        self._publish_grasp_pose(grasp_target_pose, target_from_camera)
-                        self._publish_raw_grasp_pose(grasp_pose)
-
-                        lift_target = list(grasp_target)
-                        lift_target[2] += self.lift_distance_m
-                        left_shift_target = list(grasp_target)
-                        left_shift_target[1] += self.left_offset_m
-                        left_shift_target[2] += self.left_shift_z_offset_m
-                        selected = (
-                            index,
-                            pose_label,
-                            pregrasp_offset_m,
-                            list(left_target),
-                            pregrasp_target,
-                            grasp_target,
-                            lift_target,
-                            left_shift_target,
-                        )
-                        self.blackboard.set(
-                            self.left_pose_key,
-                            list(left_target),
-                            overwrite=True,
-                        )
-                        self.blackboard.set(
-                            self.pregrasp_pose_key,
-                            list(pregrasp_target),
-                            overwrite=True,
-                        )
-                        self.blackboard.set(
-                            self.grasp_pose_key,
-                            list(grasp_target),
-                            overwrite=True,
-                        )
-                        self.blackboard.set(
-                            self.lift_pose_key,
-                            lift_target,
-                            overwrite=True,
-                        )
-                        self.blackboard.set(
-                            self.left_shift_pose_key,
-                            left_shift_target,
-                            overwrite=True,
-                        )
-                        self.ros_node.get_logger().info(
-                            f"[{self.config_label}] 选择第 {index + 1}/{len(grasp_poses)} 个"
-                            f"{pose_label}右臂预抓取位姿 offset={pregrasp_offset_m:.3f}m 和抓取位姿，"
-                            f"已写入 blackboard: left={self.left_pose_key}, "
-                            f"pregrasp={self.pregrasp_pose_key}, grasp={self.grasp_pose_key}, "
-                            f"lift={self.lift_pose_key}, left_shift={self.left_shift_pose_key}"
-                        )
-                        break
+                    check_total_sec += time.monotonic() - check_start
+                    check_sample_count += 1
                     if selected is not None:
                         break
-                if selected is not None:
-                    break
+            if check_sample_count > 0:
+                self.ros_node.get_logger().info(
+                    f"[{self.config_label}] 抓取位姿sample检查耗时: "
+                    f"total={check_total_sec:.3f}s, samples={check_sample_count}, "
+                    f"avg={check_total_sec / check_sample_count:.3f}s/sample"
+                )
             if selected is None:
-                raise RuntimeError(f"{len(grasp_poses)} 个抓取位姿及其z轴180度变体均未通过抓取/预抓取检查")
+                raise RuntimeError(
+                    f"{len(grasp_poses)} 个抓取位姿及其z轴180度变体在当前腰部和腰部采样下均未通过检查"
+                )
+            self._write_selected_targets(selected)
         except Exception as exc:
             self.feedback_message = str(exc)
             self.ros_node.clear_live_runtime()
@@ -319,10 +278,12 @@ class MoveRightArmToGrasp(TimedMockAction):
             return Status.FAILURE
 
         self.ros_node.clear_live_runtime()
-        _, _, _, _, _, grasp_target, lift_target, left_shift_target = selected
+        sample = selected["sample"]
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算右臂抓取目标: "
-            f"grasp={grasp_target}, lift={lift_target}, left_shift={left_shift_target}"
+            f"torso={sample['label']}, use_torso={sample['enabled']}, "
+            f"grasp={selected['grasp_target']}, lift={selected['lift_target']}, "
+            f"left_shift={selected['left_shift_target']}"
         )
         return Status.SUCCESS
 
@@ -385,6 +346,191 @@ class MoveRightArmToGrasp(TimedMockAction):
             self._tf_listener = getattr(self._arm_controller, "tf_listener", None)
         if self._tf_listener is None:
             raise RuntimeError("services 中没有可用的 tf_listener")
+        self._torso_controller = getattr(services, "torso_controller", None)
+        if self._torso_controller is None:
+            raise RuntimeError("services 中没有 torso_controller")
+
+    def _get_current_torso_pose(self):
+        pose = list(getattr(self._torso_controller, "current_pose", []))
+        if len(pose) != 6:
+            raise RuntimeError(f"当前腰部位姿长度异常: {pose}")
+        return [float(value) for value in pose]
+
+    def _current_torso_sample(self, knee_from_waist):
+        _, pitch, _ = self._tf.transformations.euler_from_matrix(knee_from_waist)
+        return {
+            "label": (
+                "当前腰部"
+                f"(x={knee_from_waist[0, 3]:.3f}, z={knee_from_waist[2, 3]:.3f}, "
+                f"pitch={pitch:.3f})"
+            ),
+            "enabled": False,
+            "knee_from_waist": knee_from_waist,
+            "torso_pose": None,
+            "x": float(knee_from_waist[0, 3]),
+            "z": float(knee_from_waist[2, 3]),
+            "pitch": float(pitch),
+        }
+
+    def _torso_ik_samples(self, current_knee_from_waist, current_torso_pose):
+        current_x = float(current_knee_from_waist[0, 3])
+        current_z = float(current_knee_from_waist[2, 3])
+        samples = []
+        for x in self._sample_axis_values(self.torso_sample_x_min_m, self.torso_sample_x_max_m):
+            for z in self._sample_axis_values(self.torso_sample_z_min_m, self.torso_sample_z_max_m):
+                ik_pose = ThreeLinkTorsoIk().solve_exact(
+                    x,
+                    z,
+                    angle_step=math.radians(1.0),
+                )
+                if ik_pose is None:
+                    continue
+
+                pitch = float(ik_pose["torso_pitch"])
+                if abs(pitch) > self.torso_pitch_abs_max_rad:
+                    continue
+
+                waist_x = float(ik_pose["end_world_x"])
+                waist_z = float(ik_pose["end_world_z"])
+                torso_pose = list(current_torso_pose)
+                torso_pose[0] = waist_x + self.knee_origin_x
+                torso_pose[2] = waist_z + self.knee_origin_z
+                torso_pose[4] = pitch
+                sample = {
+                    "label": f"腰部采样(x={waist_x:.3f}, z={waist_z:.3f}, pitch={pitch:.3f})",
+                    "enabled": True,
+                    "knee_from_waist": self._make_knee_from_waist(waist_x, waist_z, pitch),
+                    "torso_pose": torso_pose,
+                    "x": waist_x,
+                    "z": waist_z,
+                    "pitch": pitch,
+                }
+                score = (waist_x - current_x) ** 2 + (waist_z - current_z) ** 2
+                samples.append((score, sample))
+
+        samples.sort(key=lambda item: item[0])
+        return [sample for _, sample in samples]
+
+    def _sample_axis_values(self, lower, upper):
+        values = []
+        value = float(lower)
+        while value <= upper + 1e-9:
+            values.append(round(value, 10))
+            value += self.torso_sample_step_m
+        if values and values[-1] < upper - 1e-9:
+            values.append(float(upper))
+        return values
+
+    def _make_knee_from_waist(self, x, z, pitch):
+        knee_from_waist = self._tf.transformations.euler_matrix(0.0, pitch, 0.0)
+        knee_from_waist[:3, 3] = [float(x), 0.0, float(z)]
+        return knee_from_waist
+
+    def _find_valid_targets_for_torso_sample(self, sample, grasp_poses, knee_from_camera, left_target):
+        waist_from_camera = np.linalg.inv(sample["knee_from_waist"]) @ knee_from_camera
+        for index, grasp_pose in enumerate(grasp_poses):
+            for rotate_z_180 in (False, True):
+                grasp_target, grasp_target_pose = self._build_right_target(
+                    grasp_pose,
+                    waist_from_camera,
+                    offset_m=self.grasp_offset_m,
+                    rotate_z_180=rotate_z_180,
+                )
+                pose_label = "z轴旋转180度后" if rotate_z_180 else "原始"
+                check_label = f"{sample['label']} 第 {index + 1} 个{pose_label}"
+                try:
+                    grasp_valid, _, pos_error, angle_error = self._check_right_pose(
+                        grasp_target_pose,
+                        pos_threshold=0.01,
+                        angle_threshold=0.05,
+                    )
+                except Exception as exc:
+                    continue
+                if not grasp_valid:
+                    continue
+
+                for pregrasp_offset_m in self.pregrasp_offsets_m:
+                    pregrasp_pose = np.array(grasp_target_pose, copy=True)
+                    pregrasp_pose[:3, 3] += (
+                        pregrasp_offset_m - self.grasp_offset_m
+                    ) * grasp_target_pose[:3, 2]
+                    pregrasp_target = self._target_from_pose(pregrasp_pose)
+                    try:
+                        pregrasp_valid, _, pos_error, angle_error = self._check_right_pose(
+                            pregrasp_pose,
+                            pos_threshold=0.03,
+                            angle_threshold=0.20,
+                        )
+                    except Exception as exc:
+                        self.ros_node.get_logger().warning(
+                            f"[{self.config_label}] {check_label}预抓取位姿 "
+                            f"offset={pregrasp_offset_m:.3f}m 检查失败: {exc}"
+                        )
+                        continue
+                    if not pregrasp_valid:
+                        self.ros_node.get_logger().info(
+                            f"[{self.config_label}] {check_label}预抓取位姿 "
+                            f"offset={pregrasp_offset_m:.3f}m IK-FK检查不通过: "
+                            f"pos={pos_error:.4f}m/0.0300m, angle={angle_error:.4f}rad/0.2000rad"
+                        )
+                        continue
+
+                    lift_target = list(grasp_target)
+                    lift_target[2] += self.lift_distance_m
+                    left_shift_target = list(grasp_target)
+                    left_shift_target[1] += self.left_offset_m
+                    left_shift_target[2] += self.left_shift_z_offset_m
+                    return {
+                        "sample": sample,
+                        "index": index,
+                        "pose_label": pose_label,
+                        "pregrasp_offset_m": pregrasp_offset_m,
+                        "left_target": list(left_target),
+                        "pregrasp_pose": pregrasp_pose,
+                        "pregrasp_target": pregrasp_target,
+                        "grasp_pose": grasp_pose,
+                        "grasp_target_pose": grasp_target_pose,
+                        "grasp_target": grasp_target,
+                        "lift_target": lift_target,
+                        "left_shift_target": left_shift_target,
+                        "waist_from_camera": waist_from_camera,
+                    }
+        return None
+
+    def _check_right_pose(self, target_pose, pos_threshold, angle_threshold):
+        return IKAnalytical.check_pose_validity(
+            eef_pos=target_pose[:3, 3],
+            eef_quat_xyzw=self._tf.transformations.quaternion_from_matrix(target_pose),
+            eef_frame="zarm_r7_link",
+            model_type=self.model_type,
+            pos_threshold=pos_threshold,
+            angle_threshold=angle_threshold,
+        )
+
+    def _write_selected_targets(self, selected):
+        sample = selected["sample"]
+        self._publish_target_pose(selected["pregrasp_pose"])
+        self._publish_grasp_pose(selected["grasp_target_pose"], selected["waist_from_camera"])
+        self._publish_raw_grasp_pose(selected["grasp_pose"])
+
+        self.blackboard.set(self.left_pose_key, selected["left_target"], overwrite=True)
+        self.blackboard.set(self.pregrasp_pose_key, list(selected["pregrasp_target"]), overwrite=True)
+        self.blackboard.set(self.grasp_pose_key, list(selected["grasp_target"]), overwrite=True)
+        self.blackboard.set(self.lift_pose_key, selected["lift_target"], overwrite=True)
+        self.blackboard.set(self.left_shift_pose_key, selected["left_shift_target"], overwrite=True)
+        self.blackboard.set(self.torso_enabled_key, bool(sample["enabled"]), overwrite=True)
+        if sample["enabled"]:
+            self.blackboard.set(self.torso_pose_key, list(sample["torso_pose"]), overwrite=True)
+
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 选择{sample['label']}下第 "
+            f"{selected['index'] + 1} 个{selected['pose_label']}右臂预抓取位姿 "
+            f"offset={selected['pregrasp_offset_m']:.3f}m 和抓取位姿，"
+            f"已写入 blackboard: left={self.left_pose_key}, "
+            f"pregrasp={self.pregrasp_pose_key}, grasp={self.grasp_pose_key}, "
+            f"lift={self.lift_pose_key}, left_shift={self.left_shift_pose_key}, "
+            f"use_torso={self.torso_enabled_key}"
+        )
 
     def _build_right_target(self, grasp_pose, target_from_camera, offset_m, rotate_z_180=False):
         offset = np.eye(4)
@@ -418,17 +564,17 @@ class MoveRightArmToGrasp(TimedMockAction):
             math.degrees(roll),
         ]
 
-    def _lookup_transform_matrix(self):
+    def _lookup_transform_matrix(self, target_frame, source_frame):
         stamp = self.ros_node.zero_time()
         self._tf_listener.waitForTransform(
-            TARGET_FRAME,
-            SOURCE_FRAME,
+            target_frame,
+            source_frame,
             stamp,
             self.ros_node.duration(self.tf_timeout_sec),
         )
         translation, quaternion = self._tf_listener.lookupTransform(
-            TARGET_FRAME,
-            SOURCE_FRAME,
+            target_frame,
+            source_frame,
             stamp,
         )
         return self._tf.transformations.concatenate_matrices(
@@ -486,6 +632,6 @@ class MoveRightArmToGrasp(TimedMockAction):
     def describe_start(self):
         return (
             f"[{self.config_label}] MoveRightArmToGrasp start: "
-            f"url={self.grasp_url}, frames={SOURCE_FRAME}->{TARGET_FRAME}, "
+            f"url={self.grasp_url}, frames={SOURCE_FRAME}->{KNEE_FRAME}->{TARGET_FRAME}, "
             f"max_attempts={self.max_attempts}"
         )

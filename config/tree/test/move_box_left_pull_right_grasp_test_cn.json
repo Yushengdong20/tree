@@ -47,10 +47,6 @@
         "name": "EnsureMoveBoxDetectionReady",
         "label": "确认 FoundationPose 抓取数据有效",
         "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
           "grasp_pair_key": {
             "value": "move_box_latest_grasp_pair",
             "source": "CUSTOM"
@@ -68,7 +64,11 @@
             "source": "CUSTOM"
           },
           "restart_on_timeout": {
-            "value": "False",
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "restart_before_wait": {
+            "value": "True",
             "source": "CUSTOM"
           },
           "detection_reset_service": {

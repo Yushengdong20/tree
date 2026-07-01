@@ -40,7 +40,9 @@ from tree.ros_interface import create_ros_interface
 # 独立测试腰部配合下的双爪同步抓箱。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_dual_claw_grasp_test_cn.json"
 # 固定点位前方两箱的 FoundationPose 左拉拆垛测试。
-DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_left_pull_right_grasp_stack_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_left_pull_right_grasp_stack_cn.json"
+# 静止筛选 YOLO 最高层最近箱，再由 FoundationPose 精定位执行左拉测试。
+DEFAULT_TREE_FILE_NAME = "tree/test/move_box_highest_yolo_left_pull_right_grasp_test_cn.json"
 
 
 def parse_main_args(args=None):
@@ -132,7 +134,7 @@ def main(args=None):
         web_viewer_host="0.0.0.0",
         web_viewer_port=8765,
         # 根节点到 SUCCESS/FAILURE 后是否自动停止。
-        stop_on_terminal_state=True,
+        stop_on_terminal_state=False,
 
         #实机测试
         # 手动结果模式：叶子节点到达完成时机会等待你的 s/f/r 输入。

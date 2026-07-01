@@ -55,7 +55,7 @@
             "source": "CUSTOM"
           },
           "grasp_offset_m": {
-            "value": "0.05",
+            "value": "0.06",
             "source": "CUSTOM"
           },
           "pregrasp_offset_min_m": {
@@ -108,6 +108,65 @@
           },
           "left_shift_z_offset_m": {
             "value": "0.02",
+            "source": "CUSTOM"
+          },
+          "torso_pose_key": {
+            "value": "grasp_object_torso_pose",
+            "source": "CUSTOM"
+          },
+          "torso_enabled_key": {
+            "value": "grasp_object_use_torso",
+            "source": "CUSTOM"
+          },
+          "torso_sample_x_min_m": {
+            "value": "-0.2",
+            "source": "CUSTOM"
+          },
+          "torso_sample_x_max_m": {
+            "value": "0.3",
+            "source": "CUSTOM"
+          },
+          "torso_sample_z_min_m": {
+            "value": "0.55",
+            "source": "CUSTOM"
+          },
+          "torso_sample_z_max_m": {
+            "value": "0.85",
+            "source": "CUSTOM"
+          },
+          "torso_sample_step_m": {
+            "value": "0.05",
+            "source": "CUSTOM"
+          },
+          "torso_pitch_abs_max_rad": {
+            "value": "0.05",
+            "source": "CUSTOM"
+          },
+          "knee_origin_x": {
+            "value": "0.098",
+            "source": "CUSTOM"
+          },
+          "knee_origin_z": {
+            "value": "0.376",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "腰部移动到采样抓取位姿",
+        "params": {
+          "pose_key": {
+            "value": "grasp_object_torso_pose",
+            "source": "CUSTOM"
+          },
+          "enabled_key": {
+            "value": "grasp_object_use_torso",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
             "source": "CUSTOM"
           }
         },
@@ -222,6 +281,25 @@
         "params": {
           "side": {
             "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "腰部回到初始位姿",
+        "params": {
+          "pose": {
+            "value": "[0.117, 0.000, 0.926, 0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "enabled_key": {
+            "value": "grasp_object_use_torso",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
             "source": "CUSTOM"
           }
         },

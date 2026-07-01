@@ -52,6 +52,7 @@ class EnsureGraspObjectServices(TimedMockAction):
         return (
             services is not None
             and hasattr(services, "arm_controller")
+            and hasattr(services, "torso_controller")
             and getattr(services, "target_frame", None) == WAIST_YAW_LINK_FRAME
             and getattr(services, "model_type", None) == self.model_type
         )

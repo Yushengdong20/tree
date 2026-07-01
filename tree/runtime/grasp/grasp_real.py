@@ -8,6 +8,7 @@ import tf
 from tree.constants import WAIST_YAW_LINK_FRAME
 from kuavo_humanoid_sdk.common.arm_controller import ArmController
 from kuavo_humanoid_sdk.common.lb_control import set_quick_mode
+from kuavo_humanoid_sdk.common.torso_controller import TorsoController
 from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.mobile_manipulate.ik_library import (
     IK_MODEL_GRASP,
 )
@@ -21,6 +22,7 @@ class GraspObjectServices:
     tf_listener: tf.TransformListener
     arm_controller: ArmController
     model_type: str
+    torso_controller: TorsoController
 
 
 def build_grasp_object_services(model_type=IK_MODEL_GRASP) -> GraspObjectServices:
@@ -35,9 +37,11 @@ def build_grasp_object_services(model_type=IK_MODEL_GRASP) -> GraspObjectService
         WAIST_YAW_LINK_FRAME,
         model_type=model_type,
     )
+    torso_controller = TorsoController()
     return GraspObjectServices(
         target_frame=WAIST_YAW_LINK_FRAME,
         tf_listener=tf_listener,
         arm_controller=arm_controller,
+        torso_controller=torso_controller,
         model_type=model_type,
     )
