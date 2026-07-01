@@ -174,7 +174,7 @@
             "source": "CUSTOM"
           },
           "left_descend_below_offset": {
-            "value": "0.06",
+            "value": "0.12",
             "source": "CUSTOM"
           },
           "left_lift_offset": {
@@ -212,6 +212,10 @@
           "point_key": {
             "value": "move_box_left_above_edge",
             "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },
@@ -239,6 +243,10 @@
           },
           "point_key": {
             "value": "move_box_left_below_edge",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
             "source": "CUSTOM"
           }
         }
@@ -292,6 +300,10 @@
           "point_key": {
             "value": "move_box_left_lift_target",
             "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },
@@ -320,6 +332,10 @@
           "point_key": {
             "value": "move_box_left_pull_target",
             "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },
@@ -344,7 +360,7 @@
             "source": "CUSTOM"
           },
           "left_descend_below_offset": {
-            "value": "0.06",
+            "value": "0.12",
             "source": "CUSTOM"
           },
           "left_lift_offset": {
@@ -386,6 +402,10 @@
           "point_key": {
             "value": "move_box_right_above_edge",
             "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },
@@ -413,6 +433,10 @@
           },
           "point_key": {
             "value": "move_box_right_below_edge",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
             "source": "CUSTOM"
           }
         }
@@ -466,6 +490,10 @@
           "point_key": {
             "value": "move_box_right_lift_target",
             "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },
@@ -501,6 +529,10 @@
           },
           "right_point_key": {
             "value": "move_box_return_center_right_target",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
             "source": "CUSTOM"
           }
         }

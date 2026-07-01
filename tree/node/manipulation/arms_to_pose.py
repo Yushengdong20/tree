@@ -67,7 +67,10 @@ class ArmsToPose(TimedMockAction):
         self.right_point_key = str(params.get("right_point_key", "")).strip()
         self.claw_ypr = self._parse_ypr(params.get("claw_ypr", None), "claw_ypr")
         self.lock_arm_side = str(params.get("lock_arm_side", "")).strip()
-        self.pose_frame = str(params.get("pose_frame", WAIST_YAW_LINK_FRAME)).strip()
+        default_pose_frame = (
+            BASE_LINK_FRAME if self.target_type == "claw_point" else WAIST_YAW_LINK_FRAME
+        )
+        self.pose_frame = str(params.get("pose_frame", default_pose_frame)).strip()
         if self.lock_arm_side not in ("", "left", "right"):
             raise ValueError("lock_arm_side 仅支持 left、right 或空")
         self.arm_controller = None
@@ -114,12 +117,12 @@ class ArmsToPose(TimedMockAction):
             if resolved is None:
                 self.startup_error = RuntimeError("解析手臂目标失败")
                 return
-            left_target, right_target, target_source, locked_arm_side = resolved
+            left_target, right_target, target_source, automatic_locked_arm_side = resolved
+            locked_arm_side = self.lock_arm_side or automatic_locked_arm_side
             self.ros_node.get_logger().info(
                 f"[{self.config_label}] 使用 common ArmController 启动手臂目标: "
                 f"side={self.side}, locked={locked_arm_side}, "
                 f"source={target_source}, frame={self.pose_frame}, "
-                f"lock_arm_side={self.lock_arm_side or 'none'}, "
                 f"left={left_target}, right={right_target}"
             )
 
@@ -128,7 +131,7 @@ class ArmsToPose(TimedMockAction):
             if not self.arm_controller.start_arm_event(
                 left_target,
                 right_target,
-                locked_arm_side=self.lock_arm_side or None,
+                locked_arm_side=locked_arm_side,
                 pose_frame=self.pose_frame,
             ):
                 self.startup_error = RuntimeError("启动手臂事件失败")
@@ -143,7 +146,7 @@ class ArmsToPose(TimedMockAction):
 
     @staticmethod
     def _parse_pose(value, name):
-        if value is None or value == "":
+        if value is None or (isinstance(value, str) and value == ""):
             return None
         if isinstance(value, str):
             value = ast.literal_eval(value)
@@ -153,7 +156,7 @@ class ArmsToPose(TimedMockAction):
 
     @staticmethod
     def _parse_point(value, name):
-        if value is None or value == "":
+        if value is None or (isinstance(value, str) and value == ""):
             return None
         if isinstance(value, str):
             value = ast.literal_eval(value)
@@ -165,7 +168,7 @@ class ArmsToPose(TimedMockAction):
 
     @staticmethod
     def _parse_ypr(value, name):
-        if value is None or value == "":
+        if value is None or (isinstance(value, str) and value == ""):
             return None
         if isinstance(value, str):
             value = ast.literal_eval(value)
@@ -281,6 +284,9 @@ class ArmsToPose(TimedMockAction):
             right_ypr = list(self.claw_ypr)
             target_source = "blackboard:claw_point+json:claw_ypr"
         else:
+            # 抓取姿态沿用控制器启动时缓存的 base_link 初始姿态。
+            # 腰部运动后不能在这里重新刷新，否则姿态会随腰部变化，而解析 IK
+            # 仍按固定手臂基座模型求解，最终形成明显的夹爪空间偏差。
             left_ypr = arm_controller.get_initial_left_ypr()
             right_ypr = arm_controller.get_initial_right_ypr()
             target_source = "blackboard:claw_point"
@@ -307,7 +313,7 @@ class ArmsToPose(TimedMockAction):
             right_ypr[1],
             right_ypr[2],
         ]
-        return left_target, right_target, target_source
+        return left_target, right_target, target_source, None
 
     def _resolve_single_arm_targets(self, arm_controller):
         """解析单侧目标，并使用当前缓存目标填充将被锁住的另一侧。"""
@@ -346,19 +352,23 @@ class ArmsToPose(TimedMockAction):
             if point_value is None:
                 return None, None
             point = self._parse_point(point_value, point_key)
-            ee_point = arm_controller.claw_point_to_end_effector_point(point, side)
+            if self.claw_ypr is not None:
+                ypr = list(self.claw_ypr)
+                target_source = f"blackboard:claw_point:{point_key}+json:claw_ypr"
+            else:
+                ypr = (
+                    arm_controller.get_initial_left_ypr()
+                    if side == "left"
+                    else arm_controller.get_initial_right_ypr()
+                )
+                target_source = f"blackboard:claw_point:{point_key}"
+
+            # 新 ArmController 接口允许显式传入 claw_ypr。位置反算和最终下发
+            # 必须共用这一姿态，否则工具长度会被按另一姿态旋转，形成固定空间偏差。
+            ee_point = arm_controller.claw_point_to_end_effector_point(point, side, ypr)
             if ee_point is None:
                 return None, None
-            # claw_point_to_end_effector_point() 内部使用的是这组缓存 YPR
-            # 来旋转“末端 -> 夹爪”平移。这里必须使用同一组姿态下发目标；
-            # 若腰部动作后改用 *_by_frame() 刷新的另一组 YPR，位置反算与
-            # 末端姿态会不一致，左右单臂都会产生固定的夹爪空间偏差。
-            ypr = (
-                arm_controller.get_initial_left_ypr()
-                if side == "left"
-                else arm_controller.get_initial_right_ypr()
-            )
-            return [*ee_point, *ypr], f"blackboard:claw_point:{point_key}"
+            return [*ee_point, *ypr], target_source
 
         direct_pose = self.left_pose if side == "left" else self.right_pose
         if direct_pose is not None:
