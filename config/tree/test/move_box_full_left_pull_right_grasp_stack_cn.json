@@ -25,16 +25,6 @@
       },
       {
         "name": "WaitForEnter",
-        "label": "确认机器人抓箱预备姿态",
-        "params": {
-          "message": {
-            "value": "头部、双臂和腰部已完成抓箱预备姿态初始化。确认机器人周围安全后按 Enter 继续...",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
-        "name": "WaitForEnter",
         "label": "确认首次导航到箱子堆",
         "params": {
           "message": {
@@ -256,16 +246,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认腰部开始对准箱体",
-                "params": {
-                  "message": {
-                    "value": "已根据箱体中心计算腰部目标。确认腰部运动空间安全后，按 Enter 调整腰部高度和前伸位置...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "MoveTorsoPose",
                 "label": "腰部对准箱体抓取高度",
                 "params": {
@@ -318,16 +298,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认左手开始靠近",
-                "params": {
-                  "message": {
-                    "value": "已计算左手目标。确认左手运动路径安全后，按 Enter 移动到箱体左边缘上方...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "ArmsToPose",
                 "label": "左夹爪移动到左边缘上方",
                 "params": {
@@ -345,16 +315,6 @@
                   },
                   "claw_ypr": {
                     "value": "[0.0, -60.0, 0.0]",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认左手下探",
-                "params": {
-                  "message": {
-                    "value": "左手已到箱体边缘上方。确认定位正确后，按 Enter 下探到边缘下方...",
                     "source": "CUSTOM"
                   }
                 }
@@ -382,16 +342,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认闭合左爪",
-                "params": {
-                  "message": {
-                    "value": "左手已下探。确认夹爪位于箱体边缘后，按 Enter 闭合左夹爪...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "CloseClaw",
                 "label": "闭合左夹爪",
                 "params": {
@@ -401,16 +351,6 @@
                   },
                   "side": {
                     "value": "left",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认左手上提",
-                "params": {
-                  "message": {
-                    "value": "左夹爪已闭合。确认抓取牢固后，按 Enter 由左手小幅上提箱体...",
                     "source": "CUSTOM"
                   }
                 }
@@ -433,16 +373,6 @@
                   },
                   "claw_ypr": {
                     "value": "[0.0, -60.0, 0.0]",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认左手外拉",
-                "params": {
-                  "message": {
-                    "value": "左手已上提。确认箱体可向机器人左侧外拉且无碰撞后，按 Enter 外拉 0.15m...",
                     "source": "CUSTOM"
                   }
                 }
@@ -508,16 +438,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认右手开始靠近",
-                "params": {
-                  "message": {
-                    "value": "右手补偿目标已计算。确认左手持箱稳定后，按 Enter 移动右手到箱体右边缘上方...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "ArmsToPose",
                 "label": "右夹爪移动到补偿后右边缘上方",
                 "params": {
@@ -535,16 +455,6 @@
                   },
                   "claw_ypr": {
                     "value": "[0.0, -60.0, 0.0]",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认右手下探",
-                "params": {
-                  "message": {
-                    "value": "右手已到补偿后边缘上方。确认定位正确后，按 Enter 下探...",
                     "source": "CUSTOM"
                   }
                 }
@@ -572,16 +482,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认闭合右爪",
-                "params": {
-                  "message": {
-                    "value": "右手已下探。确认夹爪位于箱体右边缘后，按 Enter 闭合右夹爪...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "CloseClaw",
                 "label": "闭合右夹爪",
                 "params": {
@@ -591,16 +491,6 @@
                   },
                   "side": {
                     "value": "right",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认右手上提",
-                "params": {
-                  "message": {
-                    "value": "左右夹爪均已闭合。确认双手抓牢后，按 Enter 由右手小幅上提至与左手一致高度...",
                     "source": "CUSTOM"
                   }
                 }
@@ -623,16 +513,6 @@
                   },
                   "claw_ypr": {
                     "value": "[0.0, -60.0, 0.0]",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认双手上提回拉",
-                "params": {
-                  "message": {
-                    "value": "双手已完成小幅上提。确认路径安全后，按 Enter 同步回拉箱体到中心并上提到 0.30m 搬运高度...",
                     "source": "CUSTOM"
                   }
                 }
@@ -690,16 +570,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认腰部回位和双手姿态恢复",
-                "params": {
-                  "message": {
-                    "value": "箱体已上提并回拉到中心。确认双手抓取稳定后，按 Enter 回腰并将双手 pitch 恢复到 -80 度...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "MoveTorsoPose",
                 "label": "腰部回到初始位姿",
                 "params": {
@@ -713,16 +583,6 @@
                   },
                   "skip_torso_motion": {
                     "value": "False",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认双手姿态恢复",
-                "params": {
-                  "message": {
-                    "value": "腰部已开始回位。确认箱体保持稳定、双臂运动空间安全后，按 Enter 恢复双手 pitch...",
                     "source": "CUSTOM"
                   }
                 }
@@ -834,16 +694,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认腰部调整到放置高度",
-                "params": {
-                  "message": {
-                    "value": "已到放置点并计算腰部目标。确认腰部空间安全后，按 Enter 调整到放置高度...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "MoveTorsoPose",
                 "label": "腰部调整到放置高度",
                 "params": {
@@ -884,16 +734,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认双手下降放箱",
-                "params": {
-                  "message": {
-                    "value": "放置下降目标已计算。确认箱体下方和双臂路径安全后，按 Enter 下降箱体...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "ArmsToPose",
                 "label": "双夹爪同步下降到放置高度",
                 "params": {
@@ -915,16 +755,6 @@
                   },
                   "claw_ypr": {
                     "value": "[0.0, -60.0, 0.0]",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认松开双爪",
-                "params": {
-                  "message": {
-                    "value": "箱体已下降到放置高度。确认箱体落稳后，按 Enter 张开双夹爪...",
                     "source": "CUSTOM"
                   }
                 }
@@ -963,16 +793,6 @@
                   },
                   "right_pose": {
                     "value": "[0.351, -0.3, 0.2, 0.0, -80.0, 0.0]",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认腰部回抓取预备姿态",
-                "params": {
-                  "message": {
-                    "value": "双臂已回预备姿态。确认腰部空间安全后，按 Enter 恢复腰部抓取预备姿态...",
                     "source": "CUSTOM"
                   }
                 }
