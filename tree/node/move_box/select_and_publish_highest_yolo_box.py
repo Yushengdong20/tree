@@ -1,4 +1,4 @@
-"""从一帧 YOLO 多箱结果中锁定最高层最近箱，并发布其 map 位姿。"""
+"""从一帧 YOLO 多箱结果中锁定最高层目标箱，并发布其 map 位姿。"""
 
 import math
 import threading
@@ -16,7 +16,7 @@ from ..base import TimedMockAction
 
 
 class SelectAndPublishHighestYoloBox(TimedMockAction):
-    """选择 map 高度最高的一层，再在同层中选择平面距离最近的箱子。"""
+    """选择 map 高度最高的一层，再按配置选择同层目标箱。"""
 
     allow_manual_result_override = False
 
@@ -34,6 +34,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             params.get("selected_point_key", "move_box_selected_highest_yolo_map_point")
         ).strip()
         self.top_height_tolerance = float(params.get("top_height_tolerance", 0.06))
+        self.same_level_selection = str(
+            params.get("same_level_selection", "nearest")
+        ).strip().lower()
+        if self.same_level_selection not in ("nearest", "leftmost"):
+            raise ValueError(
+                "same_level_selection must be 'nearest' or 'leftmost', got "
+                f"{self.same_level_selection!r}"
+            )
         self.min_map_height = self._optional_float(params.get("min_map_height", ""))
         self.max_planar_distance = self._optional_float(params.get("max_planar_distance", ""))
         self.no_target_log_interval_sec = float(params.get("no_target_log_interval_sec", 1.0))
@@ -89,7 +97,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 continue
             if self.max_planar_distance is not None and planar_distance > self.max_planar_distance:
                 continue
-            candidates.append({"index": index, "map": map_xyz, "distance": planar_distance})
+            candidates.append({
+                "index": index,
+                "map": map_xyz,
+                "selection_frame": distance_xyz,
+                "distance": planar_distance,
+            })
 
         if not candidates:
             self._log_no_target(f"[{self.config_label}] YOLO目标均未通过高度/距离过滤")
@@ -100,7 +113,18 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             candidate for candidate in candidates
             if candidate["map"][2] >= max_height - self.top_height_tolerance
         ]
-        selected = min(top_candidates, key=lambda candidate: candidate["distance"])
+        if self.same_level_selection == "leftmost":
+            # ROS 机器人坐标约定：x 向前、y 向左。先取 y 最大者；若 y
+            # 相同，则距离更近者优先，保证排序结果稳定。
+            selected = max(
+                top_candidates,
+                key=lambda candidate: (
+                    candidate["selection_frame"][1],
+                    -candidate["distance"],
+                ),
+            )
+        else:
+            selected = min(top_candidates, key=lambda candidate: candidate["distance"])
 
         message = PoseStamped()
         message.header.stamp = self.ros_node.now()
@@ -113,14 +137,16 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.blackboard.set(self.selected_point_key, list(selected["map"]), overwrite=True)
 
         candidate_text = ", ".join(
-            "#{} map=({:.3f},{:.3f},{:.3f}) distance={:.3f}".format(
-                candidate["index"], *candidate["map"], candidate["distance"]
+            "#{} map=({:.3f},{:.3f},{:.3f}) {}_y={:.3f} distance={:.3f}".format(
+                candidate["index"], *candidate["map"], self.distance_frame,
+                candidate["selection_frame"][1], candidate["distance"]
             )
             for candidate in candidates
         )
         self.ros_node.get_logger().info(f"[{self.config_label}] YOLO候选: {candidate_text}")
         self.ros_node.get_logger().info(
-            f"[{self.config_label}] 已锁定最高层最近箱并发布: index={selected['index']}, "
+            f"[{self.config_label}] 已锁定最高层目标箱并发布: "
+            f"strategy={self.same_level_selection}, index={selected['index']}, "
             f"top_z={max_height:.3f}, selected=({selected['map'][0]:.3f}, "
             f"{selected['map'][1]:.3f}, {selected['map'][2]:.3f}), topic={self.output_topic}"
         )
@@ -186,5 +212,6 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"input={self.yolo_topic}, output={self.output_topic}, "
             f"map_frame={self.map_frame}, chassis_frame={self.chassis_frame}, "
             f"base_frame={self.base_frame}, "
-            f"top_tolerance={self.top_height_tolerance:.3f}"
+            f"top_tolerance={self.top_height_tolerance:.3f}, "
+            f"same_level_selection={self.same_level_selection}"
         )

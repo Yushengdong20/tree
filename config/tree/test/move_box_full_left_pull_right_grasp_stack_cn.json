@@ -99,7 +99,7 @@
             "childs": [
               {
                 "name": "SelectAndPublishHighestYoloBox",
-                "label": "筛选并发布YOLO最高层最近箱",
+                "label": "筛选并发布YOLO最高层最左箱",
                 "params": {
                   "yolo_topic": {
                     "value": "/yolo/target_poses",
@@ -133,6 +133,10 @@
                     "value": "0.06",
                     "source": "CUSTOM"
                   },
+                  "same_level_selection": {
+                    "value": "leftmost",
+                    "source": "CUSTOM"
+                  },
                   "max_planar_distance": {
                     "value": "3.0",
                     "source": "CUSTOM"
@@ -144,7 +148,7 @@
                 "label": "确认YOLO最高箱目标",
                 "params": {
                   "message": {
-                    "value": "已发布YOLO最高层最近箱。核对候选高度和目标位置，确认后按 Enter 重启 FoundationPose...",
+                    "value": "已发布YOLO最高层最左箱。核对候选高度、左右位置和目标位置，确认后按 Enter 重启 FoundationPose...",
                     "source": "CUSTOM"
                   }
                 }
