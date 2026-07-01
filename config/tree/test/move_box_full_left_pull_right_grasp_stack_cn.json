@@ -13,6 +13,10 @@
         "name": "EnsureMoveBoxServices",
         "label": "初始化 move_box 视觉与控制实例",
         "params": {
+          "initial_torso_height": {
+            "value": "1.1",
+            "source": "CUSTOM"
+          },
           "skip_torso_motion": {
             "value": "False",
             "source": "CUSTOM"
@@ -974,7 +978,7 @@
                 "label": "腰部回到抓取预备姿态",
                 "params": {
                   "pose": {
-                    "value": "[0.0, 0.0, 1.1, 0.0, 0.0, 0.0]",
+                    "value": "[0.0, 0.0, 0.9, 0.0, 0.0, 0.0]",
                     "source": "CUSTOM"
                   },
                   "wait_done": {

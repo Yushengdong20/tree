@@ -73,7 +73,12 @@ class EnsureMoveBoxServices(TimedMockAction):
 
         torso_ready_pose = list(services.torso_controller.current_pose)
         torso_ready_pose[0] = 0.0
-        torso_ready_pose[2] = float(self.ros_node.get_param("initial_torso_height", 1.1))
+        torso_ready_pose[2] = float(
+            self.params.get(
+                "initial_torso_height",
+                self.ros_node.get_param("initial_torso_height", 1.1),
+            )
+        )
         torso_ready_pose[4] = 0.0
         if self.should_skip_torso_motion():
             self.log_skip_torso_motion()
