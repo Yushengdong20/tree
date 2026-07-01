@@ -304,6 +304,10 @@
                   "right_point_key": {
                     "value": "move_box_place_right_lower_claw_point",
                     "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -60.0, 0.0]",
+                    "source": "CUSTOM"
                   }
                 }
               },
