@@ -134,16 +134,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认YOLO最高箱目标",
-                "params": {
-                  "message": {
-                    "value": "已发布YOLO最高层最左箱。核对候选高度、左右位置和目标位置，确认后按 Enter 重启 FoundationPose...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "SetBlackboardValue",
                 "label": "置位FoundationPose抓取请求",
                 "params": {
@@ -620,16 +610,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认导航到放置点",
-                "params": {
-                  "message": {
-                    "value": "箱体已完成左拉、双手补抓和上提回拉。确认搬运路径安全后，按 Enter 导航到放置点...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "HttpNavigateToPose",
                 "label": "导航到放置点",
                 "params": {
@@ -770,16 +750,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认双臂回抓取预备姿态",
-                "params": {
-                  "message": {
-                    "value": "箱体已释放。确认双臂回程空间安全后，按 Enter 将双臂恢复到抓取预备姿态...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "ArmsToPose",
                 "label": "双臂回到抓取预备姿态",
                 "params": {
@@ -802,7 +772,7 @@
                 "label": "腰部回到抓取预备姿态",
                 "params": {
                   "pose": {
-                    "value": "[0.0, 0.0, 0.9, 0.0, 0.0, 0.0]",
+                    "value": "[0.0, 0.0, 1.1, 0.0, 0.0, 0.0]",
                     "source": "CUSTOM"
                   },
                   "wait_done": {
@@ -811,16 +781,6 @@
                   },
                   "skip_torso_motion": {
                     "value": "False",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "WaitForEnter",
-                "label": "确认返回箱子堆固定抓取点",
-                "params": {
-                  "message": {
-                    "value": "本箱已放置并恢复预备姿态。确认路径安全后，按 Enter 返回箱子堆固定抓取点...",
                     "source": "CUSTOM"
                   }
                 }
