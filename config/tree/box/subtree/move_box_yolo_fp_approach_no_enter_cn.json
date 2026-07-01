@@ -121,7 +121,7 @@
                     "source": "CUSTOM"
                   },
                   "yaw_threshold_deg": {
-                    "value": "30.0",
+                    "value": "15.0",
                     "source": "CUSTOM"
                   }
                 }

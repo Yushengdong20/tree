@@ -274,7 +274,7 @@
                             "source": "CUSTOM"
                           },
                           "yaw": {
-                            "value": "86.41201143492874",
+                            "value": "176.41201143492874",
                             "source": "CUSTOM"
                           },
                           "chassis_url": {
@@ -343,10 +343,6 @@
                     "value": "move_box_finished_box_targets",
                     "source": "CUSTOM"
                   },
-                  "select_policy": {
-                    "value": "nearest",
-                    "source": "CUSTOM"
-                  },
                   "valid_box_map_polygon": {
                     "value": [
                       [
@@ -374,10 +370,6 @@
                   },
                   "enable_colored_log": {
                     "value": "True",
-                    "source": "CUSTOM"
-                  },
-                  "chassis_url": {
-                    "value": "http://localhost:8081",
                     "source": "CUSTOM"
                   }
                 }

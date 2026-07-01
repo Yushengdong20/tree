@@ -3,7 +3,10 @@
 import py_trees
 from py_trees.common import Status
 
-from tree.constants import ROBOT_SERVICES_KEY
+from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.mobile_manipulate.ik_library import (
+    IK_MODEL_MOVE_BOX,
+)
+from tree.constants import MODEL_TYPE_KEY, ROBOT_SERVICES_KEY
 
 from ..base import TimedMockAction
 
@@ -14,8 +17,11 @@ class EnsureMoveBoxServices(TimedMockAction):
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.services_key = ROBOT_SERVICES_KEY
+        self.model_type_key = MODEL_TYPE_KEY
+        self.model_type = str(params.get("model_type", IK_MODEL_MOVE_BOX)).strip() or IK_MODEL_MOVE_BOX
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key=self.model_type_key, access=py_trees.common.Access.WRITE)
 
     def update(self):
         """若服务不存在则创建，并在同一节点内完成头、腰、手臂的准备动作。"""
@@ -23,10 +29,10 @@ class EnsureMoveBoxServices(TimedMockAction):
             return self.update_mock_result()
 
         services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
-        if services is None:
+        if not self._is_move_box_services(services):
             from tree.runtime.move_box.move_box_real import build_robot_services
 
-            services = build_robot_services()
+            services = build_robot_services(model_type=self.model_type)
             self.blackboard.set(self.services_key, services, overwrite=True)
             self.ros_node.get_logger().info(
                 f"[{self.config_label}] created robot services: services_id={id(services)}"
@@ -35,8 +41,17 @@ class EnsureMoveBoxServices(TimedMockAction):
             self.ros_node.get_logger().info(
                 f"[{self.config_label}] reused robot services: services_id={id(services)}"
             )
+        self.blackboard.set(self.model_type_key, services.model_type, overwrite=True)
         self._prepare_robot(services)
         return Status.SUCCESS
+
+    def _is_move_box_services(self, services):
+        return (
+            services is not None
+            and hasattr(services, "static_tf_publisher")
+            and hasattr(services, "arm_controller")
+            and getattr(services, "model_type", None) == self.model_type
+        )
 
     def _prepare_robot(self, services):
         """发布静态 TF，并驱动头、腰、手臂进入初始观测和抓取准备状态。"""

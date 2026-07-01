@@ -42,8 +42,8 @@ class ArmsToPose(TimedMockAction):
     - left_pose_key/right_pose_key: blackboard 中的 eef 完整位姿 key
     - target_type: eef_pose / claw_point
     - left_point_key/right_point_key: blackboard 中的夹爪目标点 key
-    - side: both / left / right，默认 both
-    - point_key: 单臂 claw_point 模式下的目标点 key
+    - claw_ypr: claw_point 模式下夹取姿态 [yaw, pitch, roll]，单位 deg
+    - lock_arm_side: 锁住当前关节的手臂，支持 left / right / 空
     - pose_frame: 目标位姿坐标系，支持 base_link / waist_yaw_link。
       注意：claw_point 模式目前只能使用 base_link。
 
@@ -65,8 +65,11 @@ class ArmsToPose(TimedMockAction):
         self.target_type = str(params.get("target_type", default_target_type)).strip().lower()
         self.left_point_key = str(params.get("left_point_key", "")).strip()
         self.right_point_key = str(params.get("right_point_key", "")).strip()
-        default_pose_frame = "base_link" if self.target_type == "claw_point" else "waist_yaw_link"
-        self.pose_frame = str(params.get("pose_frame", default_pose_frame)).strip()
+        self.claw_ypr = self._parse_ypr(params.get("claw_ypr", None), "claw_ypr")
+        self.lock_arm_side = str(params.get("lock_arm_side", "")).strip()
+        self.pose_frame = str(params.get("pose_frame", WAIST_YAW_LINK_FRAME)).strip()
+        if self.lock_arm_side not in ("", "left", "right"):
+            raise ValueError("lock_arm_side 仅支持 left、right 或空")
         self.arm_controller = None
         self.started = False
         self.skipped = False
@@ -116,6 +119,7 @@ class ArmsToPose(TimedMockAction):
                 f"[{self.config_label}] 使用 common ArmController 启动手臂目标: "
                 f"side={self.side}, locked={locked_arm_side}, "
                 f"source={target_source}, frame={self.pose_frame}, "
+                f"lock_arm_side={self.lock_arm_side or 'none'}, "
                 f"left={left_target}, right={right_target}"
             )
 
@@ -124,7 +128,7 @@ class ArmsToPose(TimedMockAction):
             if not self.arm_controller.start_arm_event(
                 left_target,
                 right_target,
-                locked_arm_side=locked_arm_side,
+                locked_arm_side=self.lock_arm_side or None,
                 pose_frame=self.pose_frame,
             ):
                 self.startup_error = RuntimeError("启动手臂事件失败")
@@ -157,6 +161,16 @@ class ArmsToPose(TimedMockAction):
             value = value.tolist()
         if not isinstance(value, (list, tuple)) or len(value) != 3:
             raise ValueError(f"{name} 必须是长度为 3 的列表: [x, y, z]")
+        return [float(item) for item in value]
+
+    @staticmethod
+    def _parse_ypr(value, name):
+        if value is None or value == "":
+            return None
+        if isinstance(value, str):
+            value = ast.literal_eval(value)
+        if not isinstance(value, (list, tuple)) or len(value) != 3:
+            raise ValueError(f"{name} 必须是长度为 3 的列表: [yaw, pitch, roll]")
         return [float(item) for item in value]
 
     def _get_blackboard_value(self, key, label):
@@ -260,13 +274,23 @@ class ArmsToPose(TimedMockAction):
 
         left_point = self._parse_point(left_value, self.left_point_key)
         right_point = self._parse_point(right_value, self.right_point_key)
-        left_ee_point = arm_controller.claw_point_to_end_effector_point(left_point, "left")
-        right_ee_point = arm_controller.claw_point_to_end_effector_point(right_point, "right")
+
+        # 关键步骤：夹取姿态优先使用节点配置，避免 claw_point 模式误用回初始位姿的 pitch。
+        if self.claw_ypr is not None:
+            left_ypr = list(self.claw_ypr)
+            right_ypr = list(self.claw_ypr)
+            target_source = "blackboard:claw_point+json:claw_ypr"
+        else:
+            left_ypr = arm_controller.get_initial_left_ypr()
+            right_ypr = arm_controller.get_initial_right_ypr()
+            target_source = "blackboard:claw_point"
+
+        # 关键步骤：用最终下发姿态反算 eef 位置，保证 position 与 yaw/pitch/roll 来自同一姿态。
+        left_ee_point = arm_controller.claw_point_to_end_effector_point(left_point, "left", left_ypr)
+        right_ee_point = arm_controller.claw_point_to_end_effector_point(right_point, "right", right_ypr)
         if left_ee_point is None or right_ee_point is None:
             return None
 
-        left_ypr = arm_controller.get_initial_left_ypr()
-        right_ypr = arm_controller.get_initial_right_ypr()
         left_target = [
             left_ee_point[0],
             left_ee_point[1],
@@ -283,7 +307,7 @@ class ArmsToPose(TimedMockAction):
             right_ypr[1],
             right_ypr[2],
         ]
-        return left_target, right_target, "blackboard:claw_point", None
+        return left_target, right_target, target_source
 
     def _resolve_single_arm_targets(self, arm_controller):
         """解析单侧目标，并使用当前缓存目标填充将被锁住的另一侧。"""
@@ -387,6 +411,7 @@ class ArmsToPose(TimedMockAction):
             right_desc = f"initial_right_pose@{self.pose_frame}"
         return (
             f"[{self.config_label}] ArmsToPose start: "
-            f"side={self.side}, target_type={self.target_type}, frame={self.pose_frame}, "
+            f"target_type={self.target_type}, frame={self.pose_frame}, "
+            f"lock_arm_side={self.lock_arm_side or 'none'}, "
             f"left={left_desc}, right={right_desc}"
         )

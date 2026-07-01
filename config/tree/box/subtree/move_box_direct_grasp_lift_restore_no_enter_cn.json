@@ -28,6 +28,10 @@
           "right_point_key": {
             "value": "move_box_direct_right_lift_target",
             "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },
@@ -36,7 +40,7 @@
         "label": "计算躯干回位后的双手 pitch 恢复目标",
         "params": {
           "pitch": {
-            "value": "-80.0",
+            "value": "-60.0",
             "source": "CUSTOM"
           },
           "left_pose_key": {

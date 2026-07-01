@@ -7,6 +7,7 @@ from kuavo_humanoid_sdk.common.constants import (
 )
 
 ROBOT_SERVICES_KEY = "robot_services"
+MODEL_TYPE_KEY = "model_type"
 
 FLOW_RESULT_KEY = "flow_result"
 FINAL_POSE_KEY = "final_pose"

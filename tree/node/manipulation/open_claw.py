@@ -30,5 +30,13 @@ class OpenClaw(TimedMockAction):
         if self.should_skip_claw_motion():
             self.log_skip_claw_motion()
             return Status.SUCCESS
+        if not hasattr(services, "arm_controller"):
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] services 中没有 arm_controller: key={self.services_key}"
+            )
+            return Status.FAILURE
         ok = services.arm_controller.open_claw(self.side)
         return Status.SUCCESS if ok else Status.FAILURE
+
+    def describe_start(self):
+        return f"[{self.config_label}] OpenClaw start: key={self.services_key}, side={self.side}"

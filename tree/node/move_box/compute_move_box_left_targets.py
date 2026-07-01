@@ -7,7 +7,7 @@ from py_trees.common import Status
 from ..base import TimedMockAction
 
 
-class ComputeMoveBoxLeftPullTargets(TimedMockAction):
+class ComputeMoveBoxLeftTargets(TimedMockAction):
     """把左手靠近、下探、上提和外拉目标写入 blackboard。"""
 
     def __init__(self, name, config_label, ros_node, params):
@@ -21,9 +21,9 @@ class ComputeMoveBoxLeftPullTargets(TimedMockAction):
         self.target_keys = {
             "left_edge": str(params.get("left_edge_key", "move_box_left_edge_point")).strip(),
             "right_edge": str(params.get("right_edge_key", "move_box_right_edge_point")).strip(),
-            "left_above": str(params.get("left_above_key", "move_box_left_pull_above_edge")).strip(),
-            "left_below": str(params.get("left_below_key", "move_box_left_pull_below_edge")).strip(),
-            "left_lift": str(params.get("left_lift_key", "move_box_left_pull_lift_target")).strip(),
+            "left_above": str(params.get("left_above_key", "move_box_left_above_edge")).strip(),
+            "left_below": str(params.get("left_below_key", "move_box_left_below_edge")).strip(),
+            "left_lift": str(params.get("left_lift_key", "move_box_left_lift_target")).strip(),
             "left_pull": str(params.get("left_pull_key", "move_box_left_pull_target")).strip(),
         }
         self.blackboard.register_key(key=self.grasp_pair_key, access=py_trees.common.Access.READ)

@@ -174,6 +174,7 @@ class BehaviorTreeFactory:
             f"tree.node.{module_name}",
             f"tree.node.common.{module_name}",
             f"tree.node.manipulation.{module_name}",
+            f"tree.node.grasp_object.{module_name}",
             f"tree.node.move_box.{module_name}",
             f"tree.node.mock.{module_name}",
         ]

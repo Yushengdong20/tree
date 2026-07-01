@@ -1,8 +1,10 @@
 """使用 YOLO 箱体中心进行远距离粗靠近。"""
 
 import math
+import os
 import time
 import uuid
+from datetime import datetime
 
 import py_trees
 from geometry_msgs.msg import PoseStamped
@@ -72,6 +74,15 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             params.get("finished_box_targets_key", "move_box_finished_box_targets")
         ).strip()
         self.memory_match_distance_m = float(params.get("memory_match_distance_m", 0.35))
+        self.max_memory_targets = int(params.get("max_memory_targets", 1))
+        self.max_memory_targets = max(self.max_memory_targets, 0)
+        self.memory_update_during_navigation = self._to_bool(
+            params.get("memory_update_during_navigation", True)
+        )
+        self.memory_update_interval_sec = float(
+            params.get("memory_update_interval_sec", 0.5)
+        )
+        self.memory_update_interval_sec = max(self.memory_update_interval_sec, 0.05)
         self.min_detected_box_3d_distance_m = float(
             params.get("min_detected_box_3d_distance_m", 0.25)
         )
@@ -89,6 +100,14 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if self.valid_box_polygon_required and not self.valid_box_map_polygon:
             raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
         self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
+        self.enable_memory_file_log = self._to_bool(
+            params.get("enable_memory_file_log", True)
+        )
+        self.memory_log_dir = str(params.get("memory_log_dir", "/mnt/ssd/log")).strip()
+        self.memory_log_file = str(
+            params.get("memory_log_file", "move_box_memory.log")
+        ).strip()
+        self._memory_file_log_warning_reported = False
         self.box_map_pose_pub = None
         if self.box_map_pose_topic:
             self.box_map_pose_pub = self.ros_node.create_publisher(
@@ -141,6 +160,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._navigation_status_response = None
         self._deadline = None
         self._next_poll_at = None
+        self._next_memory_update_at = None
 
     @staticmethod
     def _to_bool(value):
@@ -162,6 +182,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         try:
             now = time.monotonic()
             if self._phase == "FINISHED":
+                self._update_memory_while_navigation(now)
                 return Status.RUNNING
             if now > self._deadline:
                 raise TimeoutError(
@@ -248,10 +269,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     self._target_pose.yaw,
                 )
                 self._next_poll_at = now
+                self._next_memory_update_at = now + self.memory_update_interval_sec
                 self._phase = "POLL_NAVIGATION"
                 return Status.RUNNING
 
             if self._phase == "POLL_NAVIGATION":
+                self._update_memory_while_navigation(now)
                 if self._next_poll_at is not None and now < self._next_poll_at:
                     return Status.RUNNING
                 self._navigation_status_response = post_navigation_task_status(
@@ -302,6 +325,31 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if not hasattr(services, "yolo_detector"):
             raise RuntimeError("robot services 缺少 yolo_detector")
         return services
+
+    def _update_memory_while_navigation(self, now):
+        """YOLO 粗靠近过程中持续用本轮检测刷新记忆，直到 FP 接管。"""
+        if not self.use_box_memory or not self.memory_update_during_navigation:
+            return
+        if self._next_memory_update_at is not None and now < self._next_memory_update_at:
+            return
+
+        self._next_memory_update_at = now + self.memory_update_interval_sec
+        try:
+            # 关键步骤：机器人移动中 base 坐标持续变化，刷新当前底盘位姿后再换算 map 坐标。
+            self._current_pose = get_chassis_current_pose(self.chassis_config)
+            services = self._get_services()
+            self._update_yolo_targets(services)
+            self._choose_current_target_from_yolo()
+            if self._current_box_target is not None:
+                self._box_base_position = self._current_box_target.get("base_position")
+                self._box_global_position = self._current_box_target.get("map_position")
+                self._publish_box_map_pose()
+        except Exception as exc:
+            self._log_info(
+                "导航中记忆刷新失败",
+                "错误=%s，保留上一轮导航和记忆状态继续等待" % exc,
+                "yellow",
+            )
 
     def _update_yolo_targets(self, services):
         """读取 YOLO 多目标结果，并转换成本轮可用于导航和记忆的目标列表。"""
@@ -403,6 +451,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             ),
             "magenta",
         )
+        self._log_target_list("YOLO有效目标列表", self._detected_box_targets)
         return updated
 
     def _transform_base_position_to_map_position(self, services, base_position, source_frame):
@@ -569,19 +618,23 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         )
 
     def _refresh_box_memory(self):
-        """把本次检测到的非当前目标合并进箱子记忆。"""
-        memory = self._read_box_memory()
-        memory_before_count = len(memory)
+        """把本次检测到的非当前目标刷新为候选下一个箱子。"""
+        old_memory = self._read_box_memory()
+        # 关键步骤：永远相信本轮 YOLO 检测，不把历史记忆合并回来。
+        memory = []
+        memory_before_count = len(old_memory)
         self._log_info(
             "记忆刷新开始",
-            "刷新前数量=%d 有效检测数量=%d 当前目标=%s"
+            "刷新策略=observed 最大保留数量=%d 刷新前数量=%d 有效检测数量=%d 当前目标=%s"
             % (
+                self.max_memory_targets,
                 memory_before_count,
                 len(self._detected_box_targets),
                 self._format_target(self._current_box_target),
             ),
             "cyan",
         )
+        self._log_target_list("记忆刷新前列表", old_memory)
         for detected_target in self._detected_box_targets:
             if not self._is_target_allowed(detected_target):
                 self._log_info(
@@ -590,32 +643,79 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     "yellow",
                 )
                 continue
-            if self._is_current_target(detected_target):
+            current_target_distance = self._get_current_target_distance(detected_target)
+            if current_target_distance <= self.memory_match_distance_m:
                 self._log_info(
                     "记忆跳过",
-                    "跳过类型=当前抓取目标 目标=%s" % self._format_target(detected_target),
+                    "跳过类型=当前抓取目标 3D距离=%.3fm 阈值=%.3fm 目标=%s 当前目标=%s"
+                    % (
+                        current_target_distance,
+                        self.memory_match_distance_m,
+                        self._format_target(detected_target),
+                        self._format_target(self._current_box_target),
+                    ),
                     "cyan",
                 )
                 continue
-            if self._is_finished_target(detected_target):
+            finished_target, finished_target_distance = self._find_finished_target_match(
+                detected_target
+            )
+            if finished_target is not None:
                 self._log_info(
                     "记忆跳过",
-                    "跳过类型=已完成目标 目标=%s" % self._format_target(detected_target),
+                    "跳过类型=已完成目标 3D距离=%.3fm 阈值=%.3fm 目标=%s 已完成目标=%s"
+                    % (
+                        finished_target_distance,
+                        self.memory_match_distance_m,
+                        self._format_target(detected_target),
+                        self._format_target(finished_target),
+                    ),
                     "yellow",
                 )
                 continue
             self._merge_memory_target(memory, detected_target)
 
+        memory = self._limit_memory_targets(memory)
         self.blackboard.set(self.box_memory_key, memory, overwrite=True)
         self._log_info(
             "记忆刷新完成",
-            "刷新前数量=%d 刷新后数量=%d 当前目标=%s"
+            "刷新策略=observed 最大保留数量=%d 刷新前数量=%d 刷新后数量=%d 当前目标=%s"
             % (
+                self.max_memory_targets,
                 memory_before_count,
                 len(memory),
                 self._format_target(self._current_box_target),
             ),
             "cyan",
+        )
+        self._log_target_list("候选下一个目标列表", memory)
+
+    def _limit_memory_targets(self, memory):
+        """只保留滚动决策需要的少量候选目标，默认仅保留下一个箱子。"""
+        if self.max_memory_targets == 0 or len(memory) <= self.max_memory_targets:
+            return memory
+
+        # 关键步骤：下一个箱子按当前底盘位置排序，避免保留完整历史队列造成旧误检残留。
+        sorted_memory = sorted(memory, key=self._target_distance_to_current_pose)
+        dropped_targets = sorted_memory[self.max_memory_targets:]
+        kept_targets = sorted_memory[: self.max_memory_targets]
+        for index, target in enumerate(dropped_targets):
+            self._log_info(
+                "记忆裁剪",
+                "裁剪序号=%d/%d 目标=%s"
+                % (index + 1, len(dropped_targets), self._format_target(target)),
+                "yellow",
+            )
+        return kept_targets
+
+    def _target_distance_to_current_pose(self, target):
+        """计算目标到当前底盘 map 位姿的平面距离，用于挑选下一个候选箱子。"""
+        map_position = target.get("map_position") if target is not None else None
+        if map_position is None or self._current_pose is None:
+            return float("inf")
+        return math.hypot(
+            float(map_position.get("x", 0.0)) - self._current_pose.x,
+            float(map_position.get("y", 0.0)) - self._current_pose.y,
         )
 
     def _merge_memory_target(self, memory, target):
@@ -664,26 +764,23 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             "cyan",
         )
 
-    def _is_current_target(self, target):
-        """判断检测目标是否为当前正在抓取的箱子。"""
+    def _get_current_target_distance(self, target):
+        """计算检测目标到当前抓取目标的 3D 距离。"""
         if self._current_box_target is None:
-            return False
-        return (
-            self._target_distance(
-                target.get("map_position"),
-                self._current_box_target.get("map_position"),
-            )
-            <= self.memory_match_distance_m
+            return float("inf")
+        return self._target_distance(
+            target.get("map_position"),
+            self._current_box_target.get("map_position"),
         )
 
-    def _is_finished_target(self, target):
-        """判断检测目标是否已经完成抓取放置。"""
+    def _find_finished_target_match(self, target):
+        """查找与检测目标匹配的已完成箱子。"""
         if not self.blackboard.exists(self.finished_box_targets_key):
-            return False
+            return None, None
 
         finished_targets = self.blackboard.get(self.finished_box_targets_key)
         if not isinstance(finished_targets, list):
-            return False
+            return None, None
 
         target_position = target.get("map_position")
         for finished_target in finished_targets:
@@ -692,8 +789,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 finished_target.get("map_position"),
             )
             if distance <= self.memory_match_distance_m:
-                return True
-        return False
+                return finished_target, distance
+        return None, None
 
     def _is_target_allowed(self, target):
         """判断目标是否落在配置的有效 map 区域内。"""
@@ -744,10 +841,45 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             "green",
         )
 
+    def _log_target_list(self, tag, targets):
+        """按列表完整打印箱子目标，便于复盘记忆新增和残留来源。"""
+        self._log_info(
+            tag,
+            "数量=%d" % len(targets),
+            "cyan",
+        )
+        for index, target in enumerate(targets):
+            self._log_info(
+                tag,
+                "序号=%d/%d %s"
+                % (index + 1, len(targets), self._format_target(target)),
+                "cyan",
+            )
+
     def _log_info(self, tag, message, color):
         """输出带固定前缀和可选颜色的调试日志。"""
         text = f"[{self.config_label}] [{tag}] {message}"
         self.ros_node.get_logger().info(self._color_text(text, color))
+        self._write_memory_file_log(text)
+
+    def _write_memory_file_log(self, text):
+        """把 YOLO 和箱子记忆日志追加写入独立文件，方便单独检查。"""
+        if not self.enable_memory_file_log:
+            return
+
+        try:
+            # 关键步骤：现场可能未提前创建目录，这里保证日志目录存在。
+            os.makedirs(self.memory_log_dir, exist_ok=True)
+            log_path = os.path.join(self.memory_log_dir, self.memory_log_file)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            with open(log_path, "a", encoding="utf-8") as log_file:
+                log_file.write(f"{timestamp} {text}\n")
+        except Exception as exc:
+            if not self._memory_file_log_warning_reported:
+                self._memory_file_log_warning_reported = True
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 写入箱子记忆日志失败: {exc}"
+                )
 
     def _color_text(self, text, color):
         """按配置给日志添加 ANSI 颜色。"""

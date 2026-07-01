@@ -52,6 +52,10 @@ setup(
             f"share/{package_name}/config/tree/http",
             glob("config/tree/http/*.json"),
         ),
+        (
+            f"share/{package_name}/config/tree/grasp_object",
+            glob("config/tree/grasp_object/*.json"),
+        ),
         (f"share/{package_name}/launch", glob("launch/*.launch.py")),
         (
             f"share/{package_name}/visualization/web",

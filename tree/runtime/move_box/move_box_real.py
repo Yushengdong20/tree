@@ -16,6 +16,9 @@ from kuavo_humanoid_sdk.common.head_controller import HeadController
 from kuavo_humanoid_sdk.common.lb_control import set_quick_mode
 from kuavo_humanoid_sdk.common.static_tf_publisher import StaticTfPublisher
 from kuavo_humanoid_sdk.common.torso_controller import TorsoController
+from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.mobile_manipulate.ik_library import (
+    IK_MODEL_MOVE_BOX,
+)
 
 
 @dataclass
@@ -32,10 +35,12 @@ class RobotServices:
     arm_controller: ArmController
     torso_controller: TorsoController
     head_controller: HeadController
+    model_type: str
 
 
-def build_robot_services() -> RobotServices:
+def build_robot_services(model_type=IK_MODEL_MOVE_BOX) -> RobotServices:
     """创建一套可被行为树节点复用的 move_box 真实服务对象。"""
+    model_type = str(model_type).strip() or IK_MODEL_MOVE_BOX
     if bool(rospy.get_param("~auto_set_quick_mode", True)):
         set_quick_mode(int(rospy.get_param("~quick_mode", 2)))
 
@@ -61,7 +66,11 @@ def build_robot_services() -> RobotServices:
         box_detector = FPBoxDetector(target_frame, tf_listener, box_pose_topic)
         detector_topic = box_pose_topic
     yolo_detector = YoloBoxDetector(target_frame, tf_listener, yolo_target_poses_topic)
-    arm_controller = ArmController(tf_listener, target_frame)
+    arm_controller = ArmController(
+        tf_listener,
+        target_frame,
+        model_type=model_type,
+    )
     torso_controller = TorsoController()
     head_controller = HeadController()
     return RobotServices(
@@ -75,4 +84,5 @@ def build_robot_services() -> RobotServices:
         arm_controller=arm_controller,
         torso_controller=torso_controller,
         head_controller=head_controller,
+        model_type=model_type,
     )

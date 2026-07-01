@@ -158,7 +158,7 @@
         }
       },
       {
-        "name": "ComputeMoveBoxLeftPullTargets",
+        "name": "ComputeMoveBoxLeftTargets",
         "label": "计算左手靠近-下探-上提-外拉目标",
         "params": {
           "grasp_pair_key": {
@@ -210,7 +210,7 @@
             "source": "CUSTOM"
           },
           "point_key": {
-            "value": "move_box_left_pull_above_edge",
+            "value": "move_box_left_above_edge",
             "source": "CUSTOM"
           }
         }
@@ -238,7 +238,7 @@
             "source": "CUSTOM"
           },
           "point_key": {
-            "value": "move_box_left_pull_below_edge",
+            "value": "move_box_left_below_edge",
             "source": "CUSTOM"
           }
         }
@@ -290,7 +290,7 @@
             "source": "CUSTOM"
           },
           "point_key": {
-            "value": "move_box_left_pull_lift_target",
+            "value": "move_box_left_lift_target",
             "source": "CUSTOM"
           }
         }
@@ -324,7 +324,7 @@
         }
       },
       {
-        "name": "ComputeMoveBoxRightCompensationTargets",
+        "name": "ComputeMoveBoxRightTargets",
         "label": "根据左手外拉计算右手补偿目标",
         "params": {
           "right_edge_key": {
@@ -384,7 +384,7 @@
             "source": "CUSTOM"
           },
           "point_key": {
-            "value": "move_box_right_compensation_above_edge",
+            "value": "move_box_right_above_edge",
             "source": "CUSTOM"
           }
         }
@@ -412,7 +412,7 @@
             "source": "CUSTOM"
           },
           "point_key": {
-            "value": "move_box_right_compensation_below_edge",
+            "value": "move_box_right_below_edge",
             "source": "CUSTOM"
           }
         }
@@ -464,7 +464,7 @@
             "source": "CUSTOM"
           },
           "point_key": {
-            "value": "move_box_right_compensation_lift_target",
+            "value": "move_box_right_lift_target",
             "source": "CUSTOM"
           }
         }

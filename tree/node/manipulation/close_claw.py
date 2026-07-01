@@ -31,9 +31,14 @@ class CloseClaw(TimedMockAction):
         if self.should_skip_claw_motion():
             self.log_skip_claw_motion()
             return Status.SUCCESS
+        if not hasattr(services, "arm_controller"):
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] services 中没有 arm_controller: key={self.services_key}"
+            )
+            return Status.FAILURE
         ok = services.arm_controller.close_claw(self.side)
         return Status.SUCCESS if ok else Status.FAILURE
 
     def describe_start(self):
         """返回节点开始执行时的日志描述。"""
-        return f"[{self.config_label}] CloseClaw start: side={self.side}"
+        return f"[{self.config_label}] CloseClaw start: key={self.services_key}, side={self.side}"

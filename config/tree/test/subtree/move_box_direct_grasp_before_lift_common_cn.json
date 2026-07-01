@@ -168,6 +168,10 @@
           "right_point_key": {
             "value": "move_box_direct_right_above_edge",
             "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },
@@ -189,6 +193,10 @@
           },
           "right_point_key": {
             "value": "move_box_direct_right_below_edge",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
             "source": "CUSTOM"
           }
         }

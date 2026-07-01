@@ -1,0 +1,251 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "右臂抓取",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureGraspObjectServices",
+        "label": "创建抓取任务共享服务",
+        "params": {},
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "抓取前双臂返回初始位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.251, 0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.251, -0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveRightArmToGrasp",
+        "label": "计算右臂抓取目标位姿",
+        "params": {
+          "grasp_url": {
+            "value": "http://192.168.26.12:13603/grasp",
+            "source": "CUSTOM"
+          },
+          "max_attempts": {
+            "value": "3",
+            "source": "CUSTOM"
+          },
+          "http_timeout_sec": {
+            "value": "30",
+            "source": "CUSTOM"
+          },
+          "retry_interval_sec": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "grasp_offset_m": {
+            "value": "0.05",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_min_m": {
+            "value": "0.12",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_max_m": {
+            "value": "0.18",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_samples": {
+            "value": "7",
+            "source": "CUSTOM"
+          },
+          "tf_timeout_sec": {
+            "value": "2.0",
+            "source": "CUSTOM"
+          },
+          "pose_topic": {
+            "value": "/grasp_object/right_pregrasp_pose",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_hold_pose",
+            "source": "CUSTOM"
+          },
+          "pregrasp_pose_key": {
+            "value": "grasp_object_pregrasp_pose",
+            "source": "CUSTOM"
+          },
+          "grasp_pose_key": {
+            "value": "grasp_object_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "lift_pose_key": {
+            "value": "grasp_object_lift_pose",
+            "source": "CUSTOM"
+          },
+          "left_shift_pose_key": {
+            "value": "grasp_object_left_shift_pose",
+            "source": "CUSTOM"
+          },
+          "lift_distance_m": {
+            "value": "0.05",
+            "source": "CUSTOM"
+          },
+          "left_offset_m": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "left_shift_z_offset_m": {
+            "value": "0.02",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右臂移动到预抓取位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_hold_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "grasp_object_pregrasp_pose",
+            "source": "CUSTOM"
+          },
+          "lock_arm_side": {
+            "value": "left",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右臂移动到抓取位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_hold_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "grasp_object_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "lock_arm_side": {
+            "value": "left",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "CloseClaw",
+        "label": "闭合右夹爪夹取物体",
+        "params": {
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "抓取后抬高右臂",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_hold_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "grasp_object_lift_pose",
+            "source": "CUSTOM"
+          },
+          "lock_arm_side": {
+            "value": "left",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右臂向左10厘米并上移2厘米",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_hold_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "grasp_object_left_shift_pose",
+            "source": "CUSTOM"
+          },
+          "lock_arm_side": {
+            "value": "left",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "OpenClaw",
+        "label": "张开右夹爪松开物体",
+        "params": {
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "任务结束双臂返回初始位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.251, 0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.251, -0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

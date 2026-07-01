@@ -1,16 +1,12 @@
 """放箱后从箱子记忆中选择下一个抓取目标。"""
 
-import math
+import os
+from datetime import datetime
 
 import py_trees
 from py_trees.common import Status
 
 from ..base import TimedMockAction
-from tree.runtime.http.move_and_grab_flow import (
-    DEFAULT_CHASSIS_URL,
-    build_chassis_config,
-    get_chassis_current_pose,
-)
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
 
 
@@ -26,7 +22,6 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
         self.finished_box_targets_key = str(
             params.get("finished_box_targets_key", "move_box_finished_box_targets")
         ).strip()
-        self.select_policy = str(params.get("select_policy", "nearest")).strip()
         self.valid_box_map_polygon = parse_map_polygon(
             params.get("valid_box_map_polygon", [])
         )
@@ -36,10 +31,15 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
         if self.valid_box_polygon_required and not self.valid_box_map_polygon:
             raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
         self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
-        self._last_selection_info = {}
-        self.chassis_config = build_chassis_config(
-            base_url=str(params.get("chassis_url", DEFAULT_CHASSIS_URL)).strip(),
+        self.enable_memory_file_log = self._to_bool(
+            params.get("enable_memory_file_log", True)
         )
+        self.memory_log_dir = str(params.get("memory_log_dir", "/mnt/ssd/log")).strip()
+        self.memory_log_file = str(
+            params.get("memory_log_file", "move_box_memory.log")
+        ).strip()
+        self._memory_file_log_warning_reported = False
+        self._last_selection_info = {}
 
         self.blackboard.register_key(key=self.box_memory_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.box_memory_key, access=py_trees.common.Access.WRITE)
@@ -92,10 +92,12 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
                     "magenta",
                 )
 
+            self._log_finished_targets(finished_targets)
+
             next_target = self._select_next_target(memory)
             if next_target is None:
                 self.blackboard.set(self.current_box_target_key, None, overwrite=True)
-                self.blackboard.set(self.box_memory_key, memory, overwrite=True)
+                self.blackboard.set(self.box_memory_key, [], overwrite=True)
                 self.blackboard.set(
                     self.finished_box_targets_key,
                     finished_targets,
@@ -111,24 +113,19 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
 
             selected_index = self._last_selection_info.get("index")
             selected_count = self._last_selection_info.get("count", len(memory))
-            selected_distance = self._last_selection_info.get("distance")
-            current_pose = self._last_selection_info.get("current_pose")
-            distance_text = "None" if selected_distance is None else "%.3f" % selected_distance
             self._log_info(
-                "记忆目标选中",
-                "选择策略=%s 选中序号=%s/%d 距离=%s 当前底盘位姿=%s 目标=%s"
+                "候选目标选中",
+                "选择策略=rolling_next 选中序号=%s/%d 目标=%s"
                 % (
-                    self.select_policy,
                     "None" if selected_index is None else selected_index + 1,
                     selected_count,
-                    distance_text,
-                    self._format_pose2d(current_pose),
                     self._format_target(next_target),
                 ),
                 "green",
             )
 
-            memory.remove(next_target)
+            # 关键步骤：候选下一个箱子被提升为当前目标后立即清空，避免历史候选继续滚动。
+            memory = []
             self.blackboard.set(self.current_box_target_key, next_target, overwrite=True)
             self.blackboard.set(self.box_memory_key, memory, overwrite=True)
             self.blackboard.set(self.finished_box_targets_key, finished_targets, overwrite=True)
@@ -166,49 +163,21 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
         return None
 
     def _select_next_target(self, memory):
-        """按策略从记忆列表里选择下一个目标。"""
+        """从 YOLO 滚动记忆里取出候选下一个目标。"""
         self._last_selection_info = {"index": None, "count": len(memory), "distance": None}
         if not memory:
             return None
-        if self.select_policy != "nearest":
+        for index, target in enumerate(memory):
+            if not self._is_target_allowed(target):
+                continue
             self._last_selection_info = {
-                "index": 0,
+                "index": index,
                 "count": len(memory),
                 "distance": None,
                 "current_pose": None,
             }
-            return memory[0]
-
-        current_pose = get_chassis_current_pose(self.chassis_config)
-        nearest_target = None
-        nearest_distance = None
-        nearest_index = None
-        for index, target in enumerate(memory):
-            map_position = target.get("map_position", {})
-            if "x" not in map_position or "y" not in map_position:
-                continue
-            if not self._is_target_allowed(target):
-                continue
-            # 关键步骤：放箱后直接去下一个箱子，优先选择离当前底盘位置最近的记忆目标。
-            distance = math.hypot(
-                float(map_position["x"]) - current_pose.x,
-                float(map_position["y"]) - current_pose.y,
-            )
-            if nearest_distance is None or distance < nearest_distance:
-                nearest_distance = distance
-                nearest_target = target
-                nearest_index = index
-
-        if nearest_target is None:
-            nearest_target, nearest_index = self._get_first_allowed_target(memory)
-            nearest_distance = None
-        self._last_selection_info = {
-            "index": nearest_index,
-            "count": len(memory),
-            "distance": nearest_distance,
-            "current_pose": current_pose,
-        }
-        return nearest_target
+            return target
+        return None
 
     def _filter_memory_by_polygon(self, memory):
         """过滤掉不在有效 map 区域内的记忆目标。"""
@@ -225,13 +194,6 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
                 )
         return filtered_memory
 
-    def _get_first_allowed_target(self, memory):
-        """按原始顺序返回第一个有效目标。"""
-        for index, target in enumerate(memory):
-            if self._is_target_allowed(target):
-                return target, index
-        return None, None
-
     def _is_target_allowed(self, target):
         """判断目标是否落在配置的有效 map 区域内。"""
         if target is None:
@@ -241,10 +203,45 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
             self.valid_box_map_polygon,
         )
 
+    def _log_finished_targets(self, finished_targets):
+        """打印完整已完成箱子列表，便于按 map 坐标复盘放箱顺序。"""
+        self._log_info(
+            "已完成列表",
+            "数量=%d" % len(finished_targets),
+            "cyan",
+        )
+        for index, target in enumerate(finished_targets):
+            self._log_info(
+                "已完成列表",
+                "序号=%d/%d %s"
+                % (index + 1, len(finished_targets), self._format_target(target)),
+                "cyan",
+            )
+
     def _log_info(self, tag, message, color):
         """输出带固定前缀和可选颜色的调试日志。"""
         text = f"[{self.config_label}] [{tag}] {message}"
         self.ros_node.get_logger().info(self._color_text(text, color))
+        self._write_memory_file_log(text)
+
+    def _write_memory_file_log(self, text):
+        """把箱子记忆日志追加写入独立文件，方便脱离 ROS 日志单独检查。"""
+        if not self.enable_memory_file_log:
+            return
+
+        try:
+            # 关键步骤：运行现场可能没有提前建目录，这里按需创建日志目录。
+            os.makedirs(self.memory_log_dir, exist_ok=True)
+            log_path = os.path.join(self.memory_log_dir, self.memory_log_file)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            with open(log_path, "a", encoding="utf-8") as log_file:
+                log_file.write(f"{timestamp} {text}\n")
+        except Exception as exc:
+            if not self._memory_file_log_warning_reported:
+                self._memory_file_log_warning_reported = True
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 写入箱子记忆日志失败: {exc}"
+                )
 
     def _color_text(self, text, color):
         """按配置给日志添加 ANSI 颜色。"""
@@ -281,17 +278,6 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
             float(position.get("x", 0.0)),
             float(position.get("y", 0.0)),
             float(position.get("z", 0.0)),
-        )
-
-    @staticmethod
-    def _format_pose2d(pose):
-        """格式化底盘二维位姿。"""
-        if pose is None:
-            return "None"
-        return "(%.3f, %.3f, %.3f)" % (
-            float(pose.x),
-            float(pose.y),
-            float(pose.yaw),
         )
 
     def describe_start(self):
