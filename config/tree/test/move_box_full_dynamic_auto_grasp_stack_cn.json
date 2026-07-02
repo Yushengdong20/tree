@@ -134,6 +134,10 @@
                                     "neighbor_center_max_distance": {
                                         "value": "1.0",
                                         "source": "CUSTOM"
+                                    },
+                                    "duplicate_3d_distance_threshold": {
+                                        "value": "0.45",
+                                        "source": "CUSTOM"
                                     }
                                 }
                             },

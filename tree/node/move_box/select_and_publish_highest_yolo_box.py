@@ -67,6 +67,13 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 "neighbor_center_min_distance cannot exceed "
                 "neighbor_center_max_distance"
             )
+        # YOLO可能在同一帧中对同一个箱体给出多个3D中心。按机器人距离从近到远
+        # 保留代表点，map三维距离小于该阈值的后续检测视为重复目标。
+        self.duplicate_3d_distance_threshold = float(
+            params.get("duplicate_3d_distance_threshold", 0.45)
+        )
+        if self.duplicate_3d_distance_threshold < 0.0:
+            raise ValueError("duplicate_3d_distance_threshold cannot be negative")
         # 最高箱高度减去该容差后仍在范围内的目标，都视为同一最高层。
         # 当前箱高约0.30m，默认0.10m可容纳视觉高度抖动，同时小于层间高度。
         self.top_height_tolerance = float(params.get("top_height_tolerance", 0.10))
@@ -154,6 +161,20 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             self._log_no_target(f"[{self.config_label}] YOLO目标均未通过高度/距离过滤")
             return Status.RUNNING
 
+        # 在高度分层和邻箱判断之前先去重，否则同一箱体的重复点可能被误判为
+        # 目标左右两侧各有邻箱，最终错误地产生 no_safe_strategy。
+        raw_candidate_count = len(candidates)
+        candidates, duplicate_records = self._deduplicate_candidates(candidates)
+        if duplicate_records:
+            duplicate_text = ", ".join(
+                f"#{removed_index}->#{kept_index}({distance:.3f}m)"
+                for removed_index, kept_index, distance in duplicate_records
+            )
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] YOLO单帧3D去重: 原始={raw_candidate_count}, "
+                f"保留={len(candidates)}, 合并={duplicate_text}"
+            )
+
         # 阶段2：先找最高 z，再用容差形成“最高层候选集合”。
         # 例如最高 z=0.62m、容差=0.06m，则 z>=0.56m 都属于最高层。
         # 这样可避免同一排箱子因检测抖动几厘米而被误判为上下两层。
@@ -229,6 +250,33 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"strategy_key={self.grasp_strategy_key}, topic={self.output_topic}"
         )
         return Status.SUCCESS
+
+    def _deduplicate_candidates(self, candidates):
+        """合并map三维距离过近的单帧检测，并优先保留离机器人更近者。"""
+        if self.duplicate_3d_distance_threshold <= 0.0:
+            return list(candidates), []
+
+        kept = []
+        duplicate_records = []
+        for candidate in sorted(candidates, key=lambda item: item["distance"]):
+            duplicate = None
+            duplicate_distance = None
+            for existing in kept:
+                distance = math.sqrt(sum(
+                    (candidate["map"][axis] - existing["map"][axis]) ** 2
+                    for axis in range(3)
+                ))
+                if distance < self.duplicate_3d_distance_threshold:
+                    duplicate = existing
+                    duplicate_distance = distance
+                    break
+            if duplicate is None:
+                kept.append(candidate)
+            else:
+                duplicate_records.append(
+                    (candidate["index"], duplicate["index"], duplicate_distance)
+                )
+        return kept, duplicate_records
 
     def _decide_grasp_strategy(self, selected, top_candidates):
         """根据最高层邻箱，返回抓取策略及左右邻箱索引。
@@ -350,6 +398,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"base_frame={self.base_frame}, "
             f"top_tolerance={self.top_height_tolerance:.3f}, "
             f"same_level_selection={self.same_level_selection}, "
+            f"duplicate_3d_threshold={self.duplicate_3d_distance_threshold:.3f}, "
             f"neighbor_center_range=[{self.neighbor_center_min_distance:.3f}, "
             f"{self.neighbor_center_max_distance:.3f}]"
         )
