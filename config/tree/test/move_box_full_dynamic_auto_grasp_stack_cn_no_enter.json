@@ -24,16 +24,6 @@
                 }
             },
             {
-                "name": "WaitForEnter",
-                "label": "确认首次返回等待区域",
-                "params": {
-                    "message": {
-                        "value": "move_box服务与预备姿态已初始化。确认前往等待区域的路径安全后，按 Enter 导航到等待区域...",
-                        "source": "CUSTOM"
-                    }
-                }
-            },
-            {
                 "name": "HttpNavigateToPose",
                 "label": "初始化后导航到等待区域",
                 "params": {
@@ -152,16 +142,6 @@
                                 }
                             },
                             {
-                                "name": "WaitForEnter",
-                                "label": "确认开始YOLO粗导航",
-                                "params": {
-                                    "message": {
-                                        "value": "已锁定最高层最近箱并完成抓取策略判断。确认底盘周围及前往目标箱的路径安全后，按 Enter 开始YOLO粗导航...",
-                                        "source": "CUSTOM"
-                                    }
-                                }
-                            },
-                            {
                                 "name": "MoveBoxYoloApproachToBox",
                                 "label": "YOLO定位箱体并粗靠近",
                                 "params": {
@@ -200,16 +180,6 @@
                                 }
                             },
                             {
-                                "name": "WaitForEnter",
-                                "label": "确认重启FoundationPose",
-                                "params": {
-                                    "message": {
-                                        "value": "YOLO粗导航已完成。确认机器人站位安全后，按 Enter 重启并等待FoundationPose目标...",
-                                        "source": "CUSTOM"
-                                    }
-                                }
-                            },
-                            {
                                 "name": "EnsureMoveBoxDetectionReady",
                                 "label": "重启并确认FoundationPose跟踪YOLO目标",
                                 "params": {
@@ -239,16 +209,6 @@
                                     },
                                     "detection_reset_timeout_sec": {
                                         "value": "5.0",
-                                        "source": "CUSTOM"
-                                    }
-                                }
-                            },
-                            {
-                                "name": "WaitForEnter",
-                                "label": "确认开始FoundationPose精导航",
-                                "params": {
-                                    "message": {
-                                        "value": "FoundationPose目标已有效。确认精靠近路径安全后，按 Enter 导航到最终抓取站位...",
                                         "source": "CUSTOM"
                                     }
                                 }
@@ -319,16 +279,6 @@
                                         "value": "5.0",
                                         "source": "CUSTOM"
                                     }
-                                }
-                            },
-                            {
-                                "name": "WaitForEnter",
-                                "label": "确认执行最高箱抓取",
-                                "params": {
-                                "message": {
-                                    "value": "FoundationPose 已返回抓取数据。确认 box_center 对应YOLO最高箱，且腰部和双臂连续运动路径安全后，按 Enter 执行右拉、左手补抓和双手抬箱...",
-                                    "source": "CUSTOM"
-                                }
                                 }
                             },
                             {
@@ -1394,16 +1344,6 @@
                                 ]
                             },
                             {
-                                "name": "WaitForEnter",
-                                "label": "确认导航到放置点",
-                                "params": {
-                                    "message": {
-                                        "value": "箱体已抓取并回位。确认箱体稳定、底盘路径安全后，按 Enter 导航到放置点...",
-                                        "source": "CUSTOM"
-                                    }
-                                }
-                            },
-                            {
                                 "name": "HttpNavigateToPose",
                                 "label": "导航到放置点",
                                 "params": {
@@ -1621,16 +1561,6 @@
                                     },
                                     "skip_torso_motion": {
                                         "value": "False",
-                                        "source": "CUSTOM"
-                                    }
-                                }
-                            },
-                            {
-                                "name": "WaitForEnter",
-                                "label": "确认返回等待区域",
-                                "params": {
-                                    "message": {
-                                        "value": "放置及姿态恢复完成。确认底盘后方路径安全后，按 Enter 返回等待区域...",
                                         "source": "CUSTOM"
                                     }
                                 }
