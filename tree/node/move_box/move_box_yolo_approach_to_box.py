@@ -59,6 +59,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.navigation_target_key = str(
             params.get("navigation_target_key", "move_box_yolo_navigation_target")
         ).strip()
+        self.selected_map_point_key = str(
+            params.get("selected_map_point_key", "")
+        ).strip()
         self.box_map_pose_topic = str(
             params.get("box_map_pose_topic", "/move_box/yolo_box_pose_map")
         ).strip()
@@ -128,6 +131,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.blackboard.register_key(key=FINAL_POSE_KEY, access=py_trees.common.Access.WRITE)
         if self.navigation_target_key:
             self.blackboard.register_key(key=self.navigation_target_key, access=py_trees.common.Access.WRITE)
+        if self.selected_map_point_key:
+            self.blackboard.register_key(
+                key=self.selected_map_point_key,
+                access=py_trees.common.Access.READ,
+            )
         if self.use_box_memory:
             self.blackboard.register_key(key=self.box_memory_key, access=py_trees.common.Access.READ)
             self.blackboard.register_key(key=self.box_memory_key, access=py_trees.common.Access.WRITE)
@@ -198,9 +206,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
             if self._phase == "READ_YOLO":
                 self.ros_node.set_live_runtime(self.config_label, "YOLO_APPROACH", "读取 YOLO 箱体中心")
-                services = self._get_services()
-                updated = self._update_yolo_targets(services)
-                self._choose_current_target_from_yolo()
+                if self.selected_map_point_key:
+                    updated = self._load_preselected_map_target()
+                else:
+                    services = self._get_services()
+                    updated = self._update_yolo_targets(services)
+                    self._choose_current_target_from_yolo()
                 if self._current_box_target is None:
                     raise RuntimeError(f"尚未获得有效 YOLO 箱体中心: updated={updated}")
 
@@ -536,6 +547,39 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             )
         self._refresh_box_memory()
 
+    def _load_preselected_map_target(self):
+        """读取上游已经筛选完成的 map 点，避免粗导航阶段再次选择其它箱子。"""
+        if not self.blackboard.exists(self.selected_map_point_key):
+            raise RuntimeError(
+                f"blackboard 缺少上游选箱结果: key={self.selected_map_point_key}"
+            )
+        point = self.blackboard.get(self.selected_map_point_key)
+        if not isinstance(point, (list, tuple)) or len(point) < 3:
+            raise RuntimeError(
+                f"上游选箱结果格式错误: key={self.selected_map_point_key}, value={point!r}"
+            )
+
+        map_position = {
+            "x": float(point[0]),
+            "y": float(point[1]),
+            "z": float(point[2]),
+        }
+        base_position = transform_global_point_to_base(
+            self._current_pose,
+            map_position["x"],
+            map_position["y"],
+        )
+        base_position["z"] = map_position["z"]
+        self._current_box_target = {
+            "id": "",
+            "base_position": base_position,
+            "map_position": map_position,
+        }
+        self._detected_box_targets = [self._current_box_target]
+        self._current_target_source = f"blackboard:{self.selected_map_point_key}"
+        self._log_current_target()
+        return True
+
     def _refresh_current_base_position(self):
         """根据当前底盘位姿刷新记忆目标在 base_link 下的位置。"""
         map_position = self._current_box_target.get("map_position")
@@ -829,6 +873,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
     def _log_current_target(self):
         """输出当前 YOLO 选中目标。"""
+        memory_count = len(self._read_box_memory()) if self.use_box_memory else 0
         self._log_info(
             "YOLO当前目标",
             "来源=%s 目标=%s 有效检测数量=%d 记忆数量=%d"
@@ -836,7 +881,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 self._current_target_source,
                 self._format_target(self._current_box_target),
                 len(self._detected_box_targets),
-                len(self._read_box_memory()),
+                memory_count,
             ),
             "green",
         )
