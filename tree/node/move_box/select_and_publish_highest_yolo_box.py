@@ -56,7 +56,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         ).strip()
         # 两个箱子前后方向差值不超过该值，才认为处于同一排。
         self.same_row_forward_tolerance = float(
-            params.get("same_row_forward_tolerance", 0.25)
+            params.get("same_row_forward_tolerance", 0.35)
         )
         # 横向距离过小通常是重复检测，过大则不是紧邻箱；只有落在此区间
         # 的同层同排箱子才会占用目标箱左侧或右侧的外拉空间。
@@ -72,7 +72,8 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 "neighbor_lateral_max_distance"
             )
         # 最高箱高度减去该容差后仍在范围内的目标，都视为同一最高层。
-        self.top_height_tolerance = float(params.get("top_height_tolerance", 0.06))
+        # 当前箱高约0.30m，默认0.10m可容纳视觉高度抖动，同时小于层间高度。
+        self.top_height_tolerance = float(params.get("top_height_tolerance", 0.10))
         self.same_level_selection = str(
             params.get("same_level_selection", "nearest")
         ).strip().lower()

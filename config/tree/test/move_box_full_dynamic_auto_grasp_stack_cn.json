@@ -116,7 +116,7 @@
                                         "source": "CUSTOM"
                                     },
                                     "top_height_tolerance": {
-                                        "value": "0.06",
+                                        "value": "0.10",
                                         "source": "CUSTOM"
                                     },
                                     "same_level_selection": {
@@ -128,7 +128,7 @@
                                         "source": "CUSTOM"
                                     },
                                     "same_row_forward_tolerance": {
-                                        "value": "0.25",
+                                        "value": "0.35",
                                         "source": "CUSTOM"
                                     },
                                     "neighbor_lateral_min_distance": {
@@ -160,7 +160,7 @@
                                 "label": "确认开始YOLO粗导航",
                                 "params": {
                                     "message": {
-                                        "value": "已锁定最高层最左箱。确认底盘周围及前往目标箱的路径安全后，按 Enter 开始YOLO粗导航...",
+                                        "value": "已锁定最高层最近箱并完成抓取策略判断。确认底盘周围及前往目标箱的路径安全后，按 Enter 开始YOLO粗导航...",
                                         "source": "CUSTOM"
                                     }
                                 }

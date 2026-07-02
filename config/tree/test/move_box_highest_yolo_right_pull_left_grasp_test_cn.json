@@ -47,7 +47,7 @@
             "source": "CUSTOM"
           },
           "top_height_tolerance": {
-            "value": "0.06",
+            "value": "0.10",
             "source": "CUSTOM"
           },
           "same_level_selection": {
