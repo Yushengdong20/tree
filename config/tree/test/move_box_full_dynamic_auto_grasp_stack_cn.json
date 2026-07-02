@@ -1,0 +1,1670 @@
+{
+    "tree": {
+        "name": "Sequence",
+        "label": "YOLO最高层最近箱动态策略拆垛全流程",
+        "params": {
+            "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+            }
+        },
+        "childs": [
+            {
+                "name": "EnsureMoveBoxServices",
+                "label": "单次初始化抓取所需服务与预备姿态",
+                "params": {
+                    "initial_torso_height": {
+                        "value": "0.9",
+                        "source": "CUSTOM"
+                    },
+                    "skip_torso_motion": {
+                        "value": "False",
+                        "source": "CUSTOM"
+                    }
+                }
+            },
+            {
+                "name": "WaitForEnter",
+                "label": "确认首次返回等待区域",
+                "params": {
+                    "message": {
+                        "value": "move_box服务与预备姿态已初始化。确认前往等待区域的路径安全后，按 Enter 导航到等待区域...",
+                        "source": "CUSTOM"
+                    }
+                }
+            },
+            {
+                "name": "HttpNavigateToPose",
+                "label": "初始化后导航到等待区域",
+                "params": {
+                    "x": {
+                        "value": "2.820933034031259",
+                        "source": "CUSTOM"
+                    },
+                    "y": {
+                        "value": "2.307197578516518",
+                        "source": "CUSTOM"
+                    },
+                    "yaw": {
+                        "value": "-150.41201143492874",
+                        "source": "CUSTOM"
+                    },
+                    "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                    },
+                    "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                    },
+                    "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                    }
+                }
+            },
+            {
+                "name": "Repeat",
+                "label": "顺序执行四轮动态拆垛",
+                "params": {
+                    "num_success": {
+                        "value": "4",
+                        "source": "CUSTOM"
+                    }
+                },
+                "childs": [
+                    {
+                        "name": "Sequence",
+                        "label": "单轮最高最近箱选取、动态抓取、放置并返回等待区",
+                        "params": {
+                            "memory": {
+                                "value": "True",
+                                "source": "CUSTOM"
+                            }
+                        },
+                        "childs": [
+                            {
+                                "name": "SelectAndPublishHighestYoloBox",
+                                "label": "筛选并发布YOLO最高层最近箱及抓取策略",
+                                "params": {
+                                    "yolo_topic": {
+                                        "value": "/yolo/target_poses",
+                                        "source": "CUSTOM"
+                                    },
+                                    "output_topic": {
+                                        "value": "/move_box/yolo_box_pose_map",
+                                        "source": "CUSTOM"
+                                    },
+                                    "map_frame": {
+                                        "value": "map",
+                                        "source": "CUSTOM"
+                                    },
+                                    "chassis_frame": {
+                                        "value": "melon_odom",
+                                        "source": "CUSTOM"
+                                    },
+                                    "base_frame": {
+                                        "value": "base_link",
+                                        "source": "CUSTOM"
+                                    },
+                                    "source_frame_fallback": {
+                                        "value": "camera",
+                                        "source": "CUSTOM"
+                                    },
+                                    "distance_frame": {
+                                        "value": "base_link",
+                                        "source": "CUSTOM"
+                                    },
+                                    "top_height_tolerance": {
+                                        "value": "0.06",
+                                        "source": "CUSTOM"
+                                    },
+                                    "same_level_selection": {
+                                        "value": "nearest",
+                                        "source": "CUSTOM"
+                                    },
+                                    "grasp_strategy_key": {
+                                        "value": "move_box_grasp_strategy",
+                                        "source": "CUSTOM"
+                                    },
+                                    "same_row_forward_tolerance": {
+                                        "value": "0.25",
+                                        "source": "CUSTOM"
+                                    },
+                                    "neighbor_lateral_min_distance": {
+                                        "value": "0.10",
+                                        "source": "CUSTOM"
+                                    },
+                                    "neighbor_lateral_max_distance": {
+                                        "value": "0.80",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "SetBlackboardValue",
+                                "label": "置位FoundationPose抓取请求",
+                                "params": {
+                                    "key": {
+                                        "value": "move_box_grasp_requested",
+                                        "source": "CUSTOM"
+                                    },
+                                    "value": {
+                                        "value": "true",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "WaitForEnter",
+                                "label": "确认开始YOLO粗导航",
+                                "params": {
+                                    "message": {
+                                        "value": "已锁定最高层最左箱。确认底盘周围及前往目标箱的路径安全后，按 Enter 开始YOLO粗导航...",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "MoveBoxYoloApproachToBox",
+                                "label": "YOLO定位箱体并粗靠近",
+                                "params": {
+                                    "chassis_url": {
+                                        "value": "http://localhost:8081",
+                                        "source": "CUSTOM"
+                                    },
+                                    "target_distance_m": {
+                                        "value": "1.2",
+                                        "source": "CUSTOM"
+                                    },
+                                    "navigation_target_key": {
+                                        "value": "move_box_yolo_navigation_target",
+                                        "source": "CUSTOM"
+                                    },
+                                    "selected_map_point_key": {
+                                        "value": "move_box_selected_highest_yolo_map_point",
+                                        "source": "CUSTOM"
+                                    },
+                                    "box_map_pose_topic": {
+                                        "value": "/move_box/yolo_box_pose_map",
+                                        "source": "CUSTOM"
+                                    },
+                                    "navigation_timeout_sec": {
+                                        "value": "600",
+                                        "source": "CUSTOM"
+                                    },
+                                    "poll_interval_sec": {
+                                        "value": "0.2",
+                                        "source": "CUSTOM"
+                                    },
+                                    "keep_running_after_success": {
+                                        "value": "False",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "WaitForEnter",
+                                "label": "确认重启FoundationPose",
+                                "params": {
+                                    "message": {
+                                        "value": "YOLO粗导航已完成。确认机器人站位安全后，按 Enter 重启并等待FoundationPose目标...",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "EnsureMoveBoxDetectionReady",
+                                "label": "重启并确认FoundationPose跟踪YOLO目标",
+                                "params": {
+                                    "grasp_pair_key": {
+                                        "value": "move_box_latest_grasp_pair",
+                                        "source": "CUSTOM"
+                                    },
+                                    "box_axes_key": {
+                                        "value": "move_box_latest_box_axes",
+                                        "source": "CUSTOM"
+                                    },
+                                    "box_center_key": {
+                                        "value": "move_box_latest_box_center",
+                                        "source": "CUSTOM"
+                                    },
+                                    "detect_timeout_sec": {
+                                        "value": "10.0",
+                                        "source": "CUSTOM"
+                                    },
+                                    "restart_before_wait": {
+                                        "value": "True",
+                                        "source": "CUSTOM"
+                                    },
+                                    "restart_on_timeout": {
+                                        "value": "True",
+                                        "source": "CUSTOM"
+                                    },
+                                    "detection_reset_timeout_sec": {
+                                        "value": "5.0",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "WaitForEnter",
+                                "label": "确认开始FoundationPose精导航",
+                                "params": {
+                                    "message": {
+                                        "value": "FoundationPose目标已有效。确认精靠近路径安全后，按 Enter 导航到最终抓取站位...",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "MoveBoxFpApproachToBox",
+                                "label": "FoundationPose计算最终抓取站位并精靠近",
+                                "params": {
+                                    "chassis_url": {
+                                        "value": "http://localhost:8081",
+                                        "source": "CUSTOM"
+                                    },
+                                    "target_distance_m": {
+                                        "value": "1.0",
+                                        "source": "CUSTOM"
+                                    },
+                                    "navigation_target_key": {
+                                        "value": "move_box_fp_navigation_target",
+                                        "source": "CUSTOM"
+                                    },
+                                    "arrival_box_center_key": {
+                                        "value": "move_box_fp_arrival_box_center",
+                                        "source": "CUSTOM"
+                                    },
+                                    "navigation_timeout_sec": {
+                                        "value": "600",
+                                        "source": "CUSTOM"
+                                    },
+                                    "poll_interval_sec": {
+                                        "value": "0.2",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "WaitForEnter",
+                                "label": "确认刷新精导航后的FoundationPose数据",
+                                "params": {
+                                    "message": {
+                                        "value": "FoundationPose精导航已完成。确认底盘停止且目标箱仍在视野内后，按 Enter 刷新当前base_link下的抓取点...",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "EnsureMoveBoxDetectionReady",
+                                "label": "刷新精导航后的FoundationPose抓取数据",
+                                "params": {
+                                    "grasp_pair_key": {
+                                        "value": "move_box_latest_grasp_pair",
+                                        "source": "CUSTOM"
+                                    },
+                                    "box_axes_key": {
+                                        "value": "move_box_latest_box_axes",
+                                        "source": "CUSTOM"
+                                    },
+                                    "box_center_key": {
+                                        "value": "move_box_latest_box_center",
+                                        "source": "CUSTOM"
+                                    },
+                                    "detect_timeout_sec": {
+                                        "value": "10.0",
+                                        "source": "CUSTOM"
+                                    },
+                                    "poll_interval_sec": {
+                                        "value": "0.2",
+                                        "source": "CUSTOM"
+                                    },
+                                    "restart_before_wait": {
+                                        "value": "False",
+                                        "source": "CUSTOM"
+                                    },
+                                    "restart_on_timeout": {
+                                        "value": "True",
+                                        "source": "CUSTOM"
+                                    },
+                                    "detection_reset_timeout_sec": {
+                                        "value": "5.0",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "CheckMoveBoxGraspDataReady",
+                                "label": "检查抓取点与箱体方向",
+                                "params": {
+                                    "grasp_pair_key": {
+                                        "value": "move_box_latest_grasp_pair",
+                                        "source": "CUSTOM"
+                                    },
+                                    "box_axes_key": {
+                                        "value": "move_box_latest_box_axes",
+                                        "source": "CUSTOM"
+                                    },
+                                    "box_center_key": {
+                                        "value": "move_box_latest_box_center",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "ComputeMoveBoxTorsoToBoxCenterPose",
+                                "label": "根据箱体中心计算抓取腰部目标",
+                                "params": {
+                                    "box_center_key": {
+                                        "value": "move_box_latest_box_center",
+                                        "source": "CUSTOM"
+                                    },
+                                    "preferred_box_center_key": {
+                                        "value": "",
+                                        "source": "CUSTOM"
+                                    },
+                                    "target_pose_key": {
+                                        "value": "move_box_torso_box_center_pose",
+                                        "source": "CUSTOM"
+                                    },
+                                    "knee_origin_z": {
+                                        "value": "0.1055",
+                                        "source": "CUSTOM"
+                                    },
+                                    "ik_angle_step_deg": {
+                                        "value": "1.0",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "MoveTorsoPose",
+                                "label": "腰部对准箱体抓取高度",
+                                "params": {
+                                    "services_key": {
+                                        "value": "move_box_services",
+                                        "source": "CUSTOM"
+                                    },
+                                    "pose_key": {
+                                        "value": "move_box_torso_box_center_pose",
+                                        "source": "CUSTOM"
+                                    },
+                                    "wait_done": {
+                                        "value": "True",
+                                        "source": "CUSTOM"
+                                    },
+                                    "skip_torso_motion": {
+                                        "value": "False",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "Selector",
+                                "label": "根据选箱结果选择抓取方式",
+                                "params": {
+                                    "memory": {
+                                        "value": "True",
+                                        "source": "CUSTOM"
+                                    }
+                                },
+                                "childs": [
+                                    {
+                                        "name": "Sequence",
+                                        "label": "左拉右补抓取分支",
+                                        "params": {
+                                            "memory": {
+                                                "value": "True",
+                                                "source": "CUSTOM"
+                                            }
+                                        },
+                                        "childs": [
+                                            {
+                                                "name": "CheckBlackboardValue",
+                                                "label": "选择左拉抓取",
+                                                "params": {
+                                                    "key": {
+                                                        "value": "move_box_grasp_strategy",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "expected": {
+                                                        "value": "left_pull",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ComputeMoveBoxLeftPullTargets",
+                                                "label": "计算左手靠近-下探-上提-外拉目标",
+                                                "params": {
+                                                    "grasp_pair_key": {
+                                                        "value": "move_box_latest_grasp_pair",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "box_axes_key": {
+                                                        "value": "move_box_latest_box_axes",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_approach_offset": {
+                                                        "value": "0.05",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_descend_below_offset": {
+                                                        "value": "0.12",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_lift_offset": {
+                                                        "value": "0.10",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pull_left_offset": {
+                                                        "value": "0.15",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "左夹爪移动到左边缘上方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_left_pull_above_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "左夹爪下降到左边缘下方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_left_pull_below_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "CloseClaw",
+                                                "label": "闭合左夹爪",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "左手小幅上提箱体",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_left_pull_lift_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "左手向外拉出箱体",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_left_pull_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ComputeMoveBoxRightCompensationTargets",
+                                                "label": "根据左手外拉计算右手补偿目标",
+                                                "params": {
+                                                    "right_edge_key": {
+                                                        "value": "move_box_right_edge_point",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "box_axes_key": {
+                                                        "value": "move_box_latest_box_axes",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pull_key": {
+                                                        "value": "move_box_left_pull_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_approach_offset": {
+                                                        "value": "0.05",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_descend_below_offset": {
+                                                        "value": "0.12",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_lift_offset": {
+                                                        "value": "0.10",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pull_left_offset": {
+                                                        "value": "0.15",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "carry_lift_offset": {
+                                                        "value": "0.30",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "右夹爪移动到补偿后右边缘上方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_right_compensation_above_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "右夹爪下降到补偿后右边缘下方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_right_compensation_below_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "CloseClaw",
+                                                "label": "闭合右夹爪",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "右手小幅上提箱体",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_right_compensation_lift_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "双手同步上提并回拉箱体到中心",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "target_type": {
+                                                        "value": "claw_point",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pose_frame": {
+                                                        "value": "base_link",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_point_key": {
+                                                        "value": "move_box_return_center_left_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_point_key": {
+                                                        "value": "move_box_return_center_right_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ComputeMoveBoxRestorePitchArmPoses",
+                                                "label": "计算腰部回位后的双手 pitch 恢复目标",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pitch": {
+                                                        "value": "-80.0",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pose_key": {
+                                                        "value": "move_box_restore_pitch_left_pose",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pose_key": {
+                                                        "value": "move_box_restore_pitch_right_pose",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "MoveTorsoPose",
+                                                "label": "腰部回到初始位姿",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "wait_done": {
+                                                        "value": "False",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "skip_torso_motion": {
+                                                        "value": "False",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "保持双手位置并恢复 pitch",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pose_frame": {
+                                                        "value": "waist_yaw_link",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pose_key": {
+                                                        "value": "move_box_restore_pitch_left_pose",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pose_key": {
+                                                        "value": "move_box_restore_pitch_right_pose",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ClearMoveBoxGraspRequest",
+                                                "label": "清除抓取请求标志",
+                                                "params": {
+                                                    "request_key": {
+                                                        "value": "move_box_grasp_requested",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "Sequence",
+                                        "label": "右拉左补抓取分支",
+                                        "params": {
+                                            "memory": {
+                                                "value": "True",
+                                                "source": "CUSTOM"
+                                            }
+                                        },
+                                        "childs": [
+                                            {
+                                                "name": "CheckBlackboardValue",
+                                                "label": "选择右拉抓取",
+                                                "params": {
+                                                    "key": {
+                                                        "value": "move_box_grasp_strategy",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "expected": {
+                                                        "value": "right_pull",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ComputeMoveBoxRightPullTargets",
+                                                "label": "计算右手靠近-下探-上提-外拉目标",
+                                                "params": {
+                                                    "grasp_pair_key": {
+                                                        "value": "move_box_latest_grasp_pair",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "box_axes_key": {
+                                                        "value": "move_box_latest_box_axes",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_approach_offset": {
+                                                        "value": "0.05",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_descend_below_offset": {
+                                                        "value": "0.12",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_lift_offset": {
+                                                        "value": "0.10",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pull_right_offset": {
+                                                        "value": "0.15",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "右夹爪移动到右边缘上方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_right_pull_above_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "右夹爪下降到右边缘下方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_right_pull_below_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "CloseClaw",
+                                                "label": "闭合右夹爪",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "右手小幅上提箱体",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_right_pull_lift_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "右手向外拉出箱体",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "right",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_right_pull_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ComputeMoveBoxLeftCompensationTargets",
+                                                "label": "根据右手外拉计算左手补偿目标",
+                                                "params": {
+                                                    "left_edge_key": {
+                                                        "value": "move_box_left_edge_point",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "box_axes_key": {
+                                                        "value": "move_box_latest_box_axes",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pull_key": {
+                                                        "value": "move_box_right_pull_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_approach_offset": {
+                                                        "value": "0.05",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_descend_below_offset": {
+                                                        "value": "0.12",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_lift_offset": {
+                                                        "value": "0.10",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pull_right_offset": {
+                                                        "value": "0.15",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "carry_lift_offset": {
+                                                        "value": "0.30",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "左夹爪移动到补偿后左边缘上方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_left_compensation_above_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "左夹爪下降到补偿后左边缘下方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_left_compensation_below_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "CloseClaw",
+                                                "label": "闭合左夹爪",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "左手小幅上提箱体",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "left",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "point_key": {
+                                                        "value": "move_box_left_compensation_lift_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "双手同步上提并回拉箱体到中心",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "target_type": {
+                                                        "value": "claw_point",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pose_frame": {
+                                                        "value": "base_link",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_point_key": {
+                                                        "value": "move_box_return_center_left_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_point_key": {
+                                                        "value": "move_box_return_center_right_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ComputeMoveBoxRestorePitchArmPoses",
+                                                "label": "计算腰部回位后的双手 pitch 恢复目标",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pitch": {
+                                                        "value": "-80.0",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pose_key": {
+                                                        "value": "move_box_restore_pitch_left_pose",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pose_key": {
+                                                        "value": "move_box_restore_pitch_right_pose",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "MoveTorsoPose",
+                                                "label": "腰部回到初始位姿",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "wait_done": {
+                                                        "value": "False",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "skip_torso_motion": {
+                                                        "value": "False",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "保持双手位置并恢复 pitch",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pose_frame": {
+                                                        "value": "waist_yaw_link",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pose_key": {
+                                                        "value": "move_box_restore_pitch_left_pose",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pose_key": {
+                                                        "value": "move_box_restore_pitch_right_pose",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ClearMoveBoxGraspRequest",
+                                                "label": "清除抓取请求标志",
+                                                "params": {
+                                                    "request_key": {
+                                                        "value": "move_box_grasp_requested",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "Sequence",
+                                        "label": "双爪直接抓取分支",
+                                        "params": {
+                                            "memory": {
+                                                "value": "True",
+                                                "source": "CUSTOM"
+                                            }
+                                        },
+                                        "childs": [
+                                            {
+                                                "name": "CheckBlackboardValue",
+                                                "label": "选择双爪直接抓取",
+                                                "params": {
+                                                    "key": {
+                                                        "value": "move_box_grasp_strategy",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "expected": {
+                                                        "value": "direct",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ComputeMoveBoxDirectGraspTargets",
+                                                "label": "计算双爪同步抓取目标",
+                                                "params": {
+                                                    "grasp_pair_key": {
+                                                        "value": "move_box_latest_grasp_pair",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "box_axes_key": {
+                                                        "value": "move_box_latest_box_axes",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "direct_approach_offset": {
+                                                        "value": "0.05",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "direct_descend_below_offset": {
+                                                        "value": "0.12",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "direct_lift_offset": {
+                                                        "value": "0.30",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "双爪同步移动到左右边缘上方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "target_type": {
+                                                        "value": "claw_point",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pose_frame": {
+                                                        "value": "base_link",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_point_key": {
+                                                        "value": "move_box_direct_left_above_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_point_key": {
+                                                        "value": "move_box_direct_right_above_edge",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "双爪同步下探到左右边缘下方",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "target_type": {
+                                                        "value": "claw_point",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pose_frame": {
+                                                        "value": "base_link",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_point_key": {
+                                                        "value": "move_box_direct_left_below_edge",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_point_key": {
+                                                        "value": "move_box_direct_right_below_edge",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "CloseClaw",
+                                                "label": "同时闭合左右夹爪",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "side": {
+                                                        "value": "both",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "双爪同步上提到搬运高度",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "target_type": {
+                                                        "value": "claw_point",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pose_frame": {
+                                                        "value": "base_link",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_point_key": {
+                                                        "value": "move_box_direct_left_lift_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_point_key": {
+                                                        "value": "move_box_direct_right_lift_target",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "claw_ypr": {
+                                                        "value": "[0.0, -60.0, 0.0]",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ComputeMoveBoxRestorePitchArmPoses",
+                                                "label": "计算腰部回位后的双手 pitch 恢复目标",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pitch": {
+                                                        "value": "-80.0",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pose_key": {
+                                                        "value": "move_box_restore_pitch_left_pose",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pose_key": {
+                                                        "value": "move_box_restore_pitch_right_pose",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "MoveTorsoPose",
+                                                "label": "腰部回到初始位姿",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "wait_done": {
+                                                        "value": "False",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "skip_torso_motion": {
+                                                        "value": "False",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ArmsToPose",
+                                                "label": "保持双手位置并恢复 pitch",
+                                                "params": {
+                                                    "services_key": {
+                                                        "value": "move_box_services",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "pose_frame": {
+                                                        "value": "waist_yaw_link",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "left_pose_key": {
+                                                        "value": "move_box_restore_pitch_left_pose",
+                                                        "source": "CUSTOM"
+                                                    },
+                                                    "right_pose_key": {
+                                                        "value": "move_box_restore_pitch_right_pose",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ClearMoveBoxGraspRequest",
+                                                "label": "清除抓取请求标志",
+                                                "params": {
+                                                    "request_key": {
+                                                        "value": "move_box_grasp_requested",
+                                                        "source": "CUSTOM"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "name": "WaitForEnter",
+                                "label": "确认导航到放置点",
+                                "params": {
+                                    "message": {
+                                        "value": "箱体已抓取并回位。确认箱体稳定、底盘路径安全后，按 Enter 导航到放置点...",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "HttpNavigateToPose",
+                                "label": "导航到放置点",
+                                "params": {
+                                    "x": {
+                                        "value": "2.820933034031259",
+                                        "source": "CUSTOM"
+                                    },
+                                    "y": {
+                                        "value": "3.307197578516518",
+                                        "source": "CUSTOM"
+                                    },
+                                    "yaw": {
+                                        "value": "86.41201143492874",
+                                        "source": "CUSTOM"
+                                    },
+                                    "chassis_url": {
+                                        "value": "http://localhost:8081",
+                                        "source": "CUSTOM"
+                                    },
+                                    "navigation_timeout_sec": {
+                                        "value": "600",
+                                        "source": "CUSTOM"
+                                    },
+                                    "poll_interval_sec": {
+                                        "value": "0.2",
+                                        "source": "CUSTOM"
+                                    },
+                                    "navigation_target_key": {
+                                        "value": "move_box_place_navigation_target",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                                "label": "计算放置高度对应的腰部目标",
+                                "params": {
+                                    "place_plane_height": {
+                                        "value": "0.7",
+                                        "source": "CUSTOM"
+                                    },
+                                    "place_torso_height_offset": {
+                                        "value": "0.4",
+                                        "source": "CUSTOM"
+                                    },
+                                    "place_torso_min_height": {
+                                        "value": "0.6",
+                                        "source": "CUSTOM"
+                                    },
+                                    "place_torso_max_height": {
+                                        "value": "1.4",
+                                        "source": "CUSTOM"
+                                    },
+                                    "place_torso_x": {
+                                        "value": "0.5",
+                                        "source": "CUSTOM"
+                                    },
+                                    "target_pose_key": {
+                                        "value": "move_box_place_torso_pose",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "MoveTorsoPose",
+                                "label": "腰部调整到放置高度",
+                                "params": {
+                                    "pose_key": {
+                                        "value": "move_box_place_torso_pose",
+                                        "source": "CUSTOM"
+                                    },
+                                    "wait_done": {
+                                        "value": "True",
+                                        "source": "CUSTOM"
+                                    },
+                                    "skip_torso_motion": {
+                                        "value": "False",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "SetBlackboardValue",
+                                "label": "置位放置请求",
+                                "params": {
+                                    "key": {
+                                        "value": "move_box_place_requested",
+                                        "source": "CUSTOM"
+                                    },
+                                    "value": {
+                                        "value": "true",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "ComputeMoveBoxPlaceTargets",
+                                "label": "计算双夹爪放置下降目标",
+                                "params": {
+                                    "place_plane_height": {
+                                        "value": "0.7",
+                                        "source": "CUSTOM"
+                                    },
+                                    "box_size_z": {
+                                        "value": "0.34",
+                                        "source": "CUSTOM"
+                                    },
+                                    "left_target_key": {
+                                        "value": "move_box_place_left_lower_claw_point",
+                                        "source": "CUSTOM"
+                                    },
+                                    "right_target_key": {
+                                        "value": "move_box_place_right_lower_claw_point",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "ArmsToPose",
+                                "label": "双夹爪同步下降到放置高度（通用手臂节点）",
+                                "params": {
+                                    "target_type": {
+                                        "value": "claw_point",
+                                        "source": "CUSTOM"
+                                    },
+                                    "pose_frame": {
+                                        "value": "base_link",
+                                        "source": "CUSTOM"
+                                    },
+                                    "left_point_key": {
+                                        "value": "move_box_place_left_lower_claw_point",
+                                        "source": "CUSTOM"
+                                    },
+                                    "right_point_key": {
+                                        "value": "move_box_place_right_lower_claw_point",
+                                        "source": "CUSTOM"
+                                    },
+                                    "claw_ypr": {
+                                        "value": "[0.0, -60.0, 0.0]",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "OpenClaw",
+                                "label": "张开双夹爪释放箱体",
+                                "params": {
+                                    "side": {
+                                        "value": "both",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "ClearMoveBoxGraspRequest",
+                                "label": "清除放置请求",
+                                "params": {
+                                    "request_key": {
+                                        "value": "move_box_place_requested",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "ArmsToPose",
+                                "label": "双臂回到抓取预备姿态",
+                                "params": {
+                                    "pose_frame": {
+                                        "value": "waist_yaw_link",
+                                        "source": "CUSTOM"
+                                    },
+                                    "left_pose": {
+                                        "value": "[0.351, 0.3, 0.2, 0.0, -90.0, 0.0]",
+                                        "source": "CUSTOM"
+                                    },
+                                    "right_pose": {
+                                        "value": "[0.351, -0.3, 0.2, 0.0, -90.0, 0.0]",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "MoveTorsoPose",
+                                "label": "腰部回到初始位姿",
+                                "params": {
+                                    "services_key": {
+                                        "value": "move_box_services",
+                                        "source": "CUSTOM"
+                                    },
+                                    "wait_done": {
+                                        "value": "True",
+                                        "source": "CUSTOM"
+                                    },
+                                    "skip_torso_motion": {
+                                        "value": "False",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "MoveTorsoPose",
+                                "label": "腰部从1.1米降低到0.9米",
+                                "params": {
+                                    "services_key": {
+                                        "value": "move_box_services",
+                                        "source": "CUSTOM"
+                                    },
+                                    "pose": {
+                                        "value": "[0.0, 0.0, 0.9, 0.0, 0.0, 0.0]",
+                                        "source": "CUSTOM"
+                                    },
+                                    "wait_done": {
+                                        "value": "True",
+                                        "source": "CUSTOM"
+                                    },
+                                    "skip_torso_motion": {
+                                        "value": "False",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "WaitForEnter",
+                                "label": "确认返回等待区域",
+                                "params": {
+                                    "message": {
+                                        "value": "放置及姿态恢复完成。确认底盘后方路径安全后，按 Enter 返回等待区域...",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "HttpNavigateToPose",
+                                "label": "回等待区域前先后退1米",
+                                "params": {
+                                    "x": {
+                                        "value": "2.820933034031259",
+                                        "source": "CUSTOM"
+                                    },
+                                    "y": {
+                                        "value": "2.307197578516518",
+                                        "source": "CUSTOM"
+                                    },
+                                    "yaw": {
+                                        "value": "-150.41201143492874",
+                                        "source": "CUSTOM"
+                                    },
+                                    "chassis_url": {
+                                        "value": "http://localhost:8081",
+                                        "source": "CUSTOM"
+                                    },
+                                    "navigation_timeout_sec": {
+                                        "value": "600",
+                                        "source": "CUSTOM"
+                                    },
+                                    "poll_interval_sec": {
+                                        "value": "0.2",
+                                        "source": "CUSTOM"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

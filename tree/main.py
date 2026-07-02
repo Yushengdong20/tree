@@ -42,7 +42,9 @@ from tree.ros_interface import create_ros_interface
 # 固定点位前方两箱的 FoundationPose 左拉拆垛测试。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_left_pull_right_grasp_stack_cn.json"
 # YOLO动态选择最高最左箱，导航抓取、放置并返回等待区的四箱拆垛测试。
-DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_dynamic_left_pull_stack_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_dynamic_left_pull_stack_cn.json"
+# YOLO动态选择最高层最近箱，并自动选择左拉、右拉或双爪直接抓取。
+DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_dynamic_auto_grasp_stack_cn.json"
 # 静止筛选 YOLO 最高层最近箱，再由 FoundationPose 精定位执行左拉测试。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_highest_yolo_left_pull_right_grasp_test_cn.json"
 # 静止筛选 YOLO 最高层最右箱，再由 FoundationPose 精定位执行右拉测试。
