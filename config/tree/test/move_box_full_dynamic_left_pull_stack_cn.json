@@ -306,7 +306,7 @@
                     "source": "CUSTOM"
                   },
                   "restart_before_wait": {
-                    "value": "False",
+                    "value": "True",
                     "source": "CUSTOM"
                   },
                   "restart_on_timeout": {

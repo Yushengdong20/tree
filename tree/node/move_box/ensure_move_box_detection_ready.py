@@ -120,10 +120,15 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
 
     def _poll_detection_ready(self, reason):
         """执行一次检测刷新，并在拿到完整抓取数据后写入 blackboard。"""
-        self.services.box_detector.update_latest_grasp_pose(
+        updated = self.services.box_detector.update_latest_grasp_pose(
             self.services.arm_controller.get_initial_left_ypr(),
             self.services.arm_controller.get_initial_right_ypr(),
         )
+        # getter 会保留上一次成功检测的缓存。只有本次 update 确实消费到新数据，
+        # 才允许将抓取点写入黑板，避免精导航后误用导航前的旧 FoundationPose 位姿。
+        if not updated:
+            return False
+
         grasp_pair = self.services.box_detector.get_latest_grasp_pair()
         box_axes = self.services.box_detector.get_latest_box_axes()
         box_center = self.services.box_detector.get_latest_box_center()
