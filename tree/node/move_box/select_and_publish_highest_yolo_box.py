@@ -37,9 +37,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.same_level_selection = str(
             params.get("same_level_selection", "nearest")
         ).strip().lower()
-        if self.same_level_selection not in ("nearest", "leftmost"):
+        if self.same_level_selection not in ("nearest", "leftmost", "rightmost"):
             raise ValueError(
-                "same_level_selection must be 'nearest' or 'leftmost', got "
+                "same_level_selection must be 'nearest', 'leftmost' or 'rightmost', got "
                 f"{self.same_level_selection!r}"
             )
         self.min_map_height = self._optional_float(params.get("min_map_height", ""))
@@ -121,6 +121,15 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 key=lambda candidate: (
                     candidate["selection_frame"][1],
                     -candidate["distance"],
+                ),
+            )
+        elif self.same_level_selection == "rightmost":
+            # ROS 机器人坐标约定：y 的负方向为机器人右侧。
+            selected = min(
+                top_candidates,
+                key=lambda candidate: (
+                    candidate["selection_frame"][1],
+                    candidate["distance"],
                 ),
             )
         else:
