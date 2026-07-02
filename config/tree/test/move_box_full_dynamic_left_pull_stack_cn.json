@@ -272,16 +272,6 @@
                 }
               },
               {
-                "name": "WaitForEnter",
-                "label": "确认刷新精导航后的FoundationPose数据",
-                "params": {
-                  "message": {
-                    "value": "FoundationPose精导航已完成。确认底盘停止且目标箱仍在视野内后，按 Enter 刷新当前base_link下的抓取点...",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "EnsureMoveBoxDetectionReady",
                 "label": "刷新精导航后的FoundationPose抓取数据",
                 "params": {
@@ -315,6 +305,16 @@
                   },
                   "detection_reset_timeout_sec": {
                     "value": "5.0",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认执行最高箱抓取",
+                "params": {
+                  "message": {
+                    "value": "FoundationPose 已返回抓取数据。确认 box_center 对应YOLO最高箱，且腰部和双臂连续运动路径安全后，按 Enter 执行右拉、左手补抓和双手抬箱...",
                     "source": "CUSTOM"
                   }
                 }

@@ -127,16 +127,12 @@
                                         "value": "move_box_grasp_strategy",
                                         "source": "CUSTOM"
                                     },
-                                    "same_row_forward_tolerance": {
-                                        "value": "0.35",
+                                    "neighbor_center_min_distance": {
+                                        "value": "0.20",
                                         "source": "CUSTOM"
                                     },
-                                    "neighbor_lateral_min_distance": {
-                                        "value": "0.10",
-                                        "source": "CUSTOM"
-                                    },
-                                    "neighbor_lateral_max_distance": {
-                                        "value": "0.80",
+                                    "neighbor_center_max_distance": {
+                                        "value": "1.0",
                                         "source": "CUSTOM"
                                     }
                                 }
@@ -288,16 +284,6 @@
                                 }
                             },
                             {
-                                "name": "WaitForEnter",
-                                "label": "确认刷新精导航后的FoundationPose数据",
-                                "params": {
-                                    "message": {
-                                        "value": "FoundationPose精导航已完成。确认底盘停止且目标箱仍在视野内后，按 Enter 刷新当前base_link下的抓取点...",
-                                        "source": "CUSTOM"
-                                    }
-                                }
-                            },
-                            {
                                 "name": "EnsureMoveBoxDetectionReady",
                                 "label": "刷新精导航后的FoundationPose抓取数据",
                                 "params": {
@@ -333,6 +319,16 @@
                                         "value": "5.0",
                                         "source": "CUSTOM"
                                     }
+                                }
+                            },
+                            {
+                                "name": "WaitForEnter",
+                                "label": "确认执行最高箱抓取",
+                                "params": {
+                                "message": {
+                                    "value": "FoundationPose 已返回抓取数据。确认 box_center 对应YOLO最高箱，且腰部和双臂连续运动路径安全后，按 Enter 执行右拉、左手补抓和双手抬箱...",
+                                    "source": "CUSTOM"
+                                }
                                 }
                             },
                             {

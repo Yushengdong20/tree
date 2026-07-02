@@ -54,22 +54,18 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.grasp_strategy_key = str(
             params.get("grasp_strategy_key", "move_box_grasp_strategy")
         ).strip()
-        # 两个箱子前后方向差值不超过该值，才认为处于同一排。
-        self.same_row_forward_tolerance = float(
-            params.get("same_row_forward_tolerance", 0.35)
+        # 同层箱之间使用 map 平面的箱心绝对距离判断是否相邻。该距离与机器人
+        # 当前朝向无关；下限用于排除同一箱子的重复检测，上限用于排除远处箱子。
+        self.neighbor_center_min_distance = float(
+            params.get("neighbor_center_min_distance", 0.20)
         )
-        # 横向距离过小通常是重复检测，过大则不是紧邻箱；只有落在此区间
-        # 的同层同排箱子才会占用目标箱左侧或右侧的外拉空间。
-        self.neighbor_lateral_min_distance = float(
-            params.get("neighbor_lateral_min_distance", 0.10)
+        self.neighbor_center_max_distance = float(
+            params.get("neighbor_center_max_distance", 1.0)
         )
-        self.neighbor_lateral_max_distance = float(
-            params.get("neighbor_lateral_max_distance", 0.80)
-        )
-        if self.neighbor_lateral_min_distance > self.neighbor_lateral_max_distance:
+        if self.neighbor_center_min_distance > self.neighbor_center_max_distance:
             raise ValueError(
-                "neighbor_lateral_min_distance cannot exceed "
-                "neighbor_lateral_max_distance"
+                "neighbor_center_min_distance cannot exceed "
+                "neighbor_center_max_distance"
             )
         # 最高箱高度减去该容差后仍在范围内的目标，都视为同一最高层。
         # 当前箱高约0.30m，默认0.10m可容纳视觉高度抖动，同时小于层间高度。
@@ -202,8 +198,8 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         message.pose.orientation.w = 1.0
         self.publisher.publish(message)
         self.blackboard.set(self.selected_point_key, list(selected["map"]), overwrite=True)
-        # 阶段5：根据目标箱同层、同排的左右邻箱占用情况决定抓取方式。
-        # 这使用箱子之间的相对位置，不使用目标在远处视野中的绝对y位置。
+        # 阶段5：根据目标箱同层邻箱的占用情况决定抓取方式。是否相邻使用
+        # map 平面箱心绝对距离，因此不会因机器人斜对箱堆而产生投影误判。
         grasp_strategy, left_neighbors, right_neighbors = self._decide_grasp_strategy(
             selected,
             top_candidates,
@@ -235,34 +231,35 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         return Status.SUCCESS
 
     def _decide_grasp_strategy(self, selected, top_candidates):
-        """根据最高层同排邻箱，返回抓取策略及左右邻箱索引。
+        """根据最高层邻箱，返回抓取策略及左右邻箱索引。
 
-        ``selection_frame`` 通常是base_link：x表示前后，y正方向表示左侧。
-        只把与目标箱前后距离足够近、横向距离处于合理相邻范围的箱子
-        视为邻箱，避免把另一排箱子或YOLO重复检测误当作碰撞障碍。
+        邻接关系使用两个箱心在 map 平面的欧氏距离，避免机器人未正对箱堆时，
+        并排箱在 base_link 的前后、横向分量发生变化。通过距离下限排除重复
+        检测，通过距离上限排除不相邻箱子。左右方向仍以机器人视角的
+        ``selection_frame y`` 正负判断。
 
         - 右侧被占用、左侧空闲：向左拉；
         - 左侧被占用、右侧空闲：向右拉；
         - 左右均空闲：双爪直接抓；
         - 左右均被占用：没有安全外拉方向，返回no_safe_strategy。
         """
-        selected_x = selected["selection_frame"][0]
         selected_y = selected["selection_frame"][1]
+        selected_map_x = selected["map"][0]
+        selected_map_y = selected["map"][1]
         left_neighbors = []
         right_neighbors = []
 
         for candidate in top_candidates:
             if candidate["index"] == selected["index"]:
                 continue
-            delta_x = candidate["selection_frame"][0] - selected_x
             delta_y = candidate["selection_frame"][1] - selected_y
-            if abs(delta_x) > self.same_row_forward_tolerance:
-                continue
-            lateral_distance = abs(delta_y)
+            map_delta_x = candidate["map"][0] - selected_map_x
+            map_delta_y = candidate["map"][1] - selected_map_y
+            center_distance = math.hypot(map_delta_x, map_delta_y)
             if not (
-                self.neighbor_lateral_min_distance
-                <= lateral_distance
-                <= self.neighbor_lateral_max_distance
+                self.neighbor_center_min_distance
+                <= center_distance
+                <= self.neighbor_center_max_distance
             ):
                 continue
             if delta_y > 0.0:
@@ -353,7 +350,6 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"base_frame={self.base_frame}, "
             f"top_tolerance={self.top_height_tolerance:.3f}, "
             f"same_level_selection={self.same_level_selection}, "
-            f"same_row_forward_tolerance={self.same_row_forward_tolerance:.3f}, "
-            f"neighbor_lateral_range=[{self.neighbor_lateral_min_distance:.3f}, "
-            f"{self.neighbor_lateral_max_distance:.3f}]"
+            f"neighbor_center_range=[{self.neighbor_center_min_distance:.3f}, "
+            f"{self.neighbor_center_max_distance:.3f}]"
         )
