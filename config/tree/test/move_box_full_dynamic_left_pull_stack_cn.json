@@ -283,10 +283,58 @@
               },
               {
                 "name": "WaitForEnter",
+                "label": "确认刷新精导航后的FoundationPose数据",
+                "params": {
+                  "message": {
+                    "value": "FoundationPose精导航已完成。确认底盘停止且目标箱仍在视野内后，按 Enter 刷新当前base_link下的抓取点...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "EnsureMoveBoxDetectionReady",
+                "label": "刷新精导航后的FoundationPose抓取数据",
+                "params": {
+                  "grasp_pair_key": {
+                    "value": "move_box_latest_grasp_pair",
+                    "source": "CUSTOM"
+                  },
+                  "box_axes_key": {
+                    "value": "move_box_latest_box_axes",
+                    "source": "CUSTOM"
+                  },
+                  "box_center_key": {
+                    "value": "move_box_latest_box_center",
+                    "source": "CUSTOM"
+                  },
+                  "detect_timeout_sec": {
+                    "value": "10.0",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "restart_before_wait": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  },
+                  "restart_on_timeout": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "detection_reset_timeout_sec": {
+                    "value": "5.0",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
                 "label": "确认执行最高箱左拉抓取",
                 "params": {
                   "message": {
-                    "value": "FoundationPose 已返回抓取数据。确认 box_center 对应YOLO最高箱，且腰部和双臂连续运动路径安全后，按 Enter 执行左拉、右手补抓和双手抬箱...",
+                    "value": "已刷新精导航后当前base_link下的FoundationPose抓取数据。确认 box_center 对应YOLO最高箱，且腰部和双臂连续运动路径安全后，按 Enter 执行左拉、右手补抓和双手抬箱...",
                     "source": "CUSTOM"
                   }
                 }
