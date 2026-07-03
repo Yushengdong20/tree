@@ -1,0 +1,98 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "分段验证：04_through_place",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "单次初始化抓取所需服务与预备姿态",
+        "params": {
+          "initial_torso_height": {
+            "value": "0.9",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "初始化后导航到等待区域",
+        "params": {
+          "x": {
+            "value": "2.820933034031259",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "2.307197578516518",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "-150.41201143492874",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "动态选箱与两级靠近",
+        "params": {
+          "file": {
+            "value": "../subtree/01_select_and_approach.json",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "唯一确认后执行动态策略抓取",
+        "params": {
+          "file": {
+            "value": "../subtree/02_auto_grasp.json",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "搬运到放置点",
+        "params": {
+          "file": {
+            "value": "../subtree/03_transport_to_place.json",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "放置箱体",
+        "params": {
+          "file": {
+            "value": "../subtree/04_place_box.json",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

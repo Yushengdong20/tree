@@ -44,11 +44,25 @@ from tree.ros_interface import create_ros_interface
 # YOLO动态选择最高最左箱，导航抓取、放置并返回等待区的四箱拆垛测试。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_dynamic_left_pull_stack_cn.json"
 # YOLO动态选择最高层最近箱，并自动选择左拉、右拉或双爪直接抓取。
-DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_dynamic_auto_grasp_stack_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_dynamic_auto_grasp_stack_cn.json"
 # 静止筛选 YOLO 最高层最近箱，再由 FoundationPose 精定位执行左拉测试。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_highest_yolo_left_pull_right_grasp_test_cn.json"
 # 静止筛选 YOLO 最高层最右箱，再由 FoundationPose 精定位执行右拉测试。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_highest_yolo_right_pull_left_grasp_test_cn.json"
+
+# 高效动态拆垛分段实机测试：按 01 -> 05 顺序逐棵验证。
+# 01：只验证选箱、YOLO粗靠近、FoundationPose精靠近及数据刷新。
+DEFAULT_TREE_FILE_NAME = "depalletize/test/test_01_select_and_approach.json"
+# 02：在 01 基础上增加动态策略抓取，结束时机器人持箱。
+# DEFAULT_TREE_FILE_NAME = "depalletize/test/test_02_through_auto_grasp.json"
+# 03：在 02 基础上增加搬运到放置点及接近目标时的腰部调整。
+# DEFAULT_TREE_FILE_NAME = "depalletize/test/test_03_through_transport.json"
+# 04：在 03 基础上增加下降、放置和释放箱体。
+# DEFAULT_TREE_FILE_NAME = "depalletize/test/test_04_through_place.json"
+# 05：完整验证一轮，并返回等待区域、恢复下一轮预备姿态。
+# DEFAULT_TREE_FILE_NAME = "depalletize/test/test_05_full_cycle.json"
+# 最终四轮循环树：仅在 01～05 全部通过后启用。
+# DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.json"
 
 
 def parse_main_args(args=None):

@@ -1,0 +1,96 @@
+{
+  "tree": {
+    "name": "Parallel",
+    "label": "返回等待区域并同步恢复下一轮预备姿态",
+    "params": {
+      "policy": {
+        "value": "SuccessOnAll",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "HttpNavigateToPose",
+        "label": "回等待区域前先后退1米",
+        "params": {
+          "x": {
+            "value": "2.820933034031259",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "2.307197578516518",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "-150.41201143492874",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Sequence",
+        "label": "双臂回预备位且腰部直接回0.9米",
+        "params": {
+          "memory": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "ArmsToPose",
+            "label": "双臂回到抓取预备姿态",
+            "params": {
+              "pose_frame": {
+                "value": "waist_yaw_link",
+                "source": "CUSTOM"
+              },
+              "left_pose": {
+                "value": "[0.351, 0.3, 0.2, 0.0, -90.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "right_pose": {
+                "value": "[0.351, -0.3, 0.2, 0.0, -90.0, 0.0]",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "MoveTorsoPose",
+            "label": "腰部从1.1米降低到0.9米",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "pose": {
+                "value": "[0.0, 0.0, 0.9, 0.0, 0.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "wait_done": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "skip_torso_motion": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

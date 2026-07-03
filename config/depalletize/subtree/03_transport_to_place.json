@@ -1,0 +1,126 @@
+{
+  "tree": {
+    "name": "Parallel",
+    "label": "导航到放置点并在接近后调整腰部",
+    "params": {
+      "policy": {
+        "value": "SuccessOnAll",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "HttpNavigateToPose",
+        "label": "导航到放置点",
+        "params": {
+          "x": {
+            "value": "2.820933034031259",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "3.307197578516518",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "86.41201143492874",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "navigation_target_key": {
+            "value": "move_box_place_navigation_target",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Sequence",
+        "label": "接近放置点后调整腰部到放置高度",
+        "params": {
+          "memory": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "WaitUntilNearNavigationGoal",
+            "label": "接近放置点后开始调整腰部",
+            "params": {
+              "odom_topic": {
+                "value": "melon_odom",
+                "source": "CUSTOM"
+              },
+              "target_key": {
+                "value": "move_box_place_navigation_target",
+                "source": "CUSTOM"
+              },
+              "distance_threshold": {
+                "value": "0.6",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+            "label": "计算放置高度对应的腰部目标",
+            "params": {
+              "place_plane_height": {
+                "value": "0.7",
+                "source": "CUSTOM"
+              },
+              "place_torso_height_offset": {
+                "value": "0.4",
+                "source": "CUSTOM"
+              },
+              "place_torso_min_height": {
+                "value": "0.6",
+                "source": "CUSTOM"
+              },
+              "place_torso_max_height": {
+                "value": "1.4",
+                "source": "CUSTOM"
+              },
+              "place_torso_x": {
+                "value": "0.5",
+                "source": "CUSTOM"
+              },
+              "target_pose_key": {
+                "value": "move_box_place_torso_pose",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "MoveTorsoPose",
+            "label": "腰部调整到放置高度",
+            "params": {
+              "pose_key": {
+                "value": "move_box_place_torso_pose",
+                "source": "CUSTOM"
+              },
+              "wait_done": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "skip_torso_motion": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
