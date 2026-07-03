@@ -77,6 +77,20 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 "neighbor_center_min_distance cannot exceed "
                 "neighbor_center_max_distance"
             )
+        # 新版YOLO同时提供 quat/size。有效时使用3D有向包围盒判断层级和邻接；
+        # 数据异常时仍回退到旧的箱心距离逻辑，保证现场兼容性。
+        self.use_box_geometry_for_strategy = self._to_bool(
+            params.get("use_box_geometry_for_strategy", True)
+        )
+        self.same_level_vertical_overlap_ratio = float(
+            params.get("same_level_vertical_overlap_ratio", 0.50)
+        )
+        self.neighbor_surface_max_gap = float(
+            params.get("neighbor_surface_max_gap", 0.20)
+        )
+        self.minimum_valid_box_size = float(
+            params.get("minimum_valid_box_size", 0.03)
+        )
         # YOLO可能在同一帧中对同一个箱体给出多个3D中心。按机器人距离从近到远
         # 保留代表点，map三维距离小于该阈值的后续检测视为重复目标。
         self.duplicate_3d_distance_threshold = float(
@@ -181,6 +195,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             center_point = yolo_box_center_point(box)
             map_xyz = self._matrix_dot_point(map_from_source, center_point)
             distance_xyz = self._matrix_dot_point(distance_from_source, center_point)
+            geometry = self._transform_box_geometry(map_from_source, box, map_xyz)
             planar_distance = math.hypot(distance_xyz[0], distance_xyz[1])
             # 可选的任务区域过滤：高度过低或离机器人过远的目标不参与后续排序。
             if not is_map_position_in_polygon(
@@ -199,6 +214,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 "selection_frame": distance_xyz,
                 "distance": planar_distance,
                 "box": box,
+                "geometry": geometry,
             })
 
         if not candidates:
@@ -225,10 +241,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         # 阶段2：先找最高 z，再用容差形成“最高层候选集合”。
         # 例如最高 z=0.62m、容差=0.06m，则 z>=0.56m 都属于最高层。
         # 这样可避免同一排箱子因检测抖动几厘米而被误判为上下两层。
-        max_height = max(candidate["map"][2] for candidate in candidates)
+        # 优先使用OBB真实顶部高度。只有尺寸/姿态无效时才退回箱心z。
+        max_height = max(self._candidate_top_height(candidate) for candidate in candidates)
+        highest_candidate = max(candidates, key=self._candidate_top_height)
         top_candidates = [
             candidate for candidate in candidates
-            if candidate["map"][2] >= max_height - self.top_height_tolerance
+            if self._is_same_level(highest_candidate, candidate, max_height)
         ]
 
         # 阶段3：仅在最高层中执行二次选择。distance是base_link平面距离；
@@ -261,8 +279,11 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         selected_box["frame_id"] = self.map_frame
         selected_box["stamp"] = self._ros_stamp_to_seconds(self.ros_node.now())
         selected_box["center"] = list(selected["map"])
-        # 当前这里只可靠转换中心点；不把camera_link朝向伪装成map朝向。
-        selected_box["quat"] = [0.0, 0.0, 0.0, 1.0]
+        # quat与center使用同一map变换，后续节点可使用真实有向包围盒。
+        if selected["geometry"] is not None:
+            selected_box["quat"] = list(selected["geometry"]["map_quat"])
+        else:
+            selected_box["quat"] = [0.0, 0.0, 0.0, 1.0]
         self.publisher.publish(
             serialize_yolo_box(
                 selected_box,
@@ -304,6 +325,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"strategy={self.same_level_selection}, index={selected['index']}, "
             f"top_z={max_height:.3f}, selected=({selected['map'][0]:.3f}, "
             f"{selected['map'][1]:.3f}, {selected['map'][2]:.3f}), "
+            f"geometry={'obb' if selected['geometry'] is not None else 'center_fallback'}, "
             f"left_neighbors={left_neighbors}, right_neighbors={right_neighbors}, "
             f"grasp_strategy={grasp_strategy}, "
             f"strategy_key={self.grasp_strategy_key}, topic={self.output_topic}"
@@ -354,13 +376,216 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 )
         return kept, duplicate_records
 
+    def _transform_box_geometry(self, map_from_source, box, map_xyz):
+        """把YOLO局部OBB转换到map，返回姿态、角点、高度区间和水平轮廓。"""
+        if not self.use_box_geometry_for_strategy:
+            return None
+
+        try:
+            size = [abs(float(value)) for value in box.get("size", [])]
+            quat = [float(value) for value in box.get("quat", [])]
+            if len(size) != 3 or len(quat) != 4:
+                return None
+            if not all(math.isfinite(value) for value in size + quat):
+                return None
+            if min(size) < self.minimum_valid_box_size:
+                return None
+            quat_norm = math.sqrt(sum(value * value for value in quat))
+            if quat_norm < 1e-6:
+                return None
+            quat = [value / quat_norm for value in quat]
+
+            # T_map_box的旋转由T_map_source与YOLO给出的T_source_box相乘得到。
+            map_box_rotation = tf_trans.concatenate_matrices(
+                map_from_source,
+                tf_trans.quaternion_matrix(quat),
+            )
+            map_box_rotation[0:3, 3] = [0.0, 0.0, 0.0]
+            map_quat = tf_trans.quaternion_from_matrix(map_box_rotation)
+            map_quat = [float(value) for value in map_quat]
+
+            map_from_box = tf_trans.quaternion_matrix(map_quat)
+            map_from_box[0:3, 3] = map_xyz
+            half = [value * 0.5 for value in size]
+            corners = []
+            for sx in (-1.0, 1.0):
+                for sy in (-1.0, 1.0):
+                    for sz in (-1.0, 1.0):
+                        corner = map_from_box.dot(
+                            [sx * half[0], sy * half[1], sz * half[2], 1.0]
+                        )
+                        corners.append([
+                            float(corner[0]), float(corner[1]), float(corner[2])
+                        ])
+
+            return {
+                "map_quat": map_quat,
+                "corners": corners,
+                "z_min": min(corner[2] for corner in corners),
+                "z_max": max(corner[2] for corner in corners),
+                "footprint": self._convex_hull_2d(
+                    [(corner[0], corner[1]) for corner in corners]
+                ),
+            }
+        except Exception as exc:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] YOLO箱体OBB无效，回退箱心判断: {exc}"
+            )
+            return None
+
+    @staticmethod
+    def _candidate_top_height(candidate):
+        geometry = candidate.get("geometry")
+        return geometry["z_max"] if geometry is not None else candidate["map"][2]
+
+    def _is_same_level(self, highest, candidate, max_height):
+        """顶部接近或垂直实体区间充分重叠时视为同层。"""
+        if self._candidate_top_height(candidate) >= max_height - self.top_height_tolerance:
+            return True
+        highest_geometry = highest.get("geometry")
+        candidate_geometry = candidate.get("geometry")
+        if highest_geometry is None or candidate_geometry is None:
+            return False
+        return self._vertical_overlap_ratio(
+            highest_geometry, candidate_geometry
+        ) >= self.same_level_vertical_overlap_ratio
+
+    @staticmethod
+    def _vertical_overlap_ratio(first, second):
+        overlap = max(
+            0.0,
+            min(first["z_max"], second["z_max"])
+            - max(first["z_min"], second["z_min"]),
+        )
+        minimum_height = min(
+            first["z_max"] - first["z_min"],
+            second["z_max"] - second["z_min"],
+        )
+        return overlap / minimum_height if minimum_height > 1e-6 else 0.0
+
+    @staticmethod
+    def _convex_hull_2d(points):
+        """Monotonic chain，生成OBB角点在map平面的凸包。"""
+        unique_points = sorted(set((float(x), float(y)) for x, y in points))
+        if len(unique_points) <= 1:
+            return unique_points
+
+        def cross(origin, first, second):
+            return (
+                (first[0] - origin[0]) * (second[1] - origin[1])
+                - (first[1] - origin[1]) * (second[0] - origin[0])
+            )
+
+        lower = []
+        for point in unique_points:
+            while len(lower) >= 2 and cross(lower[-2], lower[-1], point) <= 0.0:
+                lower.pop()
+            lower.append(point)
+        upper = []
+        for point in reversed(unique_points):
+            while len(upper) >= 2 and cross(upper[-2], upper[-1], point) <= 0.0:
+                upper.pop()
+            upper.append(point)
+        return lower[:-1] + upper[:-1]
+
+    @classmethod
+    def _polygon_distance_2d(cls, first, second):
+        """返回两个凸多边形的最小表面间隙；相交时为0。"""
+        if len(first) < 2 or len(second) < 2:
+            return float("inf")
+        if cls._point_in_convex_polygon(first[0], second) or cls._point_in_convex_polygon(
+            second[0], first
+        ):
+            return 0.0
+        first_edges = list(zip(first, first[1:] + first[:1]))
+        second_edges = list(zip(second, second[1:] + second[:1]))
+        for first_start, first_end in first_edges:
+            for second_start, second_end in second_edges:
+                if cls._segments_intersect(
+                    first_start, first_end, second_start, second_end
+                ):
+                    return 0.0
+        distances = [
+            cls._point_segment_distance(point, start, end)
+            for point in first
+            for start, end in second_edges
+        ] + [
+            cls._point_segment_distance(point, start, end)
+            for point in second
+            for start, end in first_edges
+        ]
+        return min(distances) if distances else float("inf")
+
+    @staticmethod
+    def _point_in_convex_polygon(point, polygon):
+        if len(polygon) < 3:
+            return False
+        signs = []
+        for start, end in zip(polygon, polygon[1:] + polygon[:1]):
+            cross = (
+                (end[0] - start[0]) * (point[1] - start[1])
+                - (end[1] - start[1]) * (point[0] - start[0])
+            )
+            if abs(cross) > 1e-9:
+                signs.append(cross > 0.0)
+        return not signs or all(sign == signs[0] for sign in signs)
+
+    @staticmethod
+    def _segments_intersect(first_start, first_end, second_start, second_end):
+        def orientation(start, end, point):
+            return (
+                (end[0] - start[0]) * (point[1] - start[1])
+                - (end[1] - start[1]) * (point[0] - start[0])
+            )
+
+        o1 = orientation(first_start, first_end, second_start)
+        o2 = orientation(first_start, first_end, second_end)
+        o3 = orientation(second_start, second_end, first_start)
+        o4 = orientation(second_start, second_end, first_end)
+        epsilon = 1e-9
+
+        def on_segment(start, end, point):
+            return (
+                min(start[0], end[0]) - epsilon <= point[0]
+                <= max(start[0], end[0]) + epsilon
+                and min(start[1], end[1]) - epsilon <= point[1]
+                <= max(start[1], end[1]) + epsilon
+            )
+
+        if o1 * o2 < -epsilon and o3 * o4 < -epsilon:
+            return True
+        if abs(o1) <= epsilon and on_segment(first_start, first_end, second_start):
+            return True
+        if abs(o2) <= epsilon and on_segment(first_start, first_end, second_end):
+            return True
+        if abs(o3) <= epsilon and on_segment(second_start, second_end, first_start):
+            return True
+        if abs(o4) <= epsilon and on_segment(second_start, second_end, first_end):
+            return True
+        return False
+
+    @staticmethod
+    def _point_segment_distance(point, start, end):
+        delta_x = end[0] - start[0]
+        delta_y = end[1] - start[1]
+        squared_length = delta_x * delta_x + delta_y * delta_y
+        if squared_length <= 1e-12:
+            return math.hypot(point[0] - start[0], point[1] - start[1])
+        ratio = (
+            (point[0] - start[0]) * delta_x
+            + (point[1] - start[1]) * delta_y
+        ) / squared_length
+        ratio = max(0.0, min(1.0, ratio))
+        nearest_x = start[0] + ratio * delta_x
+        nearest_y = start[1] + ratio * delta_y
+        return math.hypot(point[0] - nearest_x, point[1] - nearest_y)
+
     def _decide_grasp_strategy(self, selected, top_candidates):
         """根据最高层邻箱，返回抓取策略及左右邻箱索引。
 
-        邻接关系使用两个箱心在 map 平面的欧氏距离，避免机器人未正对箱堆时，
-        并排箱在 base_link 的前后、横向分量发生变化。通过距离下限排除重复
-        检测，通过距离上限排除不相邻箱子。左右方向仍以机器人视角的
-        ``selection_frame y`` 正负判断。
+        新YOLO几何有效时，使用两个OBB水平轮廓的表面间隙与垂直重叠判断邻接；
+        几何无效时才回退箱心距离。左右方向仍以机器人视角的
+        ``selection_frame y`` 判断。
 
         - 右侧被占用、左侧空闲：向左拉；
         - 左侧被占用、右侧空闲：向右拉；
@@ -386,6 +611,26 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 <= self.neighbor_center_max_distance
             ):
                 continue
+            selected_geometry = selected.get("geometry")
+            candidate_geometry = candidate.get("geometry")
+            if selected_geometry is not None and candidate_geometry is not None:
+                vertical_overlap = self._vertical_overlap_ratio(
+                    selected_geometry, candidate_geometry
+                )
+                surface_gap = self._polygon_distance_2d(
+                    selected_geometry["footprint"],
+                    candidate_geometry["footprint"],
+                )
+                if vertical_overlap < self.same_level_vertical_overlap_ratio:
+                    continue
+                if surface_gap > self.neighbor_surface_max_gap:
+                    continue
+                self.ros_node.get_logger().info(
+                    f"[{self.config_label}] OBB邻箱: target=#{selected['index']}, "
+                    f"neighbor=#{candidate['index']}, center_distance={center_distance:.3f}m, "
+                    f"surface_gap={surface_gap:.3f}m, "
+                    f"vertical_overlap={vertical_overlap:.3f}"
+                )
             if delta_y > 0.0:
                 left_neighbors.append(candidate["index"])
             else:
@@ -493,5 +738,8 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"duplicate_3d_threshold={self.duplicate_3d_distance_threshold:.3f}, "
             f"map_region_enabled={bool(self.valid_box_map_polygon)}, "
             f"neighbor_center_range=[{self.neighbor_center_min_distance:.3f}, "
-            f"{self.neighbor_center_max_distance:.3f}]"
+            f"{self.neighbor_center_max_distance:.3f}], "
+            f"use_obb={self.use_box_geometry_for_strategy}, "
+            f"neighbor_surface_gap={self.neighbor_surface_max_gap:.3f}, "
+            f"same_level_vertical_overlap={self.same_level_vertical_overlap_ratio:.3f}"
         )

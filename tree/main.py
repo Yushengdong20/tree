@@ -154,7 +154,7 @@ def main(args=None):
         web_viewer_host="0.0.0.0",
         web_viewer_port=8765,
         # 根节点到 SUCCESS/FAILURE 后是否自动停止。
-        stop_on_terminal_state=False,
+        stop_on_terminal_state=True,
 
         #实机测试
         # 手动结果模式：叶子节点到达完成时机会等待你的 s/f/r 输入。

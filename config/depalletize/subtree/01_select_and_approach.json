@@ -119,6 +119,22 @@
             "value": "1.0",
             "source": "CUSTOM"
           },
+          "use_box_geometry_for_strategy": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "same_level_vertical_overlap_ratio": {
+            "value": "0.50",
+            "source": "CUSTOM"
+          },
+          "neighbor_surface_max_gap": {
+            "value": "0.20",
+            "source": "CUSTOM"
+          },
+          "minimum_valid_box_size": {
+            "value": "0.03",
+            "source": "CUSTOM"
+          },
           "duplicate_3d_distance_threshold": {
             "value": "0.25",
             "source": "CUSTOM"
