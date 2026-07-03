@@ -108,7 +108,13 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         if self.valid_box_polygon_required and not self.valid_box_map_polygon:
             raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
         self.no_target_log_interval_sec = float(params.get("no_target_log_interval_sec", 1.0))
+        self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
+        self.require_new_frame_after_initialise = self._to_bool(
+            params.get("require_new_frame_after_initialise", False)
+        )
         self.latest_boxes = None
+        self._message_generation = 0
+        self._minimum_generation = 0
         self.lock = threading.Lock()
         self._last_no_target_log_time = 0.0
         self.tf_listener = tf.TransformListener()
@@ -138,6 +144,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
     def initialise(self):
         super().initialise()
         self._last_no_target_log_time = 0.0
+        if self.require_new_frame_after_initialise:
+            with self.lock:
+                self._minimum_generation = self._message_generation + 1
 
     def update(self):
         if self.should_use_mock_execution():
@@ -290,7 +299,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 f"[{self.config_label}] map抓箱区域过滤: "
                 f"区域外={area_filtered_count}, 区域内={raw_candidate_count}"
             )
-        self.ros_node.get_logger().info(
+        selected_message = (
             f"[{self.config_label}] 已锁定最高层目标箱并发布: "
             f"strategy={self.same_level_selection}, index={selected['index']}, "
             f"top_z={max_height:.3f}, selected=({selected['map'][0]:.3f}, "
@@ -299,7 +308,24 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"grasp_strategy={grasp_strategy}, "
             f"strategy_key={self.grasp_strategy_key}, topic={self.output_topic}"
         )
+        self.ros_node.get_logger().info(
+            self._color_text(selected_message, "highlight")
+        )
         return Status.SUCCESS
+
+    def _color_text(self, text, color):
+        """给最终选箱与抓取决策日志增加醒目的 ANSI 颜色。"""
+        if not self.enable_colored_log:
+            return text
+
+        color_codes = {
+            "green": "\033[1;92m",
+            "cyan": "\033[1;96m",
+            "highlight": "\033[1;97;45m",
+        }
+        color_code = color_codes.get(color, "")
+        reset_code = "\033[0m" if color_code else ""
+        return f"{color_code}{text}{reset_code}"
 
     def _deduplicate_candidates(self, candidates):
         """合并map三维距离过近的单帧检测，并优先保留离机器人更近者。"""
@@ -387,9 +413,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             return
         with self.lock:
             self.latest_boxes = boxes
+            self._message_generation += 1
 
     def _get_latest_boxes(self):
         with self.lock:
+            if self._message_generation < self._minimum_generation:
+                return None
             return self.latest_boxes
 
     def _lookup_transform_matrix(self, target_frame, source_frame):

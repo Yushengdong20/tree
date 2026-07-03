@@ -24,6 +24,10 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self.grasp_pair_key = str(params.get("grasp_pair_key", "move_box_latest_grasp_pair")).strip()
         self.box_axes_key = str(params.get("box_axes_key", "move_box_latest_box_axes")).strip()
         self.box_center_key = str(params.get("box_center_key", "move_box_latest_box_center")).strip()
+        self.grasp_strategy_key = str(
+            params.get("grasp_strategy_key", "move_box_grasp_strategy")
+        ).strip()
+        self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
         self.detect_timeout_sec = float(params.get("detect_timeout_sec", 10.0))
         self.poll_interval_sec = float(params.get("poll_interval_sec", 0.2))
         self.restart_on_timeout = self._to_bool(params.get("restart_on_timeout", True))
@@ -44,6 +48,11 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self.blackboard.register_key(key=self.grasp_pair_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.box_axes_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.box_center_key, access=py_trees.common.Access.WRITE)
+        if self.grasp_strategy_key:
+            self.blackboard.register_key(
+                key=self.grasp_strategy_key,
+                access=py_trees.common.Access.READ,
+            )
 
     @staticmethod
     def _to_bool(value):
@@ -140,11 +149,31 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self.blackboard.set(self.grasp_pair_key, grasp_pair, overwrite=True)
         self.blackboard.set(self.box_axes_key, box_axes, overwrite=True)
         self.blackboard.set(self.box_center_key, box_center, overwrite=True)
-        self.ros_node.get_logger().info(
+        grasp_strategy = "未设置"
+        if self.grasp_strategy_key and self.blackboard.exists(self.grasp_strategy_key):
+            grasp_strategy = self.blackboard.get(self.grasp_strategy_key)
+        result_message = (
             f"[{self.config_label}] {reason}成功: grasp_pair=True, box_axes=True, "
-            f"box_center={box_center}（z 为当前 FoundationPose 目标高度）"
+            f"box_center={box_center}（z 为当前 FoundationPose 目标高度）, "
+            f"grasp_strategy={grasp_strategy}"
         )
+        self.ros_node.get_logger().info(self._color_text(result_message, "highlight"))
         return True
+
+    def _color_text(self, text, color):
+        """给关键实机结果增加醒目的 ANSI 颜色，可通过参数关闭。"""
+        if not self.enable_colored_log:
+            return text
+
+        color_codes = {
+            "green": "\033[1;92m",
+            "cyan": "\033[1;96m",
+            # 粗体亮白字配洋红背景，用于视觉锁定和抓取决策结果。
+            "highlight": "\033[1;97;45m",
+        }
+        color_code = color_codes.get(color, "")
+        reset_code = "\033[0m" if color_code else ""
+        return f"{color_code}{text}{reset_code}"
 
     def _update_restart_detection(self):
         """用后台线程执行视觉重置，主 tick 只轮询结果。"""
