@@ -127,6 +127,10 @@
             "value": "0.50",
             "source": "CUSTOM"
           },
+          "same_level_center_height_tolerance": {
+            "value": "0.15",
+            "source": "CUSTOM"
+          },
           "neighbor_surface_max_gap": {
             "value": "0.20",
             "source": "CUSTOM"

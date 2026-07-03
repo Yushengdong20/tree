@@ -85,6 +85,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.same_level_vertical_overlap_ratio = float(
             params.get("same_level_vertical_overlap_ratio", 0.50)
         )
+        self.same_level_center_height_tolerance = float(
+            params.get("same_level_center_height_tolerance", 0.15)
+        )
         self.neighbor_surface_max_gap = float(
             params.get("neighbor_surface_max_gap", 0.20)
         )
@@ -440,6 +443,15 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
 
     def _is_same_level(self, highest, candidate, max_height):
         """顶部接近或垂直实体区间充分重叠时视为同层。"""
+        center_height_difference = abs(candidate["map"][2] - highest["map"][2])
+        if center_height_difference > self.same_level_center_height_tolerance:
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] 排除非同层箱: highest=#{highest['index']}, "
+                f"candidate=#{candidate['index']}, "
+                f"center_z_difference={center_height_difference:.3f}m > "
+                f"limit={self.same_level_center_height_tolerance:.3f}m"
+            )
+            return False
         if self._candidate_top_height(candidate) >= max_height - self.top_height_tolerance:
             return True
         highest_geometry = highest.get("geometry")
@@ -741,5 +753,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"{self.neighbor_center_max_distance:.3f}], "
             f"use_obb={self.use_box_geometry_for_strategy}, "
             f"neighbor_surface_gap={self.neighbor_surface_max_gap:.3f}, "
-            f"same_level_vertical_overlap={self.same_level_vertical_overlap_ratio:.3f}"
+            f"same_level_vertical_overlap={self.same_level_vertical_overlap_ratio:.3f}, "
+            f"same_level_center_height_limit="
+            f"{self.same_level_center_height_tolerance:.3f}"
         )
