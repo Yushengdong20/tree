@@ -4,7 +4,7 @@
 
 单轮流程拆成五个子树：
 
-1. `subtree/01_select_and_approach.json`：YOLO选箱、粗靠近、FoundationPose精靠近并刷新抓取数据。
+1. `subtree/01_select_and_approach.json`：参考 `config/tree/box/subtree/move_box_yolo_fp_approach_no_enter_cn.json` 展开 YOLO/FP 高效靠近流程，并加入动态选箱、预选 map 目标、导航跳过阈值和最终抓取数据刷新；参考子树本身不改动。
 2. `subtree/02_auto_grasp.json`：唯一一次 Enter 确认，随后按黑板策略执行左拉、右拉或双爪直接抓取。
 3. `subtree/03_transport_to_place.json`：导航到放置点，接近目标后同步调整腰部高度。
 4. `subtree/04_place_box.json`：顺序下降、放置并释放箱体。
