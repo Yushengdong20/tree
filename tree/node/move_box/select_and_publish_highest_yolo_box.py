@@ -11,6 +11,7 @@ from geometry_msgs.msg import PoseArray, PoseStamped
 from py_trees.common import Status
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME
+from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
 
 from ..base import TimedMockAction
 
@@ -87,6 +88,16 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             )
         self.min_map_height = self._optional_float(params.get("min_map_height", ""))
         self.max_planar_distance = self._optional_float(params.get("max_planar_distance", ""))
+        # 可选的map平面抓箱区域。配置后，区域外的YOLO目标不会参与高度筛选、
+        # 去重、抓取策略判断或后续导航。
+        self.valid_box_map_polygon = parse_map_polygon(
+            params.get("valid_box_map_polygon", [])
+        )
+        self.valid_box_polygon_required = self._to_bool(
+            params.get("valid_box_polygon_required", False)
+        )
+        if self.valid_box_polygon_required and not self.valid_box_map_polygon:
+            raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
         self.no_target_log_interval_sec = float(params.get("no_target_log_interval_sec", 1.0))
         self.latest_msg = None
         self.lock = threading.Lock()
@@ -141,11 +152,18 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         # - distance_frame（通常为 base_link）：用于计算机器人视角的远近和左右。
         # 不能直接用 map x/y 判断左右，因为机器人转向后 map 轴不再等于机器人左右轴。
         candidates = []
+        area_filtered_count = 0
         for index, pose in enumerate(pose_array.poses):
             map_xyz = self._matrix_dot_point(map_from_source, pose.position)
             distance_xyz = self._matrix_dot_point(distance_from_source, pose.position)
             planar_distance = math.hypot(distance_xyz[0], distance_xyz[1])
             # 可选的任务区域过滤：高度过低或离机器人过远的目标不参与后续排序。
+            if not is_map_position_in_polygon(
+                {"x": map_xyz[0], "y": map_xyz[1]},
+                self.valid_box_map_polygon,
+            ):
+                area_filtered_count += 1
+                continue
             if self.min_map_height is not None and map_xyz[2] < self.min_map_height:
                 continue
             if self.max_planar_distance is not None and planar_distance > self.max_planar_distance:
@@ -158,7 +176,10 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             })
 
         if not candidates:
-            self._log_no_target(f"[{self.config_label}] YOLO目标均未通过高度/距离过滤")
+            self._log_no_target(
+                f"[{self.config_label}] YOLO目标均未通过区域/高度/距离过滤: "
+                f"区域外数量={area_filtered_count}"
+            )
             return Status.RUNNING
 
         # 在高度分层和邻箱判断之前先去重，否则同一箱体的重复点可能被误判为
@@ -240,6 +261,11 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             for candidate in candidates
         )
         self.ros_node.get_logger().info(f"[{self.config_label}] YOLO候选: {candidate_text}")
+        if self.valid_box_map_polygon:
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] map抓箱区域过滤: "
+                f"区域外={area_filtered_count}, 区域内={raw_candidate_count}"
+            )
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已锁定最高层目标箱并发布: "
             f"strategy={self.same_level_selection}, index={selected['index']}, "
@@ -399,6 +425,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"top_tolerance={self.top_height_tolerance:.3f}, "
             f"same_level_selection={self.same_level_selection}, "
             f"duplicate_3d_threshold={self.duplicate_3d_distance_threshold:.3f}, "
+            f"map_region_enabled={bool(self.valid_box_map_polygon)}, "
             f"neighbor_center_range=[{self.neighbor_center_min_distance:.3f}, "
             f"{self.neighbor_center_max_distance:.3f}]"
         )
