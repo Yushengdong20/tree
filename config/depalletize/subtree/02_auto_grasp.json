@@ -14,7 +14,7 @@
         "label": "确认执行最高箱抓取",
         "params": {
           "message": {
-            "value": "FoundationPose 已返回抓取数据。确认 box_center 对应YOLO最高箱，且腰部和双臂连续运动路径安全后，按 Enter 执行右拉、左手补抓和双手抬箱...",
+            "value": "FoundationPose 已在预下腰和底盘停稳后刷新抓取数据。确认 box_center 对应YOLO最高箱，且双臂运动路径安全后，按 Enter 执行选定的抓取策略...",
             "source": "CUSTOM"
           }
         }
@@ -33,54 +33,6 @@
           },
           "box_center_key": {
             "value": "move_box_latest_box_center",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
-        "name": "ComputeMoveBoxTorsoToBoxCenterPose",
-        "label": "根据箱体中心计算抓取腰部目标",
-        "params": {
-          "box_center_key": {
-            "value": "move_box_latest_box_center",
-            "source": "CUSTOM"
-          },
-          "preferred_box_center_key": {
-            "value": "",
-            "source": "CUSTOM"
-          },
-          "target_pose_key": {
-            "value": "move_box_torso_box_center_pose",
-            "source": "CUSTOM"
-          },
-          "knee_origin_z": {
-            "value": "0.1055",
-            "source": "CUSTOM"
-          },
-          "ik_angle_step_deg": {
-            "value": "1.0",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
-        "name": "MoveTorsoPose",
-        "label": "腰部对准箱体抓取高度",
-        "params": {
-          "services_key": {
-            "value": "move_box_services",
-            "source": "CUSTOM"
-          },
-          "pose_key": {
-            "value": "move_box_torso_box_center_pose",
-            "source": "CUSTOM"
-          },
-          "wait_done": {
-            "value": "True",
-            "source": "CUSTOM"
-          },
-          "skip_torso_motion": {
-            "value": "False",
             "source": "CUSTOM"
           }
         }
