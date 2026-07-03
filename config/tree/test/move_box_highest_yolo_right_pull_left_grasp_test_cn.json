@@ -19,7 +19,7 @@
         "label": "筛选并发布YOLO最高层最右箱",
         "params": {
           "yolo_topic": {
-            "value": "/yolo/target_poses",
+            "value": "/yolo/target_boxes3d_string",
             "source": "CUSTOM"
           },
           "output_topic": {

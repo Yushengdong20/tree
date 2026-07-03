@@ -1,7 +1,7 @@
 """YOLO 粗靠近阶段，让头部持续朝向最近箱体目标。
 
 整体链路：
-1. 订阅 `/yolo/target_poses`，拿到 camera/head_frame 下的箱体候选点。
+1. 订阅 `/yolo/target_boxes3d_string` String JSON，拿到 camera/head_frame 下的箱体候选点。
 2. 选取最近目标，把 YOLO 新帧转换成 map/control_frame 下的“锁点”。
 3. 控制周期内把锁点按当前 TF 重投影回 camera/head_frame，计算 yaw/pitch 误差。
 4. 按 gain 与单步限幅发布头部目标，同时发布 RViz Marker 辅助观察。
@@ -13,9 +13,15 @@ import time
 
 import py_trees
 import tf.transformations as tf_trans
-from geometry_msgs.msg import Point, PointStamped, PoseArray
+from geometry_msgs.msg import Point, PointStamped
 from py_trees.common import Status
 from visualization_msgs.msg import Marker
+from kuavo_humanoid_sdk.common.yolo_boxes import (
+    build_pose_from_yolo_box,
+    parse_yolo_boxes_string,
+    yolo_box_center_point,
+    yolo_box_stamp_key,
+)
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
 
@@ -23,7 +29,7 @@ from ..base import TimedMockAction
 
 
 class MoveBoxTrackHeadToYoloBox(TimedMockAction):
-    """持续订阅 YOLO PoseArray，并驱动头部盯住最近目标。
+    """持续订阅 YOLO boxes String，并驱动头部盯住最近目标。
 
     RViz 调试 Marker 与控制链路使用同一个 YOLO 最近目标：
     - 橙色球：当前被选中的最近 YOLO 目标点。
@@ -41,8 +47,8 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         # 共享服务实例由 EnsureMoveBoxServices 创建，里面包含 head_controller/tf_listener。
         self.services_key = ROBOT_SERVICES_KEY
-        # YOLO 输出 PoseArray：通常 header.frame_id=camera，pose.position 为目标点。
-        self.yolo_topic = str(params.get("yolo_topic", "/yolo/target_poses")).strip()
+        # YOLO 输出 String JSON：通常 frame_id=camera，center 为目标点。
+        self.yolo_topic = str(params.get("yolo_topic", "/yolo/target_boxes3d_string")).strip()
         # 多目标选择坐标系：默认先把 YOLO 候选点转到 base_link，再选离底盘最近的箱子。
         # 如果现场需要恢复旧行为，可在 JSON 中填 target_select_frame=camera。
         self.target_select_frame = str(params.get("target_select_frame", BASE_LINK_FRAME)).strip()
@@ -114,10 +120,9 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         # ROS 订阅只缓存最新消息，不在回调线程里做 TF 查询或真机控制。
         self.latest_msg = None
         self.lock = threading.Lock()
-        self.subscriber = self.ros_node.create_message_subscription(
+        self.subscriber = self.ros_node.create_string_subscription(
             self.yolo_topic,
-            PoseArray,
-            self._on_yolo_pose_array,
+            self._on_yolo_boxes_string,
             queue_size=1,
         )
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
@@ -192,10 +197,10 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
             self._reset_head_controller_on_next_tick = False
 
         # 每个周期先尝试消费最新 YOLO：有新帧就更新锁点，没有新帧也继续追旧锁点。
-        pose_array = self._get_latest_pose_array()
-        nearest_pose = self._get_nearest_pose(services.head_controller, pose_array)
+        boxes = self._get_latest_boxes()
+        nearest_pose = self._get_nearest_pose(services.head_controller, boxes)
         if nearest_pose is not None:
-            self._update_latched_target_if_new(services.head_controller, pose_array, nearest_pose)
+            self._update_latched_target_if_new(services.head_controller, boxes, nearest_pose)
 
         if self.control_mode == "latched_map_target":
             # 推荐模式：YOLO 负责低频刷新 map 锁点，头部高频重投影追踪。
@@ -205,8 +210,8 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
             if nearest_pose is None:
                 self._log_throttled("no_target", f"[{self.config_label}] 等待 YOLO 最近目标...")
                 return Status.RUNNING
-            self._last_control_stamp = self._stamp_key(pose_array.header.stamp)
-            source_frame = pose_array.header.frame_id or services.head_controller.base_frame
+            self._last_control_stamp = yolo_box_stamp_key(nearest_pose)
+            source_frame = nearest_pose.get("frame_id") or services.head_controller.base_frame
             target_point_msg = self._build_target_point_msg(nearest_pose, source_frame)
             self._publish_debug_markers(services.head_controller, target_point_msg)
             ok = self._turn_to_target_with_limited_step(
@@ -218,35 +223,34 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
             self._log_throttled("failure", f"[{self.config_label}] 头部朝向 YOLO 最近目标失败")
         return Status.RUNNING
 
-    def _on_yolo_pose_array(self, msg):
-        """只缓存最新 YOLO 消息，避免在 ROS 回调里等待 TF 或控制真机。"""
+    def _on_yolo_boxes_string(self, data):
+        """只缓存最新 YOLO boxes，避免在 ROS 回调里等待 TF 或控制真机。"""
+        boxes = parse_yolo_boxes_string(data)
+        if not boxes:
+            self._log_throttled("no_target", f"[{self.config_label}] 收到空或非法 YOLO boxes String")
+            return
         with self.lock:
-            self.latest_msg = msg
+            self.latest_msg = boxes
 
-    def _get_latest_pose_array(self):
-        """取出订阅回调缓存的最新 YOLO 消息。"""
+    def _get_latest_boxes(self):
+        """取出订阅回调缓存的最新 YOLO box 列表。"""
         with self.lock:
             return self.latest_msg
 
-    @staticmethod
-    def _stamp_key(stamp):
-        """用 YOLO header.stamp 去重，保证同一帧视觉最多触发一次头部控制。"""
-        return (int(stamp.secs), int(stamp.nsecs))
-
-    def _get_nearest_pose(self, head_controller, pose_array):
-        """从 YOLO PoseArray 中选择离 target_select_frame 原点最近的目标。
+    def _get_nearest_pose(self, head_controller, boxes):
+        """从 YOLO box 列表中选择离 target_select_frame 原点最近的目标。
 
         YOLO 通常发布在 camera 下；如果直接按 camera 原点选最近，头部转动会改变
         多个箱子的相对距离。这里默认转到 base_link 后再算距离，更符合“离机器人最近”。
         TF 查询失败时降级为原始 frame 下距离，保证现场不会因为一次 TF 异常卡死。
         """
-        if pose_array is None or len(pose_array.poses) == 0:
+        if boxes is None or len(boxes) == 0:
             return None
 
-        source_frame = pose_array.header.frame_id or head_controller.head_frame
+        source_frame = boxes[0].get("frame_id") or head_controller.head_frame
         nearest_pose = None
         nearest_distance = None
-        for pose in pose_array.poses:
+        for pose in boxes:
             point = self._pose_position_in_select_frame(
                 head_controller,
                 pose,
@@ -260,13 +264,14 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
 
     def _pose_position_in_select_frame(self, head_controller, pose, source_frame):
         """返回候选目标在 target_select_frame 下的位置，用于多目标最近距离筛选。"""
+        center_point = yolo_box_center_point(pose)
         if not self.target_select_frame or self.target_select_frame == source_frame:
-            return pose.position
+            return center_point
 
         point_msg = PointStamped()
         point_msg.header.stamp = self.ros_node.zero_time()
         point_msg.header.frame_id = source_frame
-        point_msg.point = pose.position
+        point_msg.point = center_point
         point = self._transform_point_between_frames(
             head_controller,
             point_msg,
@@ -278,7 +283,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
                 f"[{self.config_label}] YOLO目标从 {source_frame} "
                 f"转到 {self.target_select_frame} 失败，降级按 {source_frame} 距离筛选",
             )
-            return pose.position
+            return center_point
         return point
 
     @staticmethod
@@ -301,24 +306,24 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         point_msg = PointStamped()
         point_msg.header.stamp = self.ros_node.now()
         point_msg.header.frame_id = source_frame
-        point_msg.point = pose.position
+        point_msg.point = yolo_box_center_point(pose)
         return point_msg
 
-    def _update_latched_target_if_new(self, head_controller, pose_array, nearest_pose):
+    def _update_latched_target_if_new(self, head_controller, boxes, nearest_pose):
         """YOLO 新帧到来时，把 camera 下目标点锁定到 control_frame/map 下。
 
         机器人靠近箱子时 base_link 会移动，所以不能把目标锁在 base_link。
         这里默认锁到 map：箱子静止时 map 下目标应保持稳定；之后头部高频控制
         都重新把这个 map 目标投影到当前 camera 下计算误差。
         """
-        current_stamp = self._stamp_key(pose_array.header.stamp)
+        current_stamp = yolo_box_stamp_key(nearest_pose)
         # YOLO 频率低于控制频率；同一视觉帧只允许作为锁点候选处理一次。
         if current_stamp == self._last_latch_candidate_stamp:
             return
         self._last_latch_candidate_stamp = current_stamp
 
         target_to_head = None
-        source_frame = pose_array.header.frame_id or head_controller.base_frame
+        source_frame = nearest_pose.get("frame_id") or head_controller.base_frame
         source_point_msg = self._build_target_point_msg(nearest_pose, source_frame)
         if self.control_frame == MAP_FRAME and source_frame == head_controller.head_frame:
             # 关键路径：camera 点 -> map 点。
@@ -575,7 +580,10 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         这里保留同样的几何解算，但额外把本次增量限制在
         max_delta_yaw_deg / max_delta_pitch_deg 内，避免 YOLO 点跳变时一次追太猛。
         """
-        target_point = head_controller.build_target_point(target_pose, source_frame)
+        target_point = head_controller.build_target_point(
+            build_pose_from_yolo_box(target_pose),
+            source_frame,
+        )
         try:
             # legacy 路径：先把目标转到 head_frame，再复用统一的限幅控制函数。
             head_controller.tf_listener.waitForTransform(

@@ -88,7 +88,7 @@
                 "label": "在等待区域筛选并发布YOLO最高层最左箱",
                 "params": {
                   "yolo_topic": {
-                    "value": "/yolo/target_poses",
+                    "value": "/yolo/target_boxes3d_string",
                     "source": "CUSTOM"
                   },
                   "output_topic": {

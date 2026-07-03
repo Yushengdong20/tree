@@ -102,7 +102,7 @@
                     "label": "头部持续盯住YOLO箱体",
                     "params": {
                       "yolo_topic": {
-                        "value": "/yolo/target_poses",
+                        "value": "/yolo/target_boxes3d_string",
                         "source": "CUSTOM"
                       },
                       "target_select_frame": {

@@ -47,7 +47,7 @@ def build_robot_services(model_type=IK_MODEL_MOVE_BOX) -> RobotServices:
     detector_type = str(rospy.get_param("~box_detector_type", "foundationpose")).lower()
     marker_topic = rospy.get_param("~marker_topic", "/aruco_single/poses")
     box_pose_topic = rospy.get_param("~box_pose_topic", "/foundationpose/pose")
-    yolo_target_poses_topic = rospy.get_param("~yolo_target_poses_topic", "/yolo/target_poses")
+    yolo_target_poses_topic = rospy.get_param("~yolo_target_poses_topic", "/yolo/target_boxes3d_string")
     target_frame = rospy.get_param("~target_frame", BASE_LINK_FRAME)
     if target_frame != BASE_LINK_FRAME:
         rospy.logwarn(

@@ -229,6 +229,19 @@ class BehaviorTreeRunner:
             latch=latch,
         )
 
+    def create_string_subscription(self, topic_name, callback, queue_size=10, latch=False):
+        """创建字符串订阅器。
+
+        与 ros_interface 的命名保持一致；保留 ``create_subscription`` 作为旧调用
+        兼容入口。业务叶子拿到的是 BehaviorTreeRunner，因此需要在这里显式转发。
+        """
+        return self.ros.create_string_subscription(
+            topic_name,
+            callback,
+            queue_size=queue_size,
+            latch=latch,
+        )
+
     def call_trigger_service(self, service_name: str, timeout_sec: float = 5.0):
         """调用 std_srvs/Trigger 服务。"""
         return self.ros.call_trigger_service(service_name, timeout_sec=timeout_sec)

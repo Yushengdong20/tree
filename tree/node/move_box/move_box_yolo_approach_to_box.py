@@ -7,8 +7,8 @@ import uuid
 from datetime import datetime
 
 import py_trees
-from geometry_msgs.msg import PoseStamped
 from py_trees.common import Status
+from kuavo_humanoid_sdk.common.yolo_boxes import serialize_yolo_box
 
 from tree.constants import (
     BASE_LINK_FRAME,
@@ -62,6 +62,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.selected_map_point_key = str(
             params.get("selected_map_point_key", "")
         ).strip()
+        self.selected_box_key = str(params.get("selected_box_key", "")).strip()
         self.box_map_pose_topic = str(
             params.get("box_map_pose_topic", "/move_box/yolo_box_pose_map")
         ).strip()
@@ -113,9 +114,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._memory_file_log_warning_reported = False
         self.box_map_pose_pub = None
         if self.box_map_pose_topic:
-            self.box_map_pose_pub = self.ros_node.create_publisher(
+            self.box_map_pose_pub = self.ros_node.create_string_publisher(
                 self.box_map_pose_topic,
-                PoseStamped,
                 queue_size=1,
                 latch=True,
             )
@@ -134,6 +134,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if self.selected_map_point_key:
             self.blackboard.register_key(
                 key=self.selected_map_point_key,
+                access=py_trees.common.Access.READ,
+            )
+        if self.selected_box_key:
+            self.blackboard.register_key(
+                key=self.selected_box_key,
                 access=py_trees.common.Access.READ,
             )
         if self.use_box_memory:
@@ -206,7 +211,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
             if self._phase == "READ_YOLO":
                 self.ros_node.set_live_runtime(self.config_label, "YOLO_APPROACH", "读取 YOLO 箱体中心")
-                if self.selected_map_point_key:
+                if self.selected_box_key or self.selected_map_point_key:
                     updated = self._load_preselected_map_target()
                 else:
                     services = self._get_services()
@@ -215,7 +220,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 if self._current_box_target is None:
                     raise RuntimeError(f"尚未获得有效 YOLO 箱体中心: updated={updated}")
 
-                self._box_base_position = self._current_box_target.get("base_position")
+                self._box_base_position = self._derive_target_base_position(
+                    self._current_box_target
+                )
                 self._box_global_position = self._current_box_target.get("map_position")
                 self._publish_box_map_pose()
                 box_distance_m = math.hypot(
@@ -250,8 +257,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 self._box_distance_m = box_distance_m
                 self.ros_node.get_logger().info(
                     f"[{self.config_label}] YOLO 粗靠近目标: "
-                    f"箱子base坐标=({self._box_base_position['x']:.3f}, {self._box_base_position['y']:.3f}, "
-                    f"{self._box_base_position['z']:.3f}), "
+                    f"箱子base坐标={self._format_position(self._box_base_position)}, "
                     f"记忆启用={self.use_box_memory}, "
                     f"导航目标=({self._target_pose.x:.3f}, {self._target_pose.y:.3f}, {self._target_pose.yaw:.3f})"
                 )
@@ -352,7 +358,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             self._update_yolo_targets(services)
             self._choose_current_target_from_yolo()
             if self._current_box_target is not None:
-                self._box_base_position = self._current_box_target.get("base_position")
+                self._box_base_position = self._derive_target_base_position(
+                    self._current_box_target
+                )
                 self._box_global_position = self._current_box_target.get("map_position")
                 self._publish_box_map_pose()
         except Exception as exc:
@@ -387,12 +395,13 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._detected_box_targets = []
         filtered_count = 0
         for index, target_pose in enumerate(target_poses):
+            center = target_pose.get("center", [0.0, 0.0, 0.0])
             base_position = {
-                "x": float(target_pose.pose.position.x),
-                "y": float(target_pose.pose.position.y),
-                "z": float(target_pose.pose.position.z),
+                "x": float(center[0]),
+                "y": float(center[1]),
+                "z": float(center[2]),
             }
-            source_frame = getattr(target_pose.header, "frame_id", "") or BASE_LINK_FRAME
+            source_frame = target_pose.get("frame_id") or BASE_LINK_FRAME
             map_position = self._transform_base_position_to_map_position(
                 services,
                 base_position,
@@ -415,8 +424,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
             target = {
                 "id": "",
-                "base_position": base_position,
                 "map_position": map_position,
+                "box": self._build_map_box(target_pose, map_position),
+                "_base_position": base_position,
             }
             overlap_target, overlap_index, overlap_distance = self._find_overlapped_detected_target(
                 target
@@ -465,6 +475,57 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._log_target_list("YOLO有效目标列表", self._detected_box_targets)
         return updated
 
+    def _load_preselected_map_target(self):
+        """按master内部box dict格式读取上游锁定目标，兼容旧map点作为回退。"""
+        selected_box = None
+        if self.selected_box_key and self.blackboard.exists(self.selected_box_key):
+            raw_box = self.blackboard.get(self.selected_box_key)
+            if isinstance(raw_box, dict):
+                center = raw_box.get("center")
+                if isinstance(center, (list, tuple)) and len(center) >= 3:
+                    selected_box = dict(raw_box)
+
+        if selected_box is None:
+            if not self.selected_map_point_key or not self.blackboard.exists(
+                self.selected_map_point_key
+            ):
+                raise RuntimeError(
+                    "blackboard 缺少上游选箱结果: "
+                    f"box_key={self.selected_box_key}, point_key={self.selected_map_point_key}"
+                )
+            point = self.blackboard.get(self.selected_map_point_key)
+            if not isinstance(point, (list, tuple)) or len(point) < 3:
+                raise RuntimeError(
+                    f"上游选箱map点格式错误: key={self.selected_map_point_key}, value={point!r}"
+                )
+            selected_box = {
+                "frame_id": MAP_FRAME,
+                "stamp": self._ros_stamp_to_seconds(self.ros_node.now()),
+                "center": [float(point[0]), float(point[1]), float(point[2])],
+                "quat": [0.0, 0.0, 0.0, 1.0],
+                "size": [0.0, 0.0, 0.0],
+                "score": 0.0,
+                "class_id": -1,
+            }
+
+        center = selected_box["center"]
+        map_position = {
+            "x": float(center[0]),
+            "y": float(center[1]),
+            "z": float(center[2]),
+        }
+        self._current_box_target = {
+            "id": "",
+            "map_position": map_position,
+            "box": self._build_map_box(selected_box, map_position),
+        }
+        self._detected_box_targets = [self._current_box_target]
+        self._current_target_source = (
+            f"blackboard:{self.selected_box_key or self.selected_map_point_key}"
+        )
+        self._log_current_target()
+        return True
+
     def _transform_base_position_to_map_position(self, services, base_position, source_frame):
         """优先按 source -> base_link -> odom/map 将 YOLO 点转换到 map。"""
         if self.use_tf_3d_transform:
@@ -490,6 +551,30 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             base_position,
             self._current_pose,
         )
+
+    @staticmethod
+    def _build_map_box(source_box, map_position):
+        """用 map 坐标重建内部主 box，保证保存和发布都以 map frame 为准。"""
+        box = dict(source_box)
+        box["frame_id"] = MAP_FRAME
+        box["center"] = [
+            float(map_position["x"]),
+            float(map_position["y"]),
+            float(map_position.get("z", 0.0)),
+        ]
+        # 当前粗靠近只可靠转换中心点，朝向不从相机系硬带到 map 系。
+        box["quat"] = [0.0, 0.0, 0.0, 1.0]
+        return box
+
+    @staticmethod
+    def _strip_runtime_target_fields(target):
+        """移除只在当前 tick 内使用的派生字段，避免写入 blackboard/记忆。"""
+        if target is None:
+            return None
+        stripped = dict(target)
+        stripped.pop("_base_position", None)
+        stripped.pop("base_position", None)
+        return stripped
 
     def _choose_current_target_from_yolo(self):
         """选择本轮抓取目标，并把其它 YOLO 目标写入箱子记忆。"""
@@ -518,7 +603,6 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             )
         elif current_target is not None and self._is_target_allowed(current_target):
             self._current_box_target = current_target
-            self._current_box_target.setdefault("base_position", None)
             self._current_target_source = "记忆回退"
         else:
             if current_target is not None:
@@ -531,10 +615,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             self._current_box_target = None
 
         if self._current_box_target is not None:
-            self._refresh_current_base_position()
             self.blackboard.set(
                 self.current_box_target_key,
-                self._current_box_target,
+                self._strip_runtime_target_fields(self._current_box_target),
                 overwrite=True,
             )
             self._log_current_target()
@@ -547,52 +630,26 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             )
         self._refresh_box_memory()
 
-    def _load_preselected_map_target(self):
-        """读取上游已经筛选完成的 map 点，避免粗导航阶段再次选择其它箱子。"""
-        if not self.blackboard.exists(self.selected_map_point_key):
-            raise RuntimeError(
-                f"blackboard 缺少上游选箱结果: key={self.selected_map_point_key}"
-            )
-        point = self.blackboard.get(self.selected_map_point_key)
-        if not isinstance(point, (list, tuple)) or len(point) < 3:
-            raise RuntimeError(
-                f"上游选箱结果格式错误: key={self.selected_map_point_key}, value={point!r}"
-            )
+    def _derive_target_base_position(self, target):
+        """从 map 主数据临时派生当前 base_link 下的位置，不写回目标对象。"""
+        if target is None:
+            return None
+        base_position = target.get("_base_position")
+        if base_position is not None:
+            return dict(base_position)
 
-        map_position = {
-            "x": float(point[0]),
-            "y": float(point[1]),
-            "z": float(point[2]),
-        }
-        base_position = transform_global_point_to_base(
-            self._current_pose,
-            map_position["x"],
-            map_position["y"],
-        )
-        base_position["z"] = map_position["z"]
-        self._current_box_target = {
-            "id": "",
-            "base_position": base_position,
-            "map_position": map_position,
-        }
-        self._detected_box_targets = [self._current_box_target]
-        self._current_target_source = f"blackboard:{self.selected_map_point_key}"
-        self._log_current_target()
-        return True
-
-    def _refresh_current_base_position(self):
-        """根据当前底盘位姿刷新记忆目标在 base_link 下的位置。"""
-        map_position = self._current_box_target.get("map_position")
-        if map_position is None:
-            return
+        map_position = target.get("map_position")
+        if map_position is None or self._current_pose is None:
+            return None
 
         base_position = transform_global_point_to_base(
             self._current_pose,
             float(map_position["x"]),
             float(map_position["y"]),
         )
-        base_position["z"] = float(map_position.get("z", 0.0))
-        self._current_box_target["base_position"] = base_position
+        # 关键步骤：内部目标保存 map frame；没有完整 TF 时不把 map z 伪装成 base z。
+        base_position["z"] = 0.0
+        return base_position
 
     def _read_current_box_target(self):
         """从 blackboard 读取当前任务目标。"""
@@ -636,7 +693,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         nearest_target = None
         nearest_distance = None
         for detected_target in self._detected_box_targets:
-            base_position = detected_target.get("base_position")
+            base_position = self._derive_target_base_position(detected_target)
             if base_position is None:
                 continue
             distance = math.sqrt(
@@ -780,7 +837,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             )
             return
 
-        target = dict(target)
+        target = self._strip_runtime_target_fields(target)
         target["id"] = self._ensure_target_id(None, target)
         for index, memory_target in enumerate(memory):
             distance = self._target_distance(target_position, memory_target.get("map_position"))
@@ -946,10 +1003,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         """格式化箱子目标，便于日志排查。"""
         if target is None:
             return "None"
-        return "id=%s map坐标=%s base坐标=%s" % (
+        return "id=%s map坐标=%s" % (
             target.get("id", ""),
             MoveBoxYoloApproachToBox._format_position(target.get("map_position")),
-            MoveBoxYoloApproachToBox._format_position(target.get("base_position")),
         )
 
     @staticmethod
@@ -980,7 +1036,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             "boxBasePosition": self._box_base_position,
             "boxGlobalPosition": self._box_global_position,
             "boxMemoryEnabled": self.use_box_memory,
-            "currentBoxTarget": self._current_box_target,
+            "currentBoxTarget": self._strip_runtime_target_fields(self._current_box_target),
             "boxDistanceM": box_distance_m,
             "targetDistanceM": self.target_distance_m,
             "targetPose": None
@@ -1018,26 +1074,45 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.blackboard.set(self.navigation_target_key, None, overwrite=True)
 
     def _publish_box_map_pose(self):
-        """发布 map 坐标系下的 YOLO 箱体中心位姿。"""
+        """发布 map 坐标系下的 YOLO 箱体三维框 String。"""
         if self.box_map_pose_pub is None:
             return
 
-        box_pose = PoseStamped()
-        box_pose.header.stamp = self.ros_node.now()
-        box_pose.header.frame_id = MAP_FRAME
-        box_pose.pose.position.x = self._box_global_position["x"]
-        box_pose.pose.position.y = self._box_global_position["y"]
-        # 关键步骤：启用 3D TF 时 z 也是 map 下高度；回退路径中 z 仍是 base_link 高度近似值。
-        box_pose.pose.position.z = self._box_global_position.get("z", self._box_base_position["z"])
-        # YOLO 只提供箱体中心位置，没有可靠朝向，使用单位四元数占位。
-        box_pose.pose.orientation.w = 1.0
-        self.box_map_pose_pub.publish(box_pose)
+        source_box = {}
+        if self._current_box_target is not None:
+            source_box = dict(self._current_box_target.get("box") or {})
+
+        # 关键步骤：FP 初始化需要 map 下中心点，同时继续沿用 YOLO 的尺寸、分数和类别。
+        box = dict(source_box)
+        box["frame_id"] = MAP_FRAME
+        box["stamp"] = self._ros_stamp_to_seconds(self.ros_node.now())
+        box["center"] = [
+            float(self._box_global_position["x"]),
+            float(self._box_global_position["y"]),
+            float(
+                self._box_global_position.get(
+                    "z",
+                    (source_box.get("center") or [0.0, 0.0, 0.0])[2],
+                )
+            ),
+        ]
+        # 当前粗靠近链路只做中心点 map 转换，朝向没有完整 map 变换时用单位四元数占位。
+        box["quat"] = [0.0, 0.0, 0.0, 1.0]
+        payload = serialize_yolo_box(box, frame_id=MAP_FRAME, stamp=box["stamp"])
+        self.box_map_pose_pub.publish(payload)
         self.ros_node.get_logger().info(
-            f"[{self.config_label}] 已发布 map 下 YOLO 箱体位姿: "
+            f"[{self.config_label}] 已发布 map 下 YOLO 箱体 String: "
             f"topic={self.box_map_pose_topic}, "
-            f"position=({box_pose.pose.position.x:.3f}, "
-            f"{box_pose.pose.position.y:.3f}, {box_pose.pose.position.z:.3f})"
+            f"center=({box['center'][0]:.3f}, {box['center'][1]:.3f}, {box['center'][2]:.3f}), "
+            f"size={box.get('size')}, score={box.get('score')}, class_id={box.get('class_id')}"
         )
+
+    @staticmethod
+    def _ros_stamp_to_seconds(stamp):
+        """把 ROS1/ROS2 时间戳转换成浮点秒。"""
+        if hasattr(stamp, "secs"):
+            return float(stamp.secs) + float(stamp.nsecs) * 1e-9
+        return float(stamp.sec) + float(stamp.nanosec) * 1e-9
 
     def describe_start(self):
         return f"[{self.config_label}] MoveBoxYoloApproachToBox start"

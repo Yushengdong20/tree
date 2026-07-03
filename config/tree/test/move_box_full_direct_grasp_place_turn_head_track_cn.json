@@ -74,7 +74,7 @@
                         "label": "单帧YOLO计算箱体map锁点",
                         "params": {
                           "yolo_topic": {
-                            "value": "/yolo/target_poses",
+                            "value": "/yolo/target_boxes3d_string",
                             "source": "CUSTOM"
                           },
                           "target_select_frame": {

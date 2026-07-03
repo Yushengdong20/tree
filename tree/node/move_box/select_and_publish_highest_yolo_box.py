@@ -7,7 +7,11 @@ import time
 import py_trees
 import tf
 import tf.transformations as tf_trans
-from geometry_msgs.msg import PoseArray, PoseStamped
+from kuavo_humanoid_sdk.common.yolo_boxes import (
+    parse_yolo_boxes_string,
+    serialize_yolo_box,
+    yolo_box_center_point,
+)
 from py_trees.common import Status
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME
@@ -38,7 +42,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.yolo_topic = str(params.get("yolo_topic", "/yolo/target_poses")).strip()
+        self.yolo_topic = str(
+            params.get("yolo_topic", "/yolo/target_boxes3d_string")
+        ).strip()
         self.output_topic = str(params.get("output_topic", "/move_box/yolo_box_pose_map")).strip()
         self.map_frame = str(params.get("map_frame", MAP_FRAME)).strip()
         self.distance_frame = str(params.get("distance_frame", BASE_LINK_FRAME)).strip()
@@ -50,6 +56,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         # 防止粗导航阶段再次从原始 YOLO 中选择另一个箱子。
         self.selected_point_key = str(
             params.get("selected_point_key", "move_box_selected_highest_yolo_map_point")
+        ).strip()
+        self.selected_box_key = str(
+            params.get("selected_box_key", "move_box_selected_highest_yolo_box")
         ).strip()
         # 根据目标箱同层左右邻箱占用情况生成抓取策略，供行为树Selector分支。
         self.grasp_strategy_key = str(
@@ -99,17 +108,21 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         if self.valid_box_polygon_required and not self.valid_box_map_polygon:
             raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
         self.no_target_log_interval_sec = float(params.get("no_target_log_interval_sec", 1.0))
-        self.latest_msg = None
+        self.latest_boxes = None
         self.lock = threading.Lock()
         self._last_no_target_log_time = 0.0
         self.tf_listener = tf.TransformListener()
-        self.subscriber = self.ros_node.create_message_subscription(
-            self.yolo_topic, PoseArray, self._on_yolo_pose_array, queue_size=1
+        self.subscriber = self.ros_node.create_string_subscription(
+            self.yolo_topic, self._on_yolo_boxes_string, queue_size=1
         )
-        self.publisher = self.ros_node.create_publisher(
-            self.output_topic, PoseStamped, queue_size=1, latch=True
+        self.publisher = self.ros_node.create_string_publisher(
+            self.output_topic, queue_size=1, latch=True
         )
         self.blackboard.register_key(key=self.selected_point_key, access=py_trees.common.Access.WRITE)
+        if self.selected_box_key:
+            self.blackboard.register_key(
+                key=self.selected_box_key, access=py_trees.common.Access.WRITE
+            )
         if self.grasp_strategy_key:
             self.blackboard.register_key(
                 key=self.grasp_strategy_key,
@@ -130,12 +143,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         if self.should_use_mock_execution():
             return self.update_mock_result()
 
-        pose_array = self._get_latest_pose_array()
-        if pose_array is None or not pose_array.poses:
-            self._log_no_target(f"[{self.config_label}] 等待非空 YOLO PoseArray...")
+        boxes = self._get_latest_boxes()
+        if not boxes:
+            self._log_no_target(
+                f"[{self.config_label}] 等待非空 YOLO boxes String: topic={self.yolo_topic}"
+            )
             return Status.RUNNING
 
-        source_frame = pose_array.header.frame_id or self.source_frame_fallback
+        source_frame = boxes[0].get("frame_id") or self.source_frame_fallback
         # 与头部盯箱链路保持一致，避免直接查询不稳定/不连通的 camera -> map：
         # T_map_camera = T_map_melon_odom * T_base_link_camera。
         map_from_source = self._build_split_map_transform(
@@ -153,9 +168,10 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         # 不能直接用 map x/y 判断左右，因为机器人转向后 map 轴不再等于机器人左右轴。
         candidates = []
         area_filtered_count = 0
-        for index, pose in enumerate(pose_array.poses):
-            map_xyz = self._matrix_dot_point(map_from_source, pose.position)
-            distance_xyz = self._matrix_dot_point(distance_from_source, pose.position)
+        for index, box in enumerate(boxes):
+            center_point = yolo_box_center_point(box)
+            map_xyz = self._matrix_dot_point(map_from_source, center_point)
+            distance_xyz = self._matrix_dot_point(distance_from_source, center_point)
             planar_distance = math.hypot(distance_xyz[0], distance_xyz[1])
             # 可选的任务区域过滤：高度过低或离机器人过远的目标不参与后续排序。
             if not is_map_position_in_polygon(
@@ -173,6 +189,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 "map": map_xyz,
                 "selection_frame": distance_xyz,
                 "distance": planar_distance,
+                "box": box,
             })
 
         if not candidates:
@@ -231,15 +248,22 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
 
         # 阶段4：发布并保存唯一选中的箱子。ROS话题用于跨机器通信，
         # blackboard用于同一行为树内部传递，二者表达的是同一个map目标点。
-        message = PoseStamped()
-        message.header.stamp = self.ros_node.now()
-        message.header.frame_id = self.map_frame
-        message.pose.position.x = selected["map"][0]
-        message.pose.position.y = selected["map"][1]
-        message.pose.position.z = selected["map"][2]
-        message.pose.orientation.w = 1.0
-        self.publisher.publish(message)
+        selected_box = dict(selected["box"])
+        selected_box["frame_id"] = self.map_frame
+        selected_box["stamp"] = self._ros_stamp_to_seconds(self.ros_node.now())
+        selected_box["center"] = list(selected["map"])
+        # 当前这里只可靠转换中心点；不把camera_link朝向伪装成map朝向。
+        selected_box["quat"] = [0.0, 0.0, 0.0, 1.0]
+        self.publisher.publish(
+            serialize_yolo_box(
+                selected_box,
+                frame_id=self.map_frame,
+                stamp=selected_box["stamp"],
+            )
+        )
         self.blackboard.set(self.selected_point_key, list(selected["map"]), overwrite=True)
+        if self.selected_box_key:
+            self.blackboard.set(self.selected_box_key, selected_box, overwrite=True)
         # 阶段5：根据目标箱同层邻箱的占用情况决定抓取方式。是否相邻使用
         # map 平面箱心绝对距离，因此不会因机器人斜对箱堆而产生投影误判。
         grasp_strategy, left_neighbors, right_neighbors = self._decide_grasp_strategy(
@@ -353,13 +377,20 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             strategy = "no_safe_strategy"
         return strategy, left_neighbors, right_neighbors
 
-    def _on_yolo_pose_array(self, msg):
+    def _on_yolo_boxes_string(self, data):
+        """解析并缓存最新YOLO Boxes3D String；TF与选箱仍在行为树tick执行。"""
+        boxes = parse_yolo_boxes_string(data)
+        if not boxes:
+            self._log_no_target(
+                f"[{self.config_label}] 收到空或非法 YOLO boxes String: topic={self.yolo_topic}"
+            )
+            return
         with self.lock:
-            self.latest_msg = msg
+            self.latest_boxes = boxes
 
-    def _get_latest_pose_array(self):
+    def _get_latest_boxes(self):
         with self.lock:
-            return self.latest_msg
+            return self.latest_boxes
 
     def _lookup_transform_matrix(self, target_frame, source_frame):
         if target_frame == source_frame:
@@ -409,6 +440,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
     def _matrix_dot_point(matrix, point):
         transformed = matrix.dot([float(point.x), float(point.y), float(point.z), 1.0])
         return [float(transformed[0]), float(transformed[1]), float(transformed[2])]
+
+    @staticmethod
+    def _ros_stamp_to_seconds(stamp):
+        if hasattr(stamp, "secs"):
+            return float(stamp.secs) + float(stamp.nsecs) * 1e-9
+        return float(stamp.sec) + float(stamp.nanosec) * 1e-9
 
     def _log_no_target(self, message):
         now = time.monotonic()

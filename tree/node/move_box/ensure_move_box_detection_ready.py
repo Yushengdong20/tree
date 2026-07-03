@@ -38,6 +38,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self._reset_result = None
         self._reset_generation = 0
         self._reset_lock = threading.Lock()
+        self._detection_cache_cleared = False
 
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.grasp_pair_key, access=py_trees.common.Access.WRITE)
@@ -57,6 +58,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self._reset_thread = None
         self._reset_result = None
         self._reset_generation += 1
+        self._detection_cache_cleared = False
         if self.restart_before_wait:
             self._phase = "RESTART_BEFORE_WAIT"
         else:
@@ -72,6 +74,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
                 f"[{self.config_label}] robot services missing on blackboard: key={self.services_key}"
             )
             return Status.FAILURE
+        self._clear_detection_cache_once("开始等待视觉检测")
 
         if self._phase in ("WAIT_INITIAL", "WAIT_AFTER_RESTART"):
             return self._update_wait_detection()
@@ -124,9 +127,8 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
             self.services.arm_controller.get_initial_left_ypr(),
             self.services.arm_controller.get_initial_right_ypr(),
         )
-        # getter 会保留上一次成功检测的缓存。只有本次 update 确实消费到新数据，
-        # 才允许将抓取点写入黑板，避免精导航后误用导航前的旧 FoundationPose 位姿。
         if not updated:
+            # 关键步骤：没有本轮新检测时不能读取旧缓存，否则 FP 重启后会误用上一轮目标。
             return False
 
         grasp_pair = self.services.box_detector.get_latest_grasp_pair()
@@ -173,6 +175,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
 
         self._reset_thread = None
         self._reset_result = None
+        self._clear_detection_cache_once("视觉重置成功后", force=True)
         if self._phase == "RESTART_BEFORE_WAIT":
             self._start_wait("WAIT_INITIAL", "初次等待视觉检测")
         else:
@@ -236,3 +239,18 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
                 "ok": bool(ok),
                 "error": str(error),
             }
+
+    def _clear_detection_cache_once(self, reason, force=False):
+        """清空一次检测缓存，确保等待阶段只接受新视觉结果。"""
+        if self._detection_cache_cleared and not force:
+            return
+        if self.services is None or not hasattr(self.services, "box_detector"):
+            return
+        clear_cache = getattr(self.services.box_detector, "clear_latest_detection_cache", None)
+        if clear_cache is None:
+            return
+        clear_cache()
+        self._detection_cache_cleared = True
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已清空 FoundationPose 旧检测缓存: {reason}"
+        )

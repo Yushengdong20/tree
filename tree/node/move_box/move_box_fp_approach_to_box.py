@@ -118,12 +118,23 @@ class MoveBoxFpApproachToBox(TimedMockAction):
                 return Status.RUNNING
 
             if self._phase == "READ_FP":
+                if self._next_poll_at is not None and now < self._next_poll_at:
+                    return Status.RUNNING
+
                 self.ros_node.set_live_runtime(self.config_label, "FP_APPROACH", "读取 FoundationPose 箱体位姿")
                 services = self._get_services()
                 updated = services.box_detector.update_latest_grasp_pose(
                     services.arm_controller.get_initial_left_ypr(),
                     services.arm_controller.get_initial_right_ypr(),
                 )
+                if not updated:
+                    # 关键步骤：没有本轮新检测时继续等待，避免使用视觉重启前的旧箱体中心。
+                    self._next_poll_at = now + self.poll_interval_sec
+                    self.ros_node.get_logger().warning(
+                        f"[{self.config_label}] 尚未收到新的 FoundationPose 箱体位姿，继续等待"
+                    )
+                    return Status.RUNNING
+
                 grasp_pair = services.box_detector.get_latest_grasp_pair()
                 box_axes = services.box_detector.get_latest_box_axes()
                 box_center = services.box_detector.get_latest_box_center()

@@ -54,16 +54,6 @@
         }
       },
       {
-        "name": "WaitForEnter",
-        "label": "确认YOLO最高箱目标",
-        "params": {
-          "message": {
-            "value": "已发布YOLO最高层最右箱。核对候选高度、左右位置和目标位置，确认后按 Enter 重启 FoundationPose...",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
         "name": "SubTree",
         "label": "动态选箱与两级靠近",
         "params": {
