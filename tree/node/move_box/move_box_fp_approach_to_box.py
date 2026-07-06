@@ -1,12 +1,15 @@
 """使用 FoundationPose 箱体中心和前向轴进行近距离精靠近。"""
 
+import math
 import time
 import uuid
 
 import py_trees
+from geometry_msgs.msg import Point
 from py_trees.common import Status
+from visualization_msgs.msg import Marker, MarkerArray
 
-from tree.constants import FINAL_POSE_KEY, FLOW_RESULT_KEY, ROBOT_SERVICES_KEY
+from tree.constants import FINAL_POSE_KEY, FLOW_RESULT_KEY, MAP_FRAME, ROBOT_SERVICES_KEY
 
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
@@ -27,7 +30,7 @@ from tree.runtime.http.move_and_grab_flow import (
     post_navigation_task_status,
     transform_global_point_to_base,
 )
-from tree.utils.geometry import transform_base_point_to_map_with_pose2d
+from tree.utils.geometry import get_odom_pose_transformer, transform_base_point_to_map_with_pose2d
 
 
 class MoveBoxFpApproachToBox(TimedMockAction):
@@ -47,12 +50,36 @@ class MoveBoxFpApproachToBox(TimedMockAction):
             params.get("navigation_timeout_sec", DEFAULT_NAVIGATION_TIMEOUT_SEC)
         )
         self.poll_interval_sec = float(params.get("poll_interval_sec", DEFAULT_POLL_INTERVAL_SEC))
+        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_transformer = get_odom_pose_transformer(
+            self.ros_node,
+            self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame="base_link",
+        )
         self.navigation_target_key = str(
             params.get("navigation_target_key", "move_box_fp_navigation_target")
         ).strip()
         self.arrival_box_center_key = str(
             params.get("arrival_box_center_key", "move_box_fp_arrival_box_center")
         ).strip()
+        self.navigation_visualization_enabled = self._to_bool(
+            params.get("navigation_visualization_enabled", True)
+        )
+        self.navigation_visualization_topic = str(
+            params.get(
+                "navigation_visualization_topic",
+                "/move_box/fp_navigation_markers",
+            )
+        ).strip()
+        self.navigation_visualization_pub = None
+        if self.navigation_visualization_enabled and self.navigation_visualization_topic:
+            self.navigation_visualization_pub = self.ros_node.create_publisher(
+                self.navigation_visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.grasp_pair_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.box_axes_key, access=py_trees.common.Access.WRITE)
@@ -92,6 +119,7 @@ class MoveBoxFpApproachToBox(TimedMockAction):
         self._reset_state()
         self._clear_navigation_target_pose()
         self._clear_arrival_box_center()
+        self._clear_navigation_visualization()
         self._phase = "GET_POSE"
         self._deadline = time.monotonic() + self.navigation_timeout_sec
 
@@ -183,6 +211,7 @@ class MoveBoxFpApproachToBox(TimedMockAction):
                     f"error=(x={self._latest_errors['x']:.3f}, y={self._latest_errors['y']:.3f}, "
                     f"yaw={self._latest_errors['yaw']:.3f})"
                 )
+                self._publish_navigation_visualization()
                 self._phase = "CREATE_NAVIGATION"
                 return Status.RUNNING
 
@@ -347,6 +376,144 @@ class MoveBoxFpApproachToBox(TimedMockAction):
         if not self.navigation_target_key:
             return
         self.blackboard.set(self.navigation_target_key, None, overwrite=True)
+
+    def _publish_navigation_visualization(self):
+        """在map下显示FP箱心、front axis、精导航目标和误差。"""
+        if (
+            self.navigation_visualization_pub is None
+            or self._box_global_position is None
+            or self._target_pose is None
+        ):
+            return
+
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        box_map_z = float(self._box_center["z"])
+        odom_pose = self.odom_transformer.get_current_pose()
+        if odom_pose is not None:
+            # 底盘近似保持水平，map箱高 = map下base高度 + base_link下箱高。
+            box_map_z = float(odom_pose[2]) + float(self._box_center["z"])
+        box_point = self._point_message(
+            self._box_global_position["x"],
+            self._box_global_position["y"],
+            box_map_z,
+        )
+        target_point = self._point_message(
+            self._target_pose.x,
+            self._target_pose.y,
+            0.08,
+        )
+
+        box_marker = self._new_visualization_marker(1, "fp_box_center", Marker.SPHERE)
+        box_marker.pose.position = box_point
+        box_marker.pose.orientation.w = 1.0
+        box_marker.scale.x = box_marker.scale.y = box_marker.scale.z = 0.16
+        self._set_marker_color(box_marker, 0.0, 1.0, 0.25, 1.0)
+        marker_array.markers.append(box_marker)
+
+        relation = self._new_visualization_marker(2, "fp_navigation_relation", Marker.LINE_LIST)
+        relation.scale.x = 0.025
+        relation.points = [box_point, target_point]
+        self._set_marker_color(relation, 0.65, 0.2, 1.0, 0.95)
+        marker_array.markers.append(relation)
+
+        goal_arrow = self._new_visualization_marker(3, "fp_navigation_goal", Marker.ARROW)
+        goal_arrow.pose.position.x = self._target_pose.x
+        goal_arrow.pose.position.y = self._target_pose.y
+        goal_arrow.pose.position.z = 0.08
+        target_yaw_rad = math.radians(self._target_pose.yaw)
+        goal_arrow.pose.orientation.z = math.sin(target_yaw_rad * 0.5)
+        goal_arrow.pose.orientation.w = math.cos(target_yaw_rad * 0.5)
+        goal_arrow.scale.x = 0.65
+        goal_arrow.scale.y = 0.13
+        goal_arrow.scale.z = 0.13
+        self._set_marker_color(goal_arrow, 0.75, 0.15, 1.0, 1.0)
+        marker_array.markers.append(goal_arrow)
+
+        # front_axis来自base_link，仅旋转当前底盘yaw即可映射到map方向。
+        current_yaw_rad = math.radians(self._current_pose.yaw)
+        map_axis_x = (
+            math.cos(current_yaw_rad) * self._front_axis["x"]
+            - math.sin(current_yaw_rad) * self._front_axis["y"]
+        )
+        map_axis_y = (
+            math.sin(current_yaw_rad) * self._front_axis["x"]
+            + math.cos(current_yaw_rad) * self._front_axis["y"]
+        )
+        axis_length = 0.55
+        axis_end = self._point_message(
+            box_point.x + map_axis_x * axis_length,
+            box_point.y + map_axis_y * axis_length,
+            box_point.z + self._front_axis["z"] * axis_length,
+        )
+        front_axis_marker = self._new_visualization_marker(4, "fp_front_axis", Marker.ARROW)
+        front_axis_marker.points = [box_point, axis_end]
+        front_axis_marker.scale.x = 0.035
+        front_axis_marker.scale.y = 0.08
+        front_axis_marker.scale.z = 0.11
+        self._set_marker_color(front_axis_marker, 0.1, 0.55, 1.0, 1.0)
+        marker_array.markers.append(front_axis_marker)
+
+        text = self._new_visualization_marker(5, "fp_navigation_text", Marker.TEXT_VIEW_FACING)
+        text.pose.position.x = self._target_pose.x
+        text.pose.position.y = self._target_pose.y
+        text.pose.position.z = 0.65
+        text.pose.orientation.w = 1.0
+        text.scale.z = 0.11
+        self._set_marker_color(text, 1.0, 1.0, 1.0, 1.0)
+        text.text = (
+            "FP NAV GOAL\n"
+            f"box_map=({box_point.x:.2f}, {box_point.y:.2f}, {box_point.z:.2f})\n"
+            f"goal=({self._target_pose.x:.2f}, {self._target_pose.y:.2f}) "
+            f"yaw={self._target_pose.yaw:.1f}deg\n"
+            f"distance={self.target_distance_m:.2f}m "
+            f"error=({self._latest_errors['x']:.2f}, {self._latest_errors['y']:.2f}, "
+            f"{self._latest_errors['yaw']:.1f}deg)"
+        )
+        marker_array.markers.append(text)
+
+        self.navigation_visualization_pub.publish(marker_array)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已发布FP导航RViz标记: "
+            f"topic={self.navigation_visualization_topic}, "
+            f"box=({box_point.x:.3f}, {box_point.y:.3f}, {box_point.z:.3f}), "
+            f"goal=({self._target_pose.x:.3f}, {self._target_pose.y:.3f}, "
+            f"{self._target_pose.yaw:.3f})"
+        )
+
+    def _clear_navigation_visualization(self):
+        if self.navigation_visualization_pub is None:
+            return
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.action = Marker.DELETEALL
+        marker_array.markers.append(marker)
+        self.navigation_visualization_pub.publish(marker_array)
+
+    def _new_visualization_marker(self, marker_id, namespace, marker_type):
+        marker = Marker()
+        marker.header.frame_id = MAP_FRAME
+        marker.header.stamp = self.ros_node.now()
+        marker.ns = namespace
+        marker.id = marker_id
+        marker.type = marker_type
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        return marker
+
+    @staticmethod
+    def _set_marker_color(marker, red, green, blue, alpha):
+        marker.color.r = red
+        marker.color.g = green
+        marker.color.b = blue
+        marker.color.a = alpha
+
+    @staticmethod
+    def _point_message(x, y, z):
+        return Point(x=float(x), y=float(y), z=float(z))
 
     def describe_start(self):
         return f"[{self.config_label}] MoveBoxFpApproachToBox start"

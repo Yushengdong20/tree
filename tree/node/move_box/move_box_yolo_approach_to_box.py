@@ -7,8 +7,10 @@ import uuid
 from datetime import datetime
 
 import py_trees
+from geometry_msgs.msg import Point
 from py_trees.common import Status
 from kuavo_humanoid_sdk.common.yolo_boxes import serialize_yolo_box
+from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import (
     BASE_LINK_FRAME,
@@ -104,6 +106,15 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if self.valid_box_polygon_required and not self.valid_box_map_polygon:
             raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
         self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
+        self.navigation_visualization_enabled = self._to_bool(
+            params.get("navigation_visualization_enabled", True)
+        )
+        self.navigation_visualization_topic = str(
+            params.get(
+                "navigation_visualization_topic",
+                "/move_box/yolo_navigation_markers",
+            )
+        ).strip()
         self.enable_memory_file_log = self._to_bool(
             params.get("enable_memory_file_log", True)
         )
@@ -116,6 +127,14 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if self.box_map_pose_topic:
             self.box_map_pose_pub = self.ros_node.create_string_publisher(
                 self.box_map_pose_topic,
+                queue_size=1,
+                latch=True,
+            )
+        self.navigation_visualization_pub = None
+        if self.navigation_visualization_enabled and self.navigation_visualization_topic:
+            self.navigation_visualization_pub = self.ros_node.create_publisher(
+                self.navigation_visualization_topic,
+                MarkerArray,
                 queue_size=1,
                 latch=True,
             )
@@ -185,6 +204,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         super().initialise()
         self._reset_state()
         self._clear_navigation_target_pose()
+        self._clear_navigation_visualization()
         self._phase = "GET_POSE"
         self._deadline = time.monotonic() + self.navigation_timeout_sec
 
@@ -239,6 +259,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                         self._current_pose.y,
                         self._current_pose.yaw,
                     )
+                    self._publish_navigation_visualization(
+                        self._current_pose.x,
+                        self._current_pose.y,
+                        self._current_pose.yaw,
+                        skipped=True,
+                    )
                     self._store_result(need_navigation=False, box_distance_m=box_distance_m)
                     self.blackboard.final_pose = {
                         "x": self._current_pose.x,
@@ -260,6 +286,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     f"箱子base坐标={self._format_position(self._box_base_position)}, "
                     f"记忆启用={self.use_box_memory}, "
                     f"导航目标=({self._target_pose.x:.3f}, {self._target_pose.y:.3f}, {self._target_pose.yaw:.3f})"
+                )
+                self._publish_navigation_visualization(
+                    self._target_pose.x,
+                    self._target_pose.y,
+                    self._target_pose.yaw,
+                    skipped=False,
                 )
                 self._phase = "CREATE_NAVIGATION"
                 return Status.RUNNING
@@ -1106,6 +1138,106 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             f"center=({box['center'][0]:.3f}, {box['center'][1]:.3f}, {box['center'][2]:.3f}), "
             f"size={box.get('size')}, score={box.get('score')}, class_id={box.get('class_id')}"
         )
+
+    def _publish_navigation_visualization(self, target_x, target_y, target_yaw, skipped):
+        """在map下显示用于导航的箱子、目标站位、连线和最终朝向。"""
+        if self.navigation_visualization_pub is None or self._box_global_position is None:
+            return
+
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        box_point = Point(
+            x=float(self._box_global_position["x"]),
+            y=float(self._box_global_position["y"]),
+            z=float(self._box_global_position.get("z", 0.0)),
+        )
+        target_point = Point(x=float(target_x), y=float(target_y), z=0.05)
+
+        box_marker = self._new_navigation_marker(1, "yolo_navigation_box", Marker.SPHERE)
+        box_marker.pose.position = box_point
+        box_marker.pose.orientation.w = 1.0
+        box_marker.scale.x = box_marker.scale.y = box_marker.scale.z = 0.14
+        self._set_navigation_marker_color(box_marker, 1.0, 0.2, 0.1, 1.0)
+        marker_array.markers.append(box_marker)
+
+        connection = self._new_navigation_marker(2, "yolo_navigation_relation", Marker.LINE_LIST)
+        connection.scale.x = 0.025
+        connection.points = [box_point, target_point]
+        self._set_navigation_marker_color(connection, 1.0, 0.65, 0.0, 0.95)
+        marker_array.markers.append(connection)
+
+        arrow = self._new_navigation_marker(3, "yolo_navigation_goal", Marker.ARROW)
+        arrow.pose.position.x = float(target_x)
+        arrow.pose.position.y = float(target_y)
+        arrow.pose.position.z = 0.08
+        yaw_rad = math.radians(float(target_yaw))
+        arrow.pose.orientation.z = math.sin(yaw_rad * 0.5)
+        arrow.pose.orientation.w = math.cos(yaw_rad * 0.5)
+        arrow.scale.x = 0.65
+        arrow.scale.y = 0.13
+        arrow.scale.z = 0.13
+        self._set_navigation_marker_color(arrow, 0.1, 1.0, 0.2, 1.0)
+        marker_array.markers.append(arrow)
+
+        source_box = (
+            self._current_box_target.get("box", {})
+            if isinstance(self._current_box_target, dict)
+            else {}
+        )
+        text = self._new_navigation_marker(4, "yolo_navigation_text", Marker.TEXT_VIEW_FACING)
+        text.pose.position.x = float(target_x)
+        text.pose.position.y = float(target_y)
+        text.pose.position.z = 0.55
+        text.pose.orientation.w = 1.0
+        text.scale.z = 0.11
+        self._set_navigation_marker_color(text, 1.0, 1.0, 1.0, 1.0)
+        text.text = (
+            f"YOLO NAV {'SKIPPED' if skipped else 'GOAL'}\n"
+            f"source={self._current_target_source}\n"
+            f"box_map=({box_point.x:.2f}, {box_point.y:.2f}, {box_point.z:.2f})\n"
+            f"class={source_box.get('class_id', '?')} score={source_box.get('score', 0.0):.2f}\n"
+            f"goal=({target_x:.2f}, {target_y:.2f}) yaw={target_yaw:.1f}deg"
+        )
+        marker_array.markers.append(text)
+
+        self.navigation_visualization_pub.publish(marker_array)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已发布YOLO导航RViz标记: "
+            f"topic={self.navigation_visualization_topic}, "
+            f"source={self._current_target_source}, "
+            f"box=({box_point.x:.3f}, {box_point.y:.3f}, {box_point.z:.3f}), "
+            f"goal=({target_x:.3f}, {target_y:.3f}, {target_yaw:.3f})"
+        )
+
+    def _clear_navigation_visualization(self):
+        if self.navigation_visualization_pub is None:
+            return
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.action = Marker.DELETEALL
+        marker_array.markers.append(marker)
+        self.navigation_visualization_pub.publish(marker_array)
+
+    def _new_navigation_marker(self, marker_id, namespace, marker_type):
+        marker = Marker()
+        marker.header.frame_id = MAP_FRAME
+        marker.header.stamp = self.ros_node.now()
+        marker.ns = namespace
+        marker.id = marker_id
+        marker.type = marker_type
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        return marker
+
+    @staticmethod
+    def _set_navigation_marker_color(marker, red, green, blue, alpha):
+        marker.color.r = red
+        marker.color.g = green
+        marker.color.b = blue
+        marker.color.a = alpha
 
     @staticmethod
     def _ros_stamp_to_seconds(stamp):

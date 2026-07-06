@@ -10,6 +10,16 @@
     },
     "childs": [
       {
+        "name": "Parallel",
+        "label": "YOLO粗导航过程中近距离选箱并预热FoundationPose",
+        "params": {
+          "policy": {
+            "value": "SuccessOnOne",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
         "name": "MoveBoxYoloApproachToBox",
         "label": "等待区域读取一帧YOLO最近箱并粗靠近到1.2米",
         "params": {
@@ -29,6 +39,14 @@
             "value": "",
             "source": "CUSTOM"
           },
+          "navigation_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_topic": {
+            "value": "/move_box/yolo_navigation_markers",
+            "source": "CUSTOM"
+          },
           "navigation_timeout_sec": {
             "value": "600",
             "source": "CUSTOM"
@@ -38,7 +56,7 @@
             "source": "CUSTOM"
           },
           "keep_running_after_success": {
-            "value": "False",
+            "value": "True",
             "source": "CUSTOM"
           },
           "use_tf_3d_transform": {
@@ -64,6 +82,42 @@
         }
       },
       {
+        "name": "Sequence",
+        "label": "接近YOLO目标后动态选箱并启动FoundationPose",
+        "params": {
+          "memory": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "WaitUntilNearNavigationGoal",
+            "label": "监听接近YOLO粗导航目标",
+            "params": {
+              "odom_topic": {
+                "value": "melon_odom",
+                "source": "CUSTOM"
+              },
+              "target_key": {
+                "value": "move_box_initial_yolo_navigation_target",
+                "source": "CUSTOM"
+              },
+              "distance_threshold": {
+                "value": "1.5",
+                "source": "CUSTOM"
+              },
+              "use_yaw_threshold": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "yaw_threshold_deg": {
+                "value": "15.0",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
         "name": "SelectAndPublishHighestYoloBox",
         "label": "筛选并发布YOLO最高层最近箱及抓取策略",
         "params": {
@@ -208,6 +262,10 @@
           "restart_on_timeout": {"value": "True", "source": "CUSTOM"},
           "detection_reset_timeout_sec": {"value": "5.0", "source": "CUSTOM"}
         }
+          }
+        ]
+      }
+        ]
       },
       {
         "name": "Parallel",
@@ -221,9 +279,11 @@
             "label": "FoundationPose计算最终抓取站位并精靠近",
             "params": {
               "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
-              "target_distance_m": {"value": "1.0", "source": "CUSTOM"},
+              "target_distance_m": {"value": "0.9", "source": "CUSTOM"},
               "navigation_target_key": {"value": "move_box_fp_navigation_target", "source": "CUSTOM"},
               "arrival_box_center_key": {"value": "move_box_fp_arrival_box_center", "source": "CUSTOM"},
+              "navigation_visualization_enabled": {"value": "True", "source": "CUSTOM"},
+              "navigation_visualization_topic": {"value": "/move_box/fp_navigation_markers", "source": "CUSTOM"},
               "navigation_timeout_sec": {"value": "600", "source": "CUSTOM"},
               "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"}
             }
