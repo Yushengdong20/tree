@@ -69,14 +69,14 @@
           },
           {
             "name": "MoveTorsoPose",
-            "label": "腰部从1.1米降低到0.9米",
+            "label": "腰部回到1.1m初始化",
             "params": {
               "services_key": {
                 "value": "move_box_services",
                 "source": "CUSTOM"
               },
               "pose": {
-                "value": "[0.0, 0.0, 0.9, 0.0, 0.0, 0.0]",
+                "value": "[0.0, 0.0, 1.1, 0.0, 0.0, 0.0]",
                 "source": "CUSTOM"
               },
               "wait_done": {

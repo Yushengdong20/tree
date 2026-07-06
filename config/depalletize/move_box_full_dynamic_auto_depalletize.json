@@ -14,7 +14,7 @@
         "label": "单次初始化抓取所需服务与预备姿态",
         "params": {
           "initial_torso_height": {
-            "value": "0.9",
+            "value": "1.1",
             "source": "CUSTOM"
           },
           "skip_torso_motion": {
