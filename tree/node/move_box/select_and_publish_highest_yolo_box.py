@@ -210,7 +210,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         # - distance_frame（通常为 base_link）：用于计算机器人视角的远近和左右。
         # 不能直接用 map x/y 判断左右，因为机器人转向后 map 轴不再等于机器人左右轴。
         candidates = []
-        area_filtered_count = 0
+        filtered_candidates = []
         for index, box in enumerate(boxes):
             center_point = yolo_box_center_point(box)
             map_xyz = self._matrix_dot_point(map_from_source, center_point)
@@ -218,29 +218,43 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             geometry = self._transform_box_geometry(map_from_source, box, map_xyz)
             planar_distance = math.hypot(distance_xyz[0], distance_xyz[1])
             # 可选的任务区域过滤：高度过低或离机器人过远的目标不参与后续排序。
-            if not is_map_position_in_polygon(
-                {"x": map_xyz[0], "y": map_xyz[1]},
-                self.valid_box_map_polygon,
-            ):
-                area_filtered_count += 1
-                continue
-            if self.min_map_height is not None and map_xyz[2] < self.min_map_height:
-                continue
-            if self.max_planar_distance is not None and planar_distance > self.max_planar_distance:
-                continue
-            candidates.append({
+            candidate = {
                 "index": index,
                 "map": map_xyz,
                 "selection_frame": distance_xyz,
                 "distance": planar_distance,
                 "box": box,
                 "geometry": geometry,
-            })
+            }
+            if not is_map_position_in_polygon(
+                {"x": map_xyz[0], "y": map_xyz[1]},
+                self.valid_box_map_polygon,
+            ):
+                candidate["filter_reason"] = "outside_valid_box_map_polygon"
+                filtered_candidates.append(candidate)
+                continue
+            if self.min_map_height is not None and map_xyz[2] < self.min_map_height:
+                candidate["filter_reason"] = (
+                    f"map_z_below_min({map_xyz[2]:.3f}<{self.min_map_height:.3f})"
+                )
+                filtered_candidates.append(candidate)
+                continue
+            if self.max_planar_distance is not None and planar_distance > self.max_planar_distance:
+                candidate["filter_reason"] = (
+                    f"distance_above_max({planar_distance:.3f}>"
+                    f"{self.max_planar_distance:.3f})"
+                )
+                filtered_candidates.append(candidate)
+                continue
+            candidates.append(candidate)
+
+        self._log_filtered_candidates(filtered_candidates)
 
         if not candidates:
+            self._publish_filtered_box_visualization(filtered_candidates)
             self._log_no_target(
                 f"[{self.config_label}] YOLO目标均未通过区域/高度/距离过滤: "
-                f"区域外数量={area_filtered_count}"
+                f"过滤数量={len(filtered_candidates)}"
             )
             return Status.RUNNING
 
@@ -333,6 +347,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             grasp_strategy,
             left_neighbors,
             right_neighbors,
+            filtered_candidates,
         )
 
         candidate_text = ", ".join(
@@ -346,7 +361,8 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         if self.valid_box_map_polygon:
             self.ros_node.get_logger().info(
                 f"[{self.config_label}] map抓箱区域过滤: "
-                f"区域外={area_filtered_count}, 区域内={raw_candidate_count}"
+                f"区域外={sum(candidate.get('filter_reason') == 'outside_valid_box_map_polygon' for candidate in filtered_candidates)}, "
+                f"区域内={raw_candidate_count}"
             )
         selected_message = (
             f"[{self.config_label}] 已锁定最高层目标箱并发布: "
@@ -371,6 +387,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         grasp_strategy,
         left_neighbors,
         right_neighbors,
+        filtered_candidates=None,
     ):
         """发布所有有效YOLO箱、选中箱和相对关系到RViz。"""
         if self.visualization_publisher is None:
@@ -446,12 +463,72 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 self._set_marker_color(relation, relation_color, 0.9)
                 marker_array.markers.append(relation)
 
+        marker_id = self._append_filtered_markers(
+            marker_array,
+            filtered_candidates or [],
+            marker_id,
+        )
+
         self.visualization_publisher.publish(marker_array)
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已发布RViz箱体关系: "
             f"topic={self.visualization_topic}, boxes={len(candidates)}, "
+            f"filtered={len(filtered_candidates or [])}, "
             f"selected=#{selected_index}, strategy={grasp_strategy}"
         )
+
+    def _publish_filtered_box_visualization(self, filtered_candidates):
+        """没有有效候选时，也将被过滤箱体及原因保留在RViz中。"""
+        if self.visualization_publisher is None:
+            return
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+        self._append_filtered_markers(marker_array, filtered_candidates, 1)
+        self.visualization_publisher.publish(marker_array)
+
+    def _append_filtered_markers(self, marker_array, filtered_candidates, marker_id):
+        """用红色线框和FILTERED文字显示未进入候选集合的YOLO箱体。"""
+        filtered_color = (1.0, 0.08, 0.08)
+        for candidate in filtered_candidates:
+            corners = self._visualization_corners(candidate)
+            outline = self._new_marker(marker_id, "yolo_box_filtered_outline", Marker.LINE_LIST)
+            marker_id += 1
+            outline.scale.x = 0.025
+            self._set_marker_color(outline, filtered_color, 0.8)
+            for start_index, end_index in self._box_edge_indices():
+                outline.points.append(self._point_message(corners[start_index]))
+                outline.points.append(self._point_message(corners[end_index]))
+            marker_array.markers.append(outline)
+
+            text_marker = self._new_marker(
+                marker_id, "yolo_box_filtered_text", Marker.TEXT_VIEW_FACING
+            )
+            marker_id += 1
+            text_marker.pose.position.x = candidate["map"][0]
+            text_marker.pose.position.y = candidate["map"][1]
+            text_marker.pose.position.z = self._candidate_top_height(candidate) + 0.14
+            text_marker.scale.z = 0.10
+            self._set_marker_color(text_marker, filtered_color, 1.0)
+            text_marker.text = (
+                f"#{candidate['index']} FILTERED\n"
+                f"{candidate.get('filter_reason', 'unknown')}\n"
+                f"map=({candidate['map'][0]:.2f}, {candidate['map'][1]:.2f}, "
+                f"{candidate['map'][2]:.2f})"
+            )
+            marker_array.markers.append(text_marker)
+        return marker_id
+
+    def _log_filtered_candidates(self, filtered_candidates):
+        """逐个打印被过滤目标，避免汇总数量掩盖TF或区域配置问题。"""
+        for candidate in filtered_candidates:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] YOLO目标被过滤: index=#{candidate['index']}, "
+                f"map=({candidate['map'][0]:.3f}, {candidate['map'][1]:.3f}, "
+                f"{candidate['map'][2]:.3f}), distance={candidate['distance']:.3f}m, "
+                f"reason={candidate.get('filter_reason', 'unknown')}"
+            )
 
     def _clear_box_visualization(self):
         """新一轮选箱开始时清除RViz中上一轮的箱体，避免残影误导。"""

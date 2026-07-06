@@ -28,7 +28,7 @@
         "label": "计算双夹爪放置下降目标",
         "params": {
           "place_plane_height": {
-            "value": "0.7",
+            "value": "0.74",
             "source": "CUSTOM"
           },
           "box_size_z": {

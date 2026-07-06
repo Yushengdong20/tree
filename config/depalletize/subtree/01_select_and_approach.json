@@ -21,14 +21,14 @@
         "childs": [
           {
         "name": "MoveBoxYoloApproachToBox",
-        "label": "等待区域读取一帧YOLO最近箱并粗靠近到1.2米",
+        "label": "等待区域读取一帧YOLO最近箱并粗靠近到2米",
         "params": {
           "chassis_url": {
             "value": "http://localhost:8081",
             "source": "CUSTOM"
           },
           "target_distance_m": {
-            "value": "1.2",
+            "value": "2.0",
             "source": "CUSTOM"
           },
           "navigation_target_key": {
@@ -279,7 +279,7 @@
             "label": "FoundationPose计算最终抓取站位并精靠近",
             "params": {
               "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
-              "target_distance_m": {"value": "0.9", "source": "CUSTOM"},
+              "target_distance_m": {"value": "1.0", "source": "CUSTOM"},
               "navigation_target_key": {"value": "move_box_fp_navigation_target", "source": "CUSTOM"},
               "arrival_box_center_key": {"value": "move_box_fp_arrival_box_center", "source": "CUSTOM"},
               "navigation_visualization_enabled": {"value": "True", "source": "CUSTOM"},
