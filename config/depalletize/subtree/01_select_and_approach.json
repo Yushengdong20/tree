@@ -28,7 +28,7 @@
             "source": "CUSTOM"
           },
           "target_distance_m": {
-            "value": "2.0",
+            "value": "1.0",
             "source": "CUSTOM"
           },
           "navigation_target_key": {
@@ -104,7 +104,7 @@
                 "source": "CUSTOM"
               },
               "distance_threshold": {
-                "value": "1.5",
+                "value": "1.0",
                 "source": "CUSTOM"
               },
               "use_yaw_threshold": {
@@ -112,7 +112,7 @@
                 "source": "CUSTOM"
               },
               "yaw_threshold_deg": {
-                "value": "15.0",
+                "value": "5.0",
                 "source": "CUSTOM"
               }
             }
