@@ -14,15 +14,15 @@
         "label": "导航到放置点",
         "params": {
           "x": {
-            "value": "2.820933034031259",
+            "value": "1.84",
             "source": "CUSTOM"
           },
           "y": {
-            "value": "3.307197578516518",
+            "value": "4.26",
             "source": "CUSTOM"
           },
           "yaw": {
-            "value": "86.41201143492874",
+            "value": "6.30",
             "source": "CUSTOM"
           },
           "chassis_url": {

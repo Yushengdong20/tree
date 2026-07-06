@@ -260,7 +260,7 @@
           "detect_timeout_sec": {"value": "10.0", "source": "CUSTOM"},
           "restart_before_wait": {"value": "True", "source": "CUSTOM"},
           "restart_on_timeout": {"value": "True", "source": "CUSTOM"},
-          "detection_reset_timeout_sec": {"value": "5.0", "source": "CUSTOM"}
+          "detection_reset_timeout_sec": {"value": "10.0", "source": "CUSTOM"}
         }
           }
         ]
@@ -340,7 +340,7 @@
           "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
           "restart_before_wait": {"value": "False", "source": "CUSTOM"},
           "restart_on_timeout": {"value": "True", "source": "CUSTOM"},
-          "detection_reset_timeout_sec": {"value": "5.0", "source": "CUSTOM"}
+          "detection_reset_timeout_sec": {"value": "10.0", "source": "CUSTOM"}
         }
       }
     ]
