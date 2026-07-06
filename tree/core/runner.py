@@ -15,6 +15,7 @@ from typing import Optional
 import py_trees
 
 from tree.core.manual_input import ManualResultController, RawKeyInputController
+from tree.core.execution_timing import BehaviorTreeExecutionTiming
 from tree.core.runner_config import BehaviorTreeRunnerConfig
 from tree.core.tree_factory import BehaviorTreeFactory
 from tree.visualization.ros_viewer import enable_py_trees_ros_viewer_support
@@ -62,6 +63,10 @@ class BehaviorTreeRunner:
             )
             self.config.enable_py_trees_ros_viewer = viewer_enabled
         self.tree = tree
+        self.execution_timing = BehaviorTreeExecutionTiming(
+            logger=self.get_logger(),
+            enabled=self.config.enable_execution_timing,
+        )
 
         # 运行时辅助组件分别负责快照和终端手动输入，不再堆在入口文件里。
         # snapshot_store: 自定义 Web Viewer 读取的统一快照源
@@ -261,7 +266,9 @@ class BehaviorTreeRunner:
         # 1. tree.tick() 真正推进一次树
         # 2. tick_count + 1
         # 3. snapshot_store 记录这次 tick 之后的状态
+        self.execution_timing.before_tick(self.tree)
         self.tree.tick()
+        self.execution_timing.after_tick(self.tree)
         self.tick_count += 1
         self.snapshot_store.update(
             self.tree,
@@ -275,6 +282,7 @@ class BehaviorTreeRunner:
             py_trees.common.Status.SUCCESS,
             py_trees.common.Status.FAILURE,
         ):
+            self.execution_timing.log_summary()
             # 到达根节点终态后可以选择自动停表，这样树会停在最终状态供观察。
             self.timer.cancel()
             self.snapshot_store.update(

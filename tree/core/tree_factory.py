@@ -82,6 +82,10 @@ class BehaviorTreeFactory:
                 subtree_config["tree"],
                 source_dir=os.path.dirname(subtree_path),
             )
+            # SubTree在运行时会展开为其根节点；保留边界元数据，供耗时统计识别
+            # “整个子树阶段”，而不仅仅看到一个普通Sequence/Parallel。
+            node.is_subtree_root = True
+            node.subtree_file = subtree_path
             # 外层引用可以覆盖展示 label，便于组合测试树里给子树取更清晰的阶段名。
             if node_label != node_name:
                 node.name = node_label

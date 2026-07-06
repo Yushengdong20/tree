@@ -7,12 +7,14 @@ import time
 import py_trees
 import tf
 import tf.transformations as tf_trans
+from geometry_msgs.msg import Point
 from kuavo_humanoid_sdk.common.yolo_boxes import (
     parse_yolo_boxes_string,
     serialize_yolo_box,
     yolo_box_center_point,
 )
 from py_trees.common import Status
+from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
@@ -126,6 +128,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
         self.no_target_log_interval_sec = float(params.get("no_target_log_interval_sec", 1.0))
         self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
+        self.visualization_enabled = self._to_bool(
+            params.get("visualization_enabled", True)
+        )
+        self.visualization_topic = str(
+            params.get("visualization_topic", "/move_box/yolo_box_markers")
+        ).strip()
         self.require_new_frame_after_initialise = self._to_bool(
             params.get("require_new_frame_after_initialise", False)
         )
@@ -141,6 +149,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.publisher = self.ros_node.create_string_publisher(
             self.output_topic, queue_size=1, latch=True
         )
+        self.visualization_publisher = None
+        if self.visualization_enabled and self.visualization_topic:
+            self.visualization_publisher = self.ros_node.create_publisher(
+                self.visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
         self.blackboard.register_key(key=self.selected_point_key, access=py_trees.common.Access.WRITE)
         if self.selected_box_key:
             self.blackboard.register_key(
@@ -161,6 +177,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
     def initialise(self):
         super().initialise()
         self._last_no_target_log_time = 0.0
+        self._clear_box_visualization()
         if self.require_new_frame_after_initialise:
             with self.lock:
                 self._minimum_generation = self._message_generation + 1
@@ -309,6 +326,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 grasp_strategy,
                 overwrite=True,
             )
+        self._publish_box_visualization(
+            candidates,
+            top_candidates,
+            selected,
+            grasp_strategy,
+            left_neighbors,
+            right_neighbors,
+        )
 
         candidate_text = ", ".join(
             "#{} map=({:.3f},{:.3f},{:.3f}) {}_y={:.3f} distance={:.3f}".format(
@@ -337,6 +362,171 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             self._color_text(selected_message, "highlight")
         )
         return Status.SUCCESS
+
+    def _publish_box_visualization(
+        self,
+        candidates,
+        top_candidates,
+        selected,
+        grasp_strategy,
+        left_neighbors,
+        right_neighbors,
+    ):
+        """发布所有有效YOLO箱、选中箱和相对关系到RViz。"""
+        if self.visualization_publisher is None:
+            return
+
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        top_indices = {candidate["index"] for candidate in top_candidates}
+        selected_index = selected["index"]
+        marker_id = 1
+        for candidate in candidates:
+            index = candidate["index"]
+            is_selected = index == selected_index
+            is_top_level = index in top_indices
+            color = self._visualization_color(is_selected, is_top_level)
+            corners = self._visualization_corners(candidate)
+
+            outline = self._new_marker(marker_id, "yolo_box_outline", Marker.LINE_LIST)
+            marker_id += 1
+            outline.scale.x = 0.035 if is_selected else 0.018
+            self._set_marker_color(outline, color, 1.0)
+            for start_index, end_index in self._box_edge_indices():
+                outline.points.append(self._point_message(corners[start_index]))
+                outline.points.append(self._point_message(corners[end_index]))
+            marker_array.markers.append(outline)
+
+            center_marker = self._new_marker(marker_id, "yolo_box_center", Marker.SPHERE)
+            marker_id += 1
+            center_marker.pose.position = self._point_message(candidate["map"])
+            center_marker.pose.orientation.w = 1.0
+            center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = (
+                0.10 if is_selected else 0.065
+            )
+            self._set_marker_color(center_marker, color, 1.0)
+            marker_array.markers.append(center_marker)
+
+            text_marker = self._new_marker(marker_id, "yolo_box_text", Marker.TEXT_VIEW_FACING)
+            marker_id += 1
+            text_marker.pose.position.x = candidate["map"][0]
+            text_marker.pose.position.y = candidate["map"][1]
+            text_marker.pose.position.z = self._candidate_top_height(candidate) + 0.12
+            text_marker.pose.orientation.w = 1.0
+            text_marker.scale.z = 0.11 if is_selected else 0.085
+            self._set_marker_color(text_marker, color, 1.0)
+            level_text = "TOP" if is_top_level else "LOWER"
+            selected_text = f" SELECTED {grasp_strategy}" if is_selected else ""
+            text_marker.text = (
+                f"#{index} {level_text}{selected_text}\n"
+                f"map=({candidate['map'][0]:.2f}, {candidate['map'][1]:.2f}, "
+                f"{candidate['map'][2]:.2f})"
+            )
+            marker_array.markers.append(text_marker)
+
+            if not is_selected:
+                relation = self._new_marker(marker_id, "yolo_box_relation", Marker.LINE_LIST)
+                marker_id += 1
+                relation.scale.x = 0.012
+                relation.points = [
+                    self._point_message(selected["map"]),
+                    self._point_message(candidate["map"]),
+                ]
+                if index in left_neighbors:
+                    relation_color = (1.0, 0.1, 1.0)
+                elif index in right_neighbors:
+                    relation_color = (1.0, 0.35, 0.05)
+                elif is_top_level:
+                    relation_color = (0.1, 1.0, 1.0)
+                else:
+                    relation_color = (0.35, 0.45, 0.65)
+                self._set_marker_color(relation, relation_color, 0.9)
+                marker_array.markers.append(relation)
+
+        self.visualization_publisher.publish(marker_array)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已发布RViz箱体关系: "
+            f"topic={self.visualization_topic}, boxes={len(candidates)}, "
+            f"selected=#{selected_index}, strategy={grasp_strategy}"
+        )
+
+    def _clear_box_visualization(self):
+        """新一轮选箱开始时清除RViz中上一轮的箱体，避免残影误导。"""
+        if self.visualization_publisher is None:
+            return
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.action = Marker.DELETEALL
+        marker_array.markers.append(marker)
+        self.visualization_publisher.publish(marker_array)
+
+    def _new_marker(self, marker_id, namespace, marker_type):
+        marker = Marker()
+        marker.header.frame_id = self.map_frame
+        marker.header.stamp = self.ros_node.now()
+        marker.ns = namespace
+        marker.id = marker_id
+        marker.type = marker_type
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        return marker
+
+    @staticmethod
+    def _visualization_color(is_selected, is_top_level):
+        if is_selected:
+            return 1.0, 0.9, 0.0
+        if is_top_level:
+            return 0.0, 0.85, 1.0
+        return 0.25, 0.45, 0.85
+
+    @staticmethod
+    def _set_marker_color(marker, color, alpha):
+        marker.color.r = color[0]
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+        marker.color.a = alpha
+
+    @staticmethod
+    def _point_message(position):
+        return Point(
+            x=float(position[0]),
+            y=float(position[1]),
+            z=float(position[2]),
+        )
+
+    @staticmethod
+    def _box_edge_indices():
+        # _transform_box_geometry按sx/sy/sz依次枚举，索引每次改变一位即一条边。
+        return (
+            (0, 1), (0, 2), (0, 4),
+            (1, 3), (1, 5),
+            (2, 3), (2, 6),
+            (3, 7),
+            (4, 5), (4, 6),
+            (5, 7),
+            (6, 7),
+        )
+
+    def _visualization_corners(self, candidate):
+        geometry = candidate.get("geometry")
+        if geometry is not None and len(geometry.get("corners", [])) == 8:
+            return geometry["corners"]
+
+        # 几何字段异常时仍画一个中心附近的默认线框，明确展示节点认为目标存在。
+        center = candidate["map"]
+        size = candidate.get("box", {}).get("size", [0.3, 0.3, 0.3])
+        if len(size) != 3 or min(abs(float(value)) for value in size) < 0.01:
+            size = [0.3, 0.3, 0.3]
+        half = [abs(float(value)) * 0.5 for value in size]
+        return [
+            [center[0] + sx * half[0], center[1] + sy * half[1], center[2] + sz * half[2]]
+            for sx in (-1.0, 1.0)
+            for sy in (-1.0, 1.0)
+            for sz in (-1.0, 1.0)
+        ]
 
     def _color_text(self, text, color):
         """给最终选箱与抓取决策日志增加醒目的 ANSI 颜色。"""

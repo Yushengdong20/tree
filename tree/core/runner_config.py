@@ -33,6 +33,7 @@ class BehaviorTreeRunnerConfig:
     waiting_nodes_topic: str
     enable_py_trees_ros_viewer: bool
     py_trees_ros_viewer_snapshot_period: float
+    enable_execution_timing: bool
 
     @staticmethod
     def default_tree_file(ros=None) -> str:
@@ -66,6 +67,7 @@ class BehaviorTreeRunnerConfig:
         waiting_nodes_topic: str = "/pytrees_ros2_runner/waiting_nodes",
         enable_py_trees_ros_viewer: bool = True,
         py_trees_ros_viewer_snapshot_period: float = math.inf,
+        enable_execution_timing: bool = True,
     ) -> "BehaviorTreeRunnerConfig":
         """创建一份既能当默认值、又能当运行配置的配置对象。"""
         return cls(
@@ -81,6 +83,7 @@ class BehaviorTreeRunnerConfig:
             waiting_nodes_topic=waiting_nodes_topic,
             enable_py_trees_ros_viewer=enable_py_trees_ros_viewer,
             py_trees_ros_viewer_snapshot_period=py_trees_ros_viewer_snapshot_period,
+            enable_execution_timing=enable_execution_timing,
         )
 
     @classmethod
@@ -130,6 +133,12 @@ class BehaviorTreeRunnerConfig:
                 ros.get_param(
                     "py_trees_ros_viewer_snapshot_period",
                     defaults.py_trees_ros_viewer_snapshot_period,
+                )
+            ),
+            enable_execution_timing=bool(
+                ros.get_param(
+                    "enable_execution_timing",
+                    defaults.enable_execution_timing,
                 )
             ),
         )

@@ -75,6 +75,14 @@
             "value": "/move_box/yolo_box_pose_map",
             "source": "CUSTOM"
           },
+          "visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "visualization_topic": {
+            "value": "/move_box/yolo_box_markers",
+            "source": "CUSTOM"
+          },
           "map_frame": {
             "value": "map",
             "source": "CUSTOM"
