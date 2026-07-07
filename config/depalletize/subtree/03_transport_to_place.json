@@ -45,7 +45,7 @@
       },
       {
         "name": "Sequence",
-        "label": "接近放置点后调整腰部到放置高度",
+        "label": "导航过程中回腰并在接近放置点后调整到放置高度",
         "params": {
           "memory": {
             "value": "True",
@@ -53,6 +53,24 @@
           }
         },
         "childs": [
+          {
+            "name": "MoveTorsoPose",
+            "label": "导航到放置点过程中腰部回到初始位姿",
+            "params": {
+              "services_key": {
+                "value": "move_box_services",
+                "source": "CUSTOM"
+              },
+              "wait_done": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "skip_torso_motion": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            }
+          },
           {
             "name": "WaitUntilNearNavigationGoal",
             "label": "接近放置点后开始调整腰部",

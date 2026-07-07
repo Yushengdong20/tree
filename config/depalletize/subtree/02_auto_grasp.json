@@ -374,24 +374,6 @@
                 }
               },
               {
-                "name": "MoveTorsoPose",
-                "label": "腰部回到初始位姿",
-                "params": {
-                  "services_key": {
-                    "value": "move_box_services",
-                    "source": "CUSTOM"
-                  },
-                  "wait_done": {
-                    "value": "False",
-                    "source": "CUSTOM"
-                  },
-                  "skip_torso_motion": {
-                    "value": "False",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "ArmsToPose",
                 "label": "保持双手位置并恢复 pitch",
                 "params": {
@@ -752,24 +734,6 @@
                 }
               },
               {
-                "name": "MoveTorsoPose",
-                "label": "腰部回到初始位姿",
-                "params": {
-                  "services_key": {
-                    "value": "move_box_services",
-                    "source": "CUSTOM"
-                  },
-                  "wait_done": {
-                    "value": "False",
-                    "source": "CUSTOM"
-                  },
-                  "skip_torso_motion": {
-                    "value": "False",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
                 "name": "ArmsToPose",
                 "label": "保持双手位置并恢复 pitch",
                 "params": {
@@ -975,24 +939,6 @@
                   },
                   "right_pose_key": {
                     "value": "move_box_restore_pitch_right_pose",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "MoveTorsoPose",
-                "label": "腰部回到初始位姿",
-                "params": {
-                  "services_key": {
-                    "value": "move_box_services",
-                    "source": "CUSTOM"
-                  },
-                  "wait_done": {
-                    "value": "False",
-                    "source": "CUSTOM"
-                  },
-                  "skip_torso_motion": {
-                    "value": "False",
                     "source": "CUSTOM"
                   }
                 }
