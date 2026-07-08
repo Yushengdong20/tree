@@ -275,6 +275,7 @@ class BehaviorTreeRunner:
             tick_count=self.tick_count,
             timer=self.timer,
             live_runtime=self.live_runtime,
+            timing_snapshot=self.execution_timing.get_snapshot(),
         )
 
         root_status = self.tree.root.status
@@ -291,6 +292,7 @@ class BehaviorTreeRunner:
                 timer=self.timer,
                 execution_state="STOPPED",
                 live_runtime=self.live_runtime,
+                timing_snapshot=self.execution_timing.get_snapshot(),
             )
             self.get_logger().info(f"Tree reached terminal status: {root_status.name}")
 

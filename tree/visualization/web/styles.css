@@ -104,7 +104,11 @@ button {
 }
 .node-main { display: flex; flex: 1 1 auto; flex-direction: column; gap: 4px; }
 .node-label { font-weight: 700; }
-.node-type, .node-history { color: var(--muted); font-size: 12px; }
+.node-type, .node-history, .node-timing { color: var(--muted); font-size: 12px; }
+.node-timing {
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  color: #5f5448;
+}
 .node-status { border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; }
 .status-success { background: rgba(27, 127, 91, 0.14); color: var(--success); }
 .status-failure { background: rgba(182, 69, 63, 0.14); color: var(--failure); }

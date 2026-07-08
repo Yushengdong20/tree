@@ -21,6 +21,7 @@ function renderNode(node) {
   const fragment = template.content.firstElementChild.cloneNode(true);
   fragment.querySelector(".node-label").textContent = node.label || node.name;
   fragment.querySelector(".node-type").textContent = node.type || "Node";
+  fragment.querySelector(".node-timing").textContent = formatTiming(node.timing);
 
   const history = [];
   if (node.last_terminal_status && node.status === "INVALID") {
@@ -58,6 +59,21 @@ function renderNode(node) {
     childrenEl.appendChild(renderNode(child));
   });
   return fragment;
+}
+
+function formatTiming(timing) {
+  if (!timing) {
+    return "";
+  }
+  const badge = timing.is_subtree ? "subtree" : (timing.is_leaf ? "leaf" : "node");
+  return `${badge} | last ${formatSeconds(timing.last_elapsed_sec)} | avg ${formatSeconds(timing.avg_elapsed_sec)} | total ${formatSeconds(timing.total_elapsed_sec)} | count ${timing.count}`;
+}
+
+function formatSeconds(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+  return `${value.toFixed(3)}s`;
 }
 
 function renderTree(snapshot) {

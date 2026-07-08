@@ -1,51 +1,17 @@
 {
   "tree": {
-    "name": "Parallel",
-    "label": "导航到放置点并在接近后调整腰部",
+    "name": "Selector",
+    "label": "按抓取策略搬运到放置点",
     "params": {
-      "policy": {
-        "value": "SuccessOnAll",
+      "memory": {
+        "value": "True",
         "source": "CUSTOM"
       }
     },
     "childs": [
       {
-        "name": "HttpNavigateToPose",
-        "label": "导航到放置点",
-        "params": {
-          "x": {
-            "value": "1.84",
-            "source": "CUSTOM"
-          },
-          "y": {
-            "value": "4.26",
-            "source": "CUSTOM"
-          },
-          "yaw": {
-            "value": "6.30",
-            "source": "CUSTOM"
-          },
-          "chassis_url": {
-            "value": "http://localhost:8081",
-            "source": "CUSTOM"
-          },
-          "navigation_timeout_sec": {
-            "value": "600",
-            "source": "CUSTOM"
-          },
-          "poll_interval_sec": {
-            "value": "0.2",
-            "source": "CUSTOM"
-          },
-          "navigation_target_key": {
-            "value": "move_box_place_navigation_target",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
         "name": "Sequence",
-        "label": "导航过程中回腰并在接近放置点后调整到放置高度",
+        "label": "双爪直抓后并行抬箱导航到放置点",
         "params": {
           "memory": {
             "value": "True",
@@ -54,88 +20,542 @@
         },
         "childs": [
           {
-            "name": "MoveTorsoPose",
-            "label": "导航到放置点过程中腰部回到初始位姿",
+            "name": "CheckBlackboardValue",
+            "label": "检查当前为双爪直接抓取",
             "params": {
-              "services_key": {
-                "value": "move_box_services",
+              "key": {
+                "value": "move_box_grasp_strategy",
                 "source": "CUSTOM"
               },
-              "wait_done": {
+              "expected": {
+                "value": "direct",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "Parallel",
+            "label": "直抓后同步抬箱并导航到放置点",
+            "params": {
+              "policy": {
+                "value": "SuccessOnAll",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "Parallel",
+                "label": "导航到放置点并在接近后调整腰部",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到放置点",
+                    "params": {
+                      "x": {
+                        "value": "1.84",
+                        "source": "CUSTOM"
+                      },
+                      "y": {
+                        "value": "4.26",
+                        "source": "CUSTOM"
+                      },
+                      "yaw": {
+                        "value": "6.30",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "move_box_place_navigation_target",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "导航过程中回腰并在接近放置点后调整到放置高度",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "MoveTorsoPose",
+                        "label": "导航到放置点过程中腰部回到初始位姿",
+                        "params": {
+                          "services_key": {
+                            "value": "move_box_services",
+                            "source": "CUSTOM"
+                          },
+                          "wait_done": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          },
+                          "skip_torso_motion": {
+                            "value": "False",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "WaitUntilNearNavigationGoal",
+                        "label": "接近放置点后开始调整腰部",
+                        "params": {
+                          "odom_topic": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "target_key": {
+                            "value": "move_box_place_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "distance_threshold": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                        "label": "计算放置高度对应的腰部目标",
+                        "params": {
+                          "place_plane_height": {
+                            "value": "0.7",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_height_offset": {
+                            "value": "0.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_min_height": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_max_height": {
+                            "value": "1.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_x": {
+                            "value": "0.5",
+                            "source": "CUSTOM"
+                          },
+                          "target_pose_key": {
+                            "value": "move_box_place_torso_pose",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "MoveTorsoPose",
+                        "label": "腰部调整到放置高度",
+                        "params": {
+                          "pose_key": {
+                            "value": "move_box_place_torso_pose",
+                            "source": "CUSTOM"
+                          },
+                          "wait_done": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          },
+                          "skip_torso_motion": {
+                            "value": "False",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "Sequence",
+                "label": "直抓后抬箱到搬运高度并恢复双手姿态",
+                "params": {
+                  "memory": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "ArmsToPose",
+                    "label": "双爪同步上提到搬运高度",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "target_type": {
+                        "value": "claw_point",
+                        "source": "CUSTOM"
+                      },
+                      "pose_frame": {
+                        "value": "base_link",
+                        "source": "CUSTOM"
+                      },
+                      "left_point_key": {
+                        "value": "move_box_direct_left_lift_target",
+                        "source": "CUSTOM"
+                      },
+                      "right_point_key": {
+                        "value": "move_box_direct_right_lift_target",
+                        "source": "CUSTOM"
+                      },
+                      "claw_ypr": {
+                        "value": "[0.0, -60.0, 0.0]",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "ComputeMoveBoxRestorePitchArmPoses",
+                    "label": "计算腰部回位后的双手 pitch 恢复目标",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "pitch": {
+                        "value": "-80.0",
+                        "source": "CUSTOM"
+                      },
+                      "left_pose_key": {
+                        "value": "move_box_restore_pitch_left_pose",
+                        "source": "CUSTOM"
+                      },
+                      "right_pose_key": {
+                        "value": "move_box_restore_pitch_right_pose",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "ArmsToPose",
+                    "label": "保持双手位置并恢复 pitch",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "pose_frame": {
+                        "value": "waist_yaw_link",
+                        "source": "CUSTOM"
+                      },
+                      "left_pose_key": {
+                        "value": "move_box_restore_pitch_left_pose",
+                        "source": "CUSTOM"
+                      },
+                      "right_pose_key": {
+                        "value": "move_box_restore_pitch_right_pose",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Sequence",
+        "label": "非直抓先后退0.5米再抢占导航到放置点",
+        "params": {
+          "memory": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Selector",
+            "label": "检查当前为左右拉抓取",
+            "params": {
+              "memory": {
                 "value": "True",
                 "source": "CUSTOM"
-              },
-              "skip_torso_motion": {
-                "value": "False",
-                "source": "CUSTOM"
               }
-            }
+            },
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "检查当前为左拉抓取",
+                "params": {
+                  "key": {
+                    "value": "move_box_grasp_strategy",
+                    "source": "CUSTOM"
+                  },
+                  "expected": {
+                    "value": "left_pull",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "CheckBlackboardValue",
+                "label": "检查当前为右拉抓取",
+                "params": {
+                  "key": {
+                    "value": "move_box_grasp_strategy",
+                    "source": "CUSTOM"
+                  },
+                  "expected": {
+                    "value": "right_pull",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
           },
           {
-            "name": "WaitUntilNearNavigationGoal",
-            "label": "接近放置点后开始调整腰部",
+            "name": "Parallel",
+            "label": "非直抓后退0.5米并同步抬腰",
             "params": {
-              "odom_topic": {
-                "value": "melon_odom",
-                "source": "CUSTOM"
-              },
-              "target_key": {
-                "value": "move_box_place_navigation_target",
-                "source": "CUSTOM"
-              },
-              "distance_threshold": {
-                "value": "0.6",
+              "policy": {
+                "value": "SuccessOnAll",
                 "source": "CUSTOM"
               }
-            }
-          },
-          {
-            "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
-            "label": "计算放置高度对应的腰部目标",
-            "params": {
-              "place_plane_height": {
-                "value": "0.7",
-                "source": "CUSTOM"
+            },
+            "childs": [
+              {
+                "name": "Sequence",
+                "label": "后退0.5米后切换放置导航",
+                "params": {
+                  "memory": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "ComputeMoveBoxRetreatNavigationTarget",
+                    "label": "计算抓箱后后退1米目标点",
+                    "params": {
+                      "odom_topic": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      },
+                      "target_key": {
+                        "value": "move_box_retreat_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "retreat_distance_m": {
+                        "value": "1.0",
+                        "source": "CUSTOM"
+                      },
+                      "keep_current_yaw": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "Parallel",
+                    "label": "抓箱后后退1米并在0.5米处提前完成",
+                    "params": {
+                      "policy": {
+                        "value": "SuccessOnOne",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "HttpNavigateToPose",
+                        "label": "抓箱后后退1米拉开距离",
+                        "params": {
+                          "target_pose_key": {
+                            "value": "move_box_retreat_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "navigation_target_key": {
+                            "value": "move_box_retreat_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "chassis_url": {
+                            "value": "http://localhost:8081",
+                            "source": "CUSTOM"
+                          },
+                          "navigation_timeout_sec": {
+                            "value": "600",
+                            "source": "CUSTOM"
+                          },
+                          "poll_interval_sec": {
+                            "value": "0.2",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "WaitUntilNearNavigationGoal",
+                        "label": "后退到0.5米安全距离后提前完成",
+                        "params": {
+                          "odom_topic": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "target_key": {
+                            "value": "move_box_retreat_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "distance_threshold": {
+                            "value": "0.5",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "后退0.5米后抢占导航到放置点",
+                    "params": {
+                      "x": {
+                        "value": "1.84",
+                        "source": "CUSTOM"
+                      },
+                      "y": {
+                        "value": "4.26",
+                        "source": "CUSTOM"
+                      },
+                      "yaw": {
+                        "value": "6.30",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "move_box_place_navigation_target",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
               },
-              "place_torso_height_offset": {
-                "value": "0.4",
-                "source": "CUSTOM"
-              },
-              "place_torso_min_height": {
-                "value": "0.6",
-                "source": "CUSTOM"
-              },
-              "place_torso_max_height": {
-                "value": "1.4",
-                "source": "CUSTOM"
-              },
-              "place_torso_x": {
-                "value": "0.5",
-                "source": "CUSTOM"
-              },
-              "target_pose_key": {
-                "value": "move_box_place_torso_pose",
-                "source": "CUSTOM"
+              {
+                "name": "Sequence",
+                "label": "后退过程中抬腰并在接近放置点后调整到放置高度",
+                "params": {
+                  "memory": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "MoveTorsoPose",
+                    "label": "后退过程中腰部回到初始位姿",
+                    "params": {
+                      "services_key": {
+                        "value": "move_box_services",
+                        "source": "CUSTOM"
+                      },
+                      "wait_done": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "skip_torso_motion": {
+                        "value": "False",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "WaitUntilNearNavigationGoal",
+                    "label": "接近放置点后开始调整腰部",
+                    "params": {
+                      "odom_topic": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      },
+                      "target_key": {
+                        "value": "move_box_place_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "distance_threshold": {
+                        "value": "0.6",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                    "label": "计算放置高度对应的腰部目标",
+                    "params": {
+                      "place_plane_height": {
+                        "value": "0.7",
+                        "source": "CUSTOM"
+                      },
+                      "place_torso_height_offset": {
+                        "value": "0.4",
+                        "source": "CUSTOM"
+                      },
+                      "place_torso_min_height": {
+                        "value": "0.6",
+                        "source": "CUSTOM"
+                      },
+                      "place_torso_max_height": {
+                        "value": "1.4",
+                        "source": "CUSTOM"
+                      },
+                      "place_torso_x": {
+                        "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "target_pose_key": {
+                        "value": "move_box_place_torso_pose",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "MoveTorsoPose",
+                    "label": "腰部调整到放置高度",
+                    "params": {
+                      "pose_key": {
+                        "value": "move_box_place_torso_pose",
+                        "source": "CUSTOM"
+                      },
+                      "wait_done": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "skip_torso_motion": {
+                        "value": "False",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
               }
-            }
-          },
-          {
-            "name": "MoveTorsoPose",
-            "label": "腰部调整到放置高度",
-            "params": {
-              "pose_key": {
-                "value": "move_box_place_torso_pose",
-                "source": "CUSTOM"
-              },
-              "wait_done": {
-                "value": "True",
-                "source": "CUSTOM"
-              },
-              "skip_torso_motion": {
-                "value": "False",
-                "source": "CUSTOM"
-              }
-            }
+            ]
           }
         ]
       }

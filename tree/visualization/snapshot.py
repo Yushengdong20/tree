@@ -30,6 +30,7 @@ class BehaviorTreeSnapshotStore:
             "last_tick_interval": None,
             "generated_at": time.time(),
             "live_runtime": None,
+            "timing": {"enabled": False, "nodes": {}},
             "tree": None,
             "nodes": {},
         }
@@ -41,6 +42,7 @@ class BehaviorTreeSnapshotStore:
         timer,
         execution_state: Optional[str] = None,
         live_runtime: Optional[Dict[str, Any]] = None,
+        timing_snapshot: Optional[Dict[str, Any]] = None,
     ):
         """Rebuild both hierarchical and flat tree views after a tick."""
         # 同一份源数据同时维护成树形和扁平结构：
@@ -51,7 +53,13 @@ class BehaviorTreeSnapshotStore:
             last_tick_interval = now - self._last_tick_at
         self._last_tick_at = now
 
-        tree_state = self._build_runtime_tree(tree.root, depth=0, path="root")
+        timing_nodes = (timing_snapshot or {}).get("nodes", {})
+        tree_state = self._build_runtime_tree(
+            tree.root,
+            depth=0,
+            path="root",
+            timing_nodes=timing_nodes,
+        )
         flat_nodes: Dict[str, Dict[str, Any]] = {}
         self._flatten_tree(tree_state, flat_nodes)
 
@@ -65,6 +73,7 @@ class BehaviorTreeSnapshotStore:
                 "last_tick_interval": last_tick_interval,
                 "generated_at": now,
                 "live_runtime": dict(live_runtime) if live_runtime else None,
+                "timing": timing_snapshot or {"enabled": False, "nodes": {}},
                 "tree": tree_state,
                 "nodes": flat_nodes,
             }
@@ -79,12 +88,13 @@ class BehaviorTreeSnapshotStore:
         with self._lock:
             return dict(self._snapshot)
 
-    def _build_runtime_tree(self, node, depth: int, path: str):
+    def _build_runtime_tree(self, node, depth: int, path: str, timing_nodes: Dict[str, Any]):
         """Convert a py_trees node into nested JSON-friendly runtime metadata."""
         # path 兼做“唯一节点 id”和“前端层级路径”。
         status = node.status.name
         label = getattr(node, "json_label", node.name)
         node_type = getattr(node, "node_type_raw", node.__class__.__name__)
+        bt_id = str(node.id)
         previous = self._node_history.get(path, {})
 
         last_active_status = previous.get("last_active_status")
@@ -99,10 +109,18 @@ class BehaviorTreeSnapshotStore:
             for index, child in enumerate(node.children):
                 child_label = getattr(child, "json_label", child.name)
                 child_path = f"{path}/{child_label}[{index}]"
-                children.append(self._build_runtime_tree(child, depth + 1, child_path))
+                children.append(
+                    self._build_runtime_tree(
+                        child,
+                        depth + 1,
+                        child_path,
+                        timing_nodes=timing_nodes,
+                    )
+                )
 
         node_info = {
             "id": path,
+            "bt_id": bt_id,
             "label": label,
             "name": node.name,
             "type": node_type,
@@ -111,6 +129,7 @@ class BehaviorTreeSnapshotStore:
             "timestamp": time.time(),
             "last_active_status": last_active_status,
             "last_terminal_status": last_terminal_status,
+            "timing": timing_nodes.get(bt_id),
             "children": children,
         }
         self._node_history[path] = {
@@ -122,6 +141,7 @@ class BehaviorTreeSnapshotStore:
     def _flatten_tree(self, node_info, output):
         """Mirror the nested tree as an id-indexed map for fast frontend lookup."""
         output[node_info["id"]] = {
+            "bt_id": node_info.get("bt_id"),
             "label": node_info["label"],
             "name": node_info["name"],
             "type": node_info["type"],
@@ -130,6 +150,7 @@ class BehaviorTreeSnapshotStore:
             "timestamp": node_info["timestamp"],
             "last_active_status": node_info["last_active_status"],
             "last_terminal_status": node_info["last_terminal_status"],
+            "timing": node_info.get("timing"),
         }
         for child in node_info["children"]:
             self._flatten_tree(child, output)

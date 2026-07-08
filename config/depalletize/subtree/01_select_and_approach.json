@@ -161,6 +161,22 @@
             "value": "0.10",
             "source": "CUSTOM"
           },
+          "approach_pose_planning_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "approach_pose_key": {
+            "value": "move_box_selected_approach_pose",
+            "source": "CUSTOM"
+          },
+          "approach_distance_m": {
+            "value": "1.2",
+            "source": "CUSTOM"
+          },
+          "approach_corridor_half_width_m": {
+            "value": "0.35",
+            "source": "CUSTOM"
+          },
           "same_level_selection": {
             "value": "nearest",
             "source": "CUSTOM"

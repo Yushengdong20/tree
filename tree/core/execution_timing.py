@@ -21,6 +21,7 @@ class BehaviorTreeExecutionTiming:
         self._statuses_before_tick = {}
         self._active_started_at = {}
         self._records = []
+        self._records_by_node = defaultdict(list)
         self._summary_logged = False
 
     def before_tick(self, tree):
@@ -99,6 +100,28 @@ class BehaviorTreeExecutionTiming:
             )
             self.logger.info(f"[耗时汇总][最慢叶子TOP10] {slowest_text}")
 
+    def get_snapshot(self):
+        """返回前端可消费的节点/子树耗时快照。"""
+        if not self.enabled:
+            return {"enabled": False, "nodes": {}}
+
+        nodes = {}
+        for node_id, records in self._records_by_node.items():
+            if not records:
+                continue
+            total_elapsed = sum(record["elapsed_sec"] for record in records)
+            last_record = records[-1]
+            nodes[node_id] = {
+                "count": len(records),
+                "last_elapsed_sec": last_record["elapsed_sec"],
+                "avg_elapsed_sec": total_elapsed / len(records),
+                "total_elapsed_sec": total_elapsed,
+                "last_status": last_record["status"],
+                "is_subtree": last_record["is_subtree"],
+                "is_leaf": last_record["is_leaf"],
+            }
+        return {"enabled": True, "nodes": nodes}
+
     @staticmethod
     def _node_start_time(node, fallback):
         # TimedMockAction可提供更精确的initialise时刻；组合节点使用tick起点。
@@ -114,6 +137,7 @@ class BehaviorTreeExecutionTiming:
         is_leaf = not bool(getattr(node, "children", []))
         path = self._node_path(node)
         record = {
+            "node_id": str(node.id),
             "label": label,
             "node_type": node_type,
             "status": status.name,
@@ -123,6 +147,7 @@ class BehaviorTreeExecutionTiming:
             "path": path,
         }
         self._records.append(record)
+        self._records_by_node[record["node_id"]].append(record)
 
         category = "子树" if is_subtree else "节点"
         extra = ""
