@@ -83,6 +83,13 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.pallet_map_polygon = parse_map_polygon(
             params.get("pallet_map_polygon", [])
         )
+        # 候选站位即使不落在垛盘内，也需要和垛盘边界保持最小安全间隙，
+        # 否则机器人底盘 footprint 仍可能压到垛盘或在局部规划中不可达。
+        self.approach_pallet_clearance_m = float(
+            params.get("approach_pallet_clearance_m", 0.35)
+        )
+        if self.approach_pallet_clearance_m < 0.0:
+            raise ValueError("approach_pallet_clearance_m cannot be negative")
         # 同层箱之间使用 map 平面的箱心绝对距离判断是否相邻。该距离与机器人
         # 当前朝向无关；下限用于排除同一箱子的重复检测，上限用于排除远处箱子。
         self.neighbor_center_min_distance = float(
@@ -1180,7 +1187,32 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             {"x": point[0], "y": point[1]}, self.pallet_map_polygon
         ):
             return False, "inside_pallet_polygon"
+        if self.pallet_map_polygon:
+            clearance = self._point_to_polygon_boundary_distance(
+                point,
+                [(vertex["x"], vertex["y"]) for vertex in self.pallet_map_polygon],
+            )
+            if clearance < self.approach_pallet_clearance_m:
+                return (
+                    False,
+                    "pallet_clearance_too_small({:.2f}m<{:.2f}m)".format(
+                        clearance,
+                        self.approach_pallet_clearance_m,
+                    ),
+                )
         return True, "geometry_feasible"
+
+    @classmethod
+    def _point_to_polygon_boundary_distance(cls, point, polygon):
+        """返回点到多边形边界的最小平面距离。"""
+        if len(polygon) < 2:
+            return float("inf")
+        edges = list(zip(polygon, polygon[1:] + polygon[:1]))
+        distances = [
+            cls._point_segment_distance(point, start, end)
+            for start, end in edges
+        ]
+        return min(distances) if distances else float("inf")
 
     @staticmethod
     def _normalize_angle_deg(angle):

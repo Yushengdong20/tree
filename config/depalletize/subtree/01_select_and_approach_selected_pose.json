@@ -177,6 +177,10 @@
             "value": "1.2",
             "source": "CUSTOM"
           },
+          "approach_pallet_clearance_m": {
+            "value": "0.35",
+            "source": "CUSTOM"
+          },
           "same_level_selection": {
             "value": "nearest",
             "source": "CUSTOM"
