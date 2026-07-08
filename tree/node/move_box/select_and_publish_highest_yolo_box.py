@@ -75,9 +75,6 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             params.get("approach_pose_key", "move_box_selected_approach_pose")
         ).strip()
         self.approach_distance_m = float(params.get("approach_distance_m", 1.2))
-        self.approach_corridor_half_width_m = float(
-            params.get("approach_corridor_half_width_m", 0.35)
-        )
         self.approach_yaw_cost_weight = float(
             params.get("approach_yaw_cost_weight", 0.01)
         )
@@ -330,36 +327,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             if self._is_same_level(highest_candidate, candidate, max_height)
         ]
 
-        # 阶段3：可选地为最高层所有箱体规划长边两侧站位。当前仓库没有底盘
-        # plan-only接口，因此此处只声明“几何可行”；真实导航规划器可在后续
-        # 读取 approach_pose_key 后补充路径可达性确认。
-        approach_pose = None
-        approach_evaluations = []
-        if self.approach_pose_planning_enabled:
-            map_from_distance = tf_trans.concatenate_matrices(
-                map_from_source,
-                tf_trans.inverse_matrix(distance_from_source),
-            )
-            robot_map_pose = [
-                float(map_from_distance[0, 3]),
-                float(map_from_distance[1, 3]),
-                math.degrees(tf_trans.euler_from_matrix(map_from_distance)[2]),
-            ]
-            selected, approach_pose, approach_evaluations = self._select_reachable_approach(
-                top_candidates,
-                candidates,
-                robot_map_pose,
-            )
-            if selected is None:
-                self._publish_approach_only_visualization(
-                    candidates, top_candidates, approach_evaluations
-                )
-                self._log_no_target(
-                    f"[{self.config_label}] 最高层没有通过垛盘/邻箱通道检查的接近位姿"
-                )
-                return Status.RUNNING
-        # 兼容原2x2流程：未启用新规划时仍按原来的最高层排序选箱。
-        elif self.same_level_selection == "leftmost":
+        # 阶段3：先按既有最高层规则唯一选箱。approach规划只围绕这个目标箱生成
+        # 两个长边外侧站位，不再跨多个箱体重选“更优箱”。
+        if self.same_level_selection == "leftmost":
             # ROS 机器人坐标约定：x 向前、y 向左。先取 y 最大者；若 y
             # 相同，则距离更近者优先，保证排序结果稳定。
             selected = max(
@@ -381,7 +351,34 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         else:
             selected = min(top_candidates, key=lambda candidate: candidate["distance"])
 
-        # 阶段4：发布并保存唯一选中的箱子。ROS话题用于跨机器通信，
+        # 阶段4：若启用approach规划，只针对已选中的目标箱生成两个长边候选站位。
+        # 站位是否有效只看是否落入垛盘禁入区域；不再用其他箱子否决站位。
+        approach_pose = None
+        approach_evaluations = []
+        if self.approach_pose_planning_enabled:
+            map_from_distance = tf_trans.concatenate_matrices(
+                map_from_source,
+                tf_trans.inverse_matrix(distance_from_source),
+            )
+            robot_map_pose = [
+                float(map_from_distance[0, 3]),
+                float(map_from_distance[1, 3]),
+                math.degrees(tf_trans.euler_from_matrix(map_from_distance)[2]),
+            ]
+            approach_pose, approach_evaluations = self._select_approach_for_selected_box(
+                selected,
+                robot_map_pose,
+            )
+            if approach_pose is None:
+                self._publish_approach_only_visualization(
+                    candidates, top_candidates, approach_evaluations
+                )
+                self._log_no_target(
+                    f"[{self.config_label}] 已选中目标箱但其两个接近位姿均落入垛盘禁入区域"
+                )
+                return Status.RUNNING
+
+        # 阶段5：发布并保存唯一选中的箱子。ROS话题用于跨机器通信，
         # blackboard用于同一行为树内部传递，二者表达的是同一个map目标点。
         selected_box = dict(selected["box"])
         selected_box["frame_id"] = self.map_frame
@@ -408,7 +405,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             )
         if self.selected_box_key:
             self.blackboard.set(self.selected_box_key, selected_box, overwrite=True)
-        # 阶段5：根据目标箱同层邻箱的占用情况决定抓取方式。是否相邻使用
+        # 阶段6：根据目标箱同层邻箱的占用情况决定抓取方式。是否相邻使用
         # map 平面箱心绝对距离，因此不会因机器人斜对箱堆而产生投影误判。
         grasp_strategy, left_neighbors, right_neighbors = self._decide_grasp_strategy(
             selected,
@@ -1090,46 +1087,53 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         nearest_y = start[1] + ratio * delta_y
         return math.hypot(point[0] - nearest_x, point[1] - nearest_y)
 
-    def _select_reachable_approach(self, top_candidates, all_candidates, robot_map_pose):
-        """从最高层箱体的长边两侧站位中选择几何代价最低者。"""
+    def _select_approach_for_selected_box(self, selected_candidate, robot_map_pose):
+        """只围绕已选中的目标箱生成两条长边外侧站位，并选代价最低的可行者。"""
         evaluations = []
-        for candidate in top_candidates:
-            geometry = candidate.get("geometry")
-            if geometry is None:
-                self.ros_node.get_logger().warning(
-                    f"[{self.config_label}] box#{candidate['index']} 缺少有效OBB，"
-                    "无法生成长边接近位姿"
-                )
-                continue
-            normal = self._long_edge_approach_normal(geometry)
-            if normal is None:
-                continue
-            for side_sign, side_name in ((1.0, "positive"), (-1.0, "negative")):
-                point_x = candidate["map"][0] + side_sign * normal[0] * self.approach_distance_m
-                point_y = candidate["map"][1] + side_sign * normal[1] * self.approach_distance_m
-                yaw = math.degrees(math.atan2(
-                    candidate["map"][1] - point_y,
-                    candidate["map"][0] - point_x,
-                ))
-                pose = {"x": point_x, "y": point_y, "z": candidate["map"][2], "yaw": yaw}
-                feasible, reason = self._evaluate_approach_geometry(
-                    candidate, pose, all_candidates
-                )
-                travel = math.hypot(point_x - robot_map_pose[0], point_y - robot_map_pose[1])
-                yaw_error = abs(self._normalize_angle_deg(yaw - robot_map_pose[2]))
-                evaluations.append({
-                    "box_index": candidate["index"],
-                    "candidate": candidate,
-                    "side": side_name,
-                    "pose": pose,
-                    "feasible": feasible,
-                    "reason": reason,
-                    "cost": travel + self.approach_yaw_cost_weight * yaw_error,
-                })
+        geometry = selected_candidate.get("geometry")
+        if geometry is None:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] box#{selected_candidate['index']} 缺少有效OBB，"
+                "无法生成长边接近位姿"
+            )
+            return None, evaluations
+        normal = self._long_edge_approach_normal(geometry)
+        if normal is None:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] box#{selected_candidate['index']} 无法识别长边方向，"
+                "无法生成长边接近位姿"
+            )
+            return None, evaluations
+
+        for side_sign, side_name in ((1.0, "positive"), (-1.0, "negative")):
+            point_x = selected_candidate["map"][0] + side_sign * normal[0] * self.approach_distance_m
+            point_y = selected_candidate["map"][1] + side_sign * normal[1] * self.approach_distance_m
+            yaw = math.degrees(math.atan2(
+                selected_candidate["map"][1] - point_y,
+                selected_candidate["map"][0] - point_x,
+            ))
+            pose = {
+                "x": point_x,
+                "y": point_y,
+                "z": selected_candidate["map"][2],
+                "yaw": yaw,
+            }
+            feasible, reason = self._evaluate_approach_geometry(pose)
+            travel = math.hypot(point_x - robot_map_pose[0], point_y - robot_map_pose[1])
+            yaw_error = abs(self._normalize_angle_deg(yaw - robot_map_pose[2]))
+            evaluations.append({
+                "box_index": selected_candidate["index"],
+                "candidate": selected_candidate,
+                "side": side_name,
+                "pose": pose,
+                "feasible": feasible,
+                "reason": reason,
+                "cost": travel + self.approach_yaw_cost_weight * yaw_error,
+            })
 
         feasible = [evaluation for evaluation in evaluations if evaluation["feasible"]]
         if not feasible:
-            return None, None, evaluations
+            return None, evaluations
         selected_evaluation = min(feasible, key=lambda item: item["cost"])
         selected_evaluation["selected"] = True
         pose = dict(selected_evaluation["pose"])
@@ -1139,10 +1143,11 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 选中几何可行接近位姿: box=#{pose['box_index']}, "
             f"side={pose['approach_side']}, pose=({pose['x']:.3f}, {pose['y']:.3f}, "
-            f"{pose['yaw']:.2f}deg), cost={selected_evaluation['cost']:.3f}; "
-            "当前尚未接入底盘plan-only验证"
+            f"{pose['yaw']:.2f}deg), cost={selected_evaluation['cost']:.3f}, "
+            f"travel={math.hypot(pose['x'] - robot_map_pose[0], pose['y'] - robot_map_pose[1]):.3f}, "
+            f"yaw_error={abs(self._normalize_angle_deg(pose['yaw'] - robot_map_pose[2])):.2f}deg"
         )
-        return selected_evaluation["candidate"], pose, evaluations
+        return pose, evaluations
 
     @staticmethod
     def _long_edge_approach_normal(geometry):
@@ -1169,65 +1174,13 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         # 在map水平面直接取长轴的垂线，比依赖另一个可能带倾斜误差的OBB轴更稳定。
         return -long_axis["axis"][1], long_axis["axis"][0]
 
-    def _evaluate_approach_geometry(self, selected, pose, all_candidates):
+    def _evaluate_approach_geometry(self, pose):
         point = (pose["x"], pose["y"])
         if self.pallet_map_polygon and is_map_position_in_polygon(
             {"x": point[0], "y": point[1]}, self.pallet_map_polygon
         ):
             return False, "inside_pallet_polygon"
-
-        segment_start = point
-        segment_end = (selected["map"][0], selected["map"][1])
-        for obstacle in all_candidates:
-            if obstacle["index"] == selected["index"]:
-                continue
-            geometry = obstacle.get("geometry")
-            selected_geometry = selected.get("geometry")
-            # 下层支撑箱不会阻挡最高层的水平接近通道；这里只把与目标箱
-            # 垂直实体区间明显重叠的箱子当作通道障碍物。
-            if geometry is not None and selected_geometry is not None:
-                if self._vertical_overlap_ratio(selected_geometry, geometry) < self.same_level_vertical_overlap_ratio:
-                    continue
-            elif abs(obstacle["map"][2] - selected["map"][2]) > self.same_level_center_height_tolerance:
-                continue
-            if geometry is None:
-                obstacle_distance = self._point_segment_distance(
-                    (obstacle["map"][0], obstacle["map"][1]),
-                    segment_start,
-                    segment_end,
-                )
-            else:
-                obstacle_distance = self._segment_polygon_distance(
-                    segment_start,
-                    segment_end,
-                    geometry["footprint"],
-                )
-            if obstacle_distance < self.approach_corridor_half_width_m:
-                return False, f"corridor_blocked_by_box#{obstacle['index']}({obstacle_distance:.2f}m)"
         return True, "geometry_feasible"
-
-    @classmethod
-    def _segment_polygon_distance(cls, segment_start, segment_end, polygon):
-        if not polygon:
-            return float("inf")
-        if cls._point_in_convex_polygon(segment_start, polygon):
-            return 0.0
-        edges = list(zip(polygon, polygon[1:] + polygon[:1]))
-        if any(cls._segments_intersect(segment_start, segment_end, start, end) for start, end in edges):
-            return 0.0
-        distances = [
-            cls._point_segment_distance(point, segment_start, segment_end)
-            for point in polygon
-        ]
-        distances.extend(
-            cls._point_segment_distance(segment_start, start, end)
-            for start, end in edges
-        )
-        distances.extend(
-            cls._point_segment_distance(segment_end, start, end)
-            for start, end in edges
-        )
-        return min(distances) if distances else float("inf")
 
     @staticmethod
     def _normalize_angle_deg(angle):

@@ -43,8 +43,20 @@
             "value": "http://localhost:8081",
             "source": "CUSTOM"
           },
+          "navigation_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_topic": {
+            "value": "/move_box/http_navigation_init_wait_markers",
+            "source": "CUSTOM"
+          },
           "navigation_timeout_sec": {
             "value": "600",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
             "source": "CUSTOM"
           },
           "poll_interval_sec": {
@@ -78,7 +90,7 @@
                 "label": "动态选箱与两级靠近",
                 "params": {
                   "file": {
-                    "value": "subtree/01_select_and_approach.json",
+                    "value": "subtree/01_select_and_approach_selected_pose.json",
                     "source": "CUSTOM"
                   }
                 }

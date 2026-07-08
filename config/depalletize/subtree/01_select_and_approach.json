@@ -173,10 +173,6 @@
             "value": "1.2",
             "source": "CUSTOM"
           },
-          "approach_corridor_half_width_m": {
-            "value": "0.35",
-            "source": "CUSTOM"
-          },
           "same_level_selection": {
             "value": "nearest",
             "source": "CUSTOM"

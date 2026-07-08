@@ -29,8 +29,20 @@
             "value": "http://localhost:8081",
             "source": "CUSTOM"
           },
+          "navigation_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_topic": {
+            "value": "/move_box/http_navigation_return_wait_markers",
+            "source": "CUSTOM"
+          },
           "navigation_timeout_sec": {
             "value": "600",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
             "source": "CUSTOM"
           },
           "poll_interval_sec": {

@@ -58,7 +58,7 @@
         "label": "动态选箱与两级靠近",
         "params": {
           "file": {
-            "value": "../subtree/01_select_and_approach.json",
+            "value": "../subtree/01_select_and_approach_selected_pose.json",
             "source": "CUSTOM"
           }
         }
