@@ -110,11 +110,7 @@
                 "source": "CUSTOM"
               },
               "use_yaw_threshold": {
-                "value": "True",
-                "source": "CUSTOM"
-              },
-              "yaw_threshold_deg": {
-                "value": "5.0",
+                "value": "False",
                 "source": "CUSTOM"
               }
             }
@@ -286,15 +282,37 @@
         }
       },
       {
-        "name": "HttpNavigateToPose",
-        "label": "导航到选中的抓取策略点",
+        "name": "ComputeMoveBoxOffsetNavigationTarget",
+        "label": "根据抓取策略点生成后方1米预备导航点",
         "params": {
-          "target_pose_key": {
+          "source_pose_key": {
             "value": "move_box_selected_approach_pose",
             "source": "CUSTOM"
           },
+          "target_pose_key": {
+            "value": "move_box_pre_fp_navigation_pose",
+            "source": "CUSTOM"
+          },
+          "offset_distance_m": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "offset_direction": {
+            "value": "backward",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "导航到抓取策略点后方1米预备位",
+        "params": {
+          "target_pose_key": {
+            "value": "move_box_pre_fp_navigation_pose",
+            "source": "CUSTOM"
+          },
           "navigation_target_key": {
-            "value": "move_box_selected_approach_pose_navigation_target",
+            "value": "move_box_pre_fp_navigation_target",
             "source": "CUSTOM"
           },
           "chassis_url": {
@@ -325,7 +343,7 @@
       },
       {
         "name": "SetBlackboardValue",
-        "label": "置位FoundationPose抓取请求",
+        "label": "使用已选YOLO箱置位FoundationPose抓取请求",
         "params": {
           "key": {
             "value": "move_box_grasp_requested",
@@ -339,7 +357,7 @@
       },
       {
         "name": "EnsureMoveBoxDetectionReady",
-        "label": "导航到抓取策略点后重启并确认FoundationPose目标",
+        "label": "导航到预备位后重启并确认FoundationPose目标",
         "params": {
           "grasp_pair_key": {
             "value": "move_box_latest_grasp_pair",
