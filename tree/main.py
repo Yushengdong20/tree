@@ -54,7 +54,7 @@ from tree.ros_interface import create_ros_interface
 # 00：静止验证最高层箱体长边两侧站位、通道过滤和RViz，不执行导航。
 # DEFAULT_TREE_FILE_NAME = "depalletize/test/test_00_plan_box_approaches.json"
 # 01：只验证选箱、YOLO粗靠近、FoundationPose精靠近及数据刷新。
-DEFAULT_TREE_FILE_NAME = "depalletize/test/test_01_select_and_approach.json"
+# DEFAULT_TREE_FILE_NAME = "depalletize/test/test_01_select_and_approach.json"
 # 02：在 01 基础上增加动态策略抓取，结束时机器人持箱。
 # DEFAULT_TREE_FILE_NAME = "depalletize/test/test_02_through_auto_grasp.json"
 # 03：在 02 基础上增加搬运到放置点及接近目标时的腰部调整。
@@ -65,6 +65,8 @@ DEFAULT_TREE_FILE_NAME = "depalletize/test/test_01_select_and_approach.json"
 # DEFAULT_TREE_FILE_NAME = "depalletize/test/test_05_full_cycle.json"
 # 最终四轮循环树：仅在 01～05 全部通过后启用。
 # DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.json"
+# 旧版选箱四轮循环树
+DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize_legacy_approach.json"
 
 
 def parse_main_args(args=None):

@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime
 
 import py_trees
+import tf.transformations as tf_trans
 from geometry_msgs.msg import Point
 from py_trees.common import Status
 from kuavo_humanoid_sdk.common.yolo_boxes import serialize_yolo_box
@@ -115,6 +116,15 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "/move_box/yolo_navigation_markers",
             )
         ).strip()
+        self.box_visualization_enabled = self._to_bool(
+            params.get("box_visualization_enabled", True)
+        )
+        self.box_visualization_topic = str(
+            params.get(
+                "box_visualization_topic",
+                "/move_box/yolo_navigation_box_markers",
+            )
+        ).strip()
         self.enable_memory_file_log = self._to_bool(
             params.get("enable_memory_file_log", True)
         )
@@ -134,6 +144,14 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if self.navigation_visualization_enabled and self.navigation_visualization_topic:
             self.navigation_visualization_pub = self.ros_node.create_publisher(
                 self.navigation_visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
+        self.box_visualization_pub = None
+        if self.box_visualization_enabled and self.box_visualization_topic:
+            self.box_visualization_pub = self.ros_node.create_publisher(
+                self.box_visualization_topic,
                 MarkerArray,
                 queue_size=1,
                 latch=True,
@@ -183,6 +201,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._box_base_position = None
         self._box_global_position = None
         self._detected_box_targets = []
+        self._visualization_box_targets = []
         self._current_box_target = None
         self._current_target_source = "无"
         self._target_pose = None
@@ -205,6 +224,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._reset_state()
         self._clear_navigation_target_pose()
         self._clear_navigation_visualization()
+        self._clear_box_visualization()
         self._phase = "GET_POSE"
         self._deadline = time.monotonic() + self.navigation_timeout_sec
 
@@ -413,6 +433,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             target_pose = services.yolo_detector.get_latest_target_pose()
             target_poses = [] if target_pose is None else [target_pose]
 
+        self._update_visualization_targets(services, updated)
+
         self._log_info(
             "YOLO检测",
             "是否更新=%s 原始数量=%d 区域过滤启用=%s 3D重叠阈值=%.3fm"
@@ -458,6 +480,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "id": "",
                 "map_position": map_position,
                 "box": self._build_map_box(target_pose, map_position),
+                "geometry": self._build_box_geometry(target_pose, source_frame, services),
                 "_base_position": base_position,
             }
             overlap_target, overlap_index, overlap_distance = self._find_overlapped_detected_target(
@@ -504,6 +527,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             ),
             "magenta",
         )
+        self._publish_box_visualization()
         self._log_target_list("YOLO有效目标列表", self._detected_box_targets)
         return updated
 
@@ -555,6 +579,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._current_target_source = (
             f"blackboard:{self.selected_box_key or self.selected_map_point_key}"
         )
+        self._publish_box_visualization()
         self._log_current_target()
         return True
 
@@ -597,6 +622,109 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         # 当前粗靠近只可靠转换中心点，朝向不从相机系硬带到 map 系。
         box["quat"] = [0.0, 0.0, 0.0, 1.0]
         return box
+
+    def _update_visualization_targets(self, services, updated):
+        """仅为RViz维护一份全部YOLO候选，不参与粗导航选目标逻辑。"""
+        if not updated:
+            return
+
+        raw_detection = self._get_latest_raw_yolo_detection(services)
+        if not raw_detection:
+            return
+
+        visualization_targets = []
+        for target_pose in raw_detection:
+            center = target_pose.get("center", [0.0, 0.0, 0.0])
+            if len(center) < 3:
+                continue
+            base_position = {
+                "x": float(center[0]),
+                "y": float(center[1]),
+                "z": float(center[2]),
+            }
+            source_frame = target_pose.get("frame_id") or BASE_LINK_FRAME
+            map_position = self._transform_base_position_to_map_position(
+                services,
+                base_position,
+                source_frame,
+            )
+            visualization_targets.append(
+                {
+                    "id": "",
+                    "map_position": map_position,
+                    "box": self._build_map_box(target_pose, map_position),
+                    "geometry": self._build_box_geometry(target_pose, source_frame, services),
+                    "_base_position": base_position,
+                }
+            )
+        if visualization_targets:
+            self._visualization_box_targets = visualization_targets
+
+    @staticmethod
+    def _get_latest_raw_yolo_detection(services):
+        detector = getattr(services, "yolo_detector", None)
+        if detector is None:
+            return []
+        lock = getattr(detector, "detection_lock", None)
+        if lock is None:
+            return list(getattr(detector, "latest_detection", []) or [])
+        with lock:
+            return list(getattr(detector, "latest_detection", []) or [])
+
+    def _build_box_geometry(self, source_box, source_frame, services):
+        """尽量把 YOLO 原始3D箱子的8个角点转换到 map，供粗靠近阶段可视化。"""
+        if not isinstance(source_box, dict):
+            return None
+
+        center = source_box.get("center")
+        size = source_box.get("size")
+        quat = source_box.get("quat")
+        if (
+            not isinstance(center, (list, tuple))
+            or not isinstance(size, (list, tuple))
+            or not isinstance(quat, (list, tuple))
+            or len(center) < 3
+            or len(size) < 3
+            or len(quat) < 4
+        ):
+            return None
+
+        sx, sy, sz = [abs(float(value)) for value in size[:3]]
+        if min(sx, sy, sz) < 0.01:
+            return None
+
+        try:
+            rotation = tf_trans.quaternion_matrix(
+                [float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3])]
+            )[:3, :3]
+        except Exception:
+            return None
+
+        center_xyz = [float(center[0]), float(center[1]), float(center[2])]
+        half = [sx * 0.5, sy * 0.5, sz * 0.5]
+        corners = []
+        for dx in (-half[0], half[0]):
+            for dy in (-half[1], half[1]):
+                for dz in (-half[2], half[2]):
+                    rotated = rotation.dot([dx, dy, dz])
+                    source_point = {
+                        "x": center_xyz[0] + float(rotated[0]),
+                        "y": center_xyz[1] + float(rotated[1]),
+                        "z": center_xyz[2] + float(rotated[2]),
+                    }
+                    map_point = self._transform_base_position_to_map_position(
+                        services,
+                        source_point,
+                        source_frame,
+                    )
+                    corners.append(
+                        [
+                            float(map_point["x"]),
+                            float(map_point["y"]),
+                            float(map_point.get("z", 0.0)),
+                        ]
+                    )
+        return {"corners": corners}
 
     @staticmethod
     def _strip_runtime_target_fields(target):
@@ -1140,7 +1268,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         )
 
     def _publish_navigation_visualization(self, target_x, target_y, target_yaw, skipped):
-        """在map下显示用于导航的箱子、目标站位、连线和最终朝向。"""
+        """在map下显示用于导航的箱子、候选箱、目标站位、连线和最终朝向。"""
         if self.navigation_visualization_pub is None or self._box_global_position is None:
             return
 
@@ -1149,6 +1277,79 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         clear_marker.action = Marker.DELETEALL
         marker_array.markers.append(clear_marker)
 
+        visualization_targets = (
+            self._visualization_box_targets
+            if self._visualization_box_targets
+            else self._detected_box_targets
+        )
+        selected_id = id(self._current_box_target) if self._current_box_target is not None else None
+        marker_id = 1
+        for index, target in enumerate(visualization_targets):
+            map_position = target.get("map_position") or {}
+            corners = (target.get("geometry") or {}).get("corners") or self._fallback_box_corners(target)
+            is_selected = id(target) == selected_id
+            if (not is_selected) and self._current_box_target is not None:
+                target_map = target.get("map_position")
+                current_map = self._current_box_target.get("map_position")
+                if self._target_distance(target_map, current_map) <= self.min_detected_box_3d_distance_m:
+                    is_selected = True
+            color = (1.0, 0.88, 0.0) if is_selected else (0.62, 0.62, 0.62)
+
+            outline = self._new_navigation_marker(
+                marker_id, "yolo_navigation_box_outline", Marker.LINE_LIST
+            )
+            marker_id += 1
+            outline.scale.x = 0.032 if is_selected else 0.014
+            self._set_navigation_marker_color(
+                outline, color[0], color[1], color[2], 0.95 if is_selected else 0.55
+            )
+            for start_index, end_index in self._box_edge_indices():
+                outline.points.append(self._point_message(corners[start_index]))
+                outline.points.append(self._point_message(corners[end_index]))
+            marker_array.markers.append(outline)
+
+            center_marker = self._new_navigation_marker(
+                marker_id, "yolo_navigation_box_center_all", Marker.SPHERE
+            )
+            marker_id += 1
+            center_marker.pose.position = Point(
+                x=float(map_position.get("x", 0.0)),
+                y=float(map_position.get("y", 0.0)),
+                z=float(map_position.get("z", 0.0)),
+            )
+            center_marker.pose.orientation.w = 1.0
+            center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = (
+                0.10 if is_selected else 0.05
+            )
+            self._set_navigation_marker_color(
+                center_marker, color[0], color[1], color[2], 1.0
+            )
+            marker_array.markers.append(center_marker)
+
+            top_z = max(corner[2] for corner in corners) if corners else float(map_position.get("z", 0.0))
+            text_marker = self._new_navigation_marker(
+                marker_id, "yolo_navigation_box_text_all", Marker.TEXT_VIEW_FACING
+            )
+            marker_id += 1
+            text_marker.pose.position.x = float(map_position.get("x", 0.0))
+            text_marker.pose.position.y = float(map_position.get("y", 0.0))
+            text_marker.pose.position.z = top_z + 0.10
+            text_marker.pose.orientation.w = 1.0
+            text_marker.scale.z = 0.10 if is_selected else 0.075
+            self._set_navigation_marker_color(
+                text_marker, color[0], color[1], color[2], 1.0
+            )
+            source_box = target.get("box") or {}
+            text_marker.text = (
+                f"ROUGH YOLO #{index}{' SELECTED' if is_selected else ''}\n"
+                f"map=({float(map_position.get('x', 0.0)):.2f}, "
+                f"{float(map_position.get('y', 0.0)):.2f}, "
+                f"{float(map_position.get('z', 0.0)):.2f})\n"
+                f"class={source_box.get('class_id', '?')} "
+                f"score={float(source_box.get('score', 0.0)):.2f}"
+            )
+            marker_array.markers.append(text_marker)
+
         box_point = Point(
             x=float(self._box_global_position["x"]),
             y=float(self._box_global_position["y"]),
@@ -1156,20 +1357,23 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         )
         target_point = Point(x=float(target_x), y=float(target_y), z=0.05)
 
-        box_marker = self._new_navigation_marker(1, "yolo_navigation_box", Marker.SPHERE)
+        box_marker = self._new_navigation_marker(marker_id, "yolo_navigation_box", Marker.SPHERE)
+        marker_id += 1
         box_marker.pose.position = box_point
         box_marker.pose.orientation.w = 1.0
         box_marker.scale.x = box_marker.scale.y = box_marker.scale.z = 0.14
         self._set_navigation_marker_color(box_marker, 1.0, 0.2, 0.1, 1.0)
         marker_array.markers.append(box_marker)
 
-        connection = self._new_navigation_marker(2, "yolo_navigation_relation", Marker.LINE_LIST)
+        connection = self._new_navigation_marker(marker_id, "yolo_navigation_relation", Marker.LINE_LIST)
+        marker_id += 1
         connection.scale.x = 0.025
         connection.points = [box_point, target_point]
         self._set_navigation_marker_color(connection, 1.0, 0.65, 0.0, 0.95)
         marker_array.markers.append(connection)
 
-        arrow = self._new_navigation_marker(3, "yolo_navigation_goal", Marker.ARROW)
+        arrow = self._new_navigation_marker(marker_id, "yolo_navigation_goal", Marker.ARROW)
+        marker_id += 1
         arrow.pose.position.x = float(target_x)
         arrow.pose.position.y = float(target_y)
         arrow.pose.position.z = 0.08
@@ -1187,7 +1391,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             if isinstance(self._current_box_target, dict)
             else {}
         )
-        text = self._new_navigation_marker(4, "yolo_navigation_text", Marker.TEXT_VIEW_FACING)
+        text = self._new_navigation_marker(marker_id, "yolo_navigation_text", Marker.TEXT_VIEW_FACING)
         text.pose.position.x = float(target_x)
         text.pose.position.y = float(target_y)
         text.pose.position.z = 0.55
@@ -1212,6 +1416,91 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             f"goal=({target_x:.3f}, {target_y:.3f}, {target_yaw:.3f})"
         )
 
+    def _publish_box_visualization(self):
+        """单独发布粗靠近阶段使用的 YOLO 3D 箱体。"""
+        if self.box_visualization_pub is None:
+            return
+        if self.box_visualization_topic == self.navigation_visualization_topic:
+            # 同话题模式下由导航可视化统一发布，避免两个 DELETEALL 互相覆盖。
+            return
+
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        selected_id = id(self._current_box_target) if self._current_box_target is not None else None
+        marker_id = 1
+        for index, target in enumerate(self._detected_box_targets):
+            map_position = target.get("map_position") or {}
+            corners = (target.get("geometry") or {}).get("corners") or self._fallback_box_corners(target)
+            is_selected = id(target) == selected_id
+            color = (1.0, 0.9, 0.0) if is_selected else (0.72, 0.72, 0.72)
+
+            outline = self._new_navigation_marker(
+                marker_id, "yolo_rough_box_outline", Marker.LINE_LIST
+            )
+            marker_id += 1
+            outline.scale.x = 0.032 if is_selected else 0.015
+            self._set_navigation_marker_color(
+                outline,
+                color[0],
+                color[1],
+                color[2],
+                0.95 if is_selected else 0.60,
+            )
+            for start_index, end_index in self._box_edge_indices():
+                outline.points.append(self._point_message(corners[start_index]))
+                outline.points.append(self._point_message(corners[end_index]))
+            marker_array.markers.append(outline)
+
+            center_marker = self._new_navigation_marker(
+                marker_id, "yolo_rough_box_center", Marker.SPHERE
+            )
+            marker_id += 1
+            center_marker.pose.position = Point(
+                x=float(map_position.get("x", 0.0)),
+                y=float(map_position.get("y", 0.0)),
+                z=float(map_position.get("z", 0.0)),
+            )
+            center_marker.pose.orientation.w = 1.0
+            center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = (
+                0.10 if is_selected else 0.06
+            )
+            self._set_navigation_marker_color(
+                center_marker, color[0], color[1], color[2], 1.0
+            )
+            marker_array.markers.append(center_marker)
+
+            top_z = max(corner[2] for corner in corners) if corners else float(map_position.get("z", 0.0))
+            text_marker = self._new_navigation_marker(
+                marker_id, "yolo_rough_box_text", Marker.TEXT_VIEW_FACING
+            )
+            marker_id += 1
+            text_marker.pose.position.x = float(map_position.get("x", 0.0))
+            text_marker.pose.position.y = float(map_position.get("y", 0.0))
+            text_marker.pose.position.z = top_z + 0.10
+            text_marker.scale.z = 0.10 if is_selected else 0.08
+            self._set_navigation_marker_color(
+                text_marker, color[0], color[1], color[2], 1.0
+            )
+            source_box = target.get("box") or {}
+            text_marker.text = (
+                f"ROUGH YOLO #{index}{' SELECTED' if is_selected else ''}\n"
+                f"map=({float(map_position.get('x', 0.0)):.2f}, "
+                f"{float(map_position.get('y', 0.0)):.2f}, "
+                f"{float(map_position.get('z', 0.0)):.2f})\n"
+                f"class={source_box.get('class_id', '?')} "
+                f"score={float(source_box.get('score', 0.0)):.2f}"
+            )
+            marker_array.markers.append(text_marker)
+
+        self.box_visualization_pub.publish(marker_array)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已发布YOLO粗靠近3D箱体RViz标记: "
+            f"topic={self.box_visualization_topic}, boxes={len(self._detected_box_targets)}"
+        )
+
     def _clear_navigation_visualization(self):
         if self.navigation_visualization_pub is None:
             return
@@ -1220,6 +1509,15 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         marker.action = Marker.DELETEALL
         marker_array.markers.append(marker)
         self.navigation_visualization_pub.publish(marker_array)
+
+    def _clear_box_visualization(self):
+        if self.box_visualization_pub is None:
+            return
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.action = Marker.DELETEALL
+        marker_array.markers.append(marker)
+        self.box_visualization_pub.publish(marker_array)
 
     def _new_navigation_marker(self, marker_id, namespace, marker_type):
         marker = Marker()
@@ -1238,6 +1536,43 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         marker.color.g = green
         marker.color.b = blue
         marker.color.a = alpha
+
+    @staticmethod
+    def _point_message(position):
+        return Point(
+            x=float(position[0]),
+            y=float(position[1]),
+            z=float(position[2]),
+        )
+
+    @staticmethod
+    def _box_edge_indices():
+        return (
+            (0, 1), (0, 2), (0, 4),
+            (1, 3), (1, 5),
+            (2, 3), (2, 6),
+            (3, 7),
+            (4, 5), (4, 6),
+            (5, 7),
+            (6, 7),
+        )
+
+    def _fallback_box_corners(self, target):
+        map_position = target.get("map_position") or {}
+        source_box = target.get("box") or {}
+        size = source_box.get("size", [0.3, 0.3, 0.3])
+        if len(size) != 3 or min(abs(float(value)) for value in size) < 0.01:
+            size = [0.3, 0.3, 0.3]
+        half = [abs(float(value)) * 0.5 for value in size]
+        cx = float(map_position.get("x", 0.0))
+        cy = float(map_position.get("y", 0.0))
+        cz = float(map_position.get("z", 0.0))
+        return [
+            [cx + sx * half[0], cy + sy * half[1], cz + sz * half[2]]
+            for sx in (-1.0, 1.0)
+            for sy in (-1.0, 1.0)
+            for sz in (-1.0, 1.0)
+        ]
 
     @staticmethod
     def _ros_stamp_to_seconds(stamp):

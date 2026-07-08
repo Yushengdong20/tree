@@ -1,0 +1,144 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "高效动态策略拆垛全流程（旧版两级靠近）",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "单次初始化抓取所需服务与预备姿态",
+        "params": {
+          "initial_torso_height": {
+            "value": "1.1",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "初始化后导航到等待区域",
+        "params": {
+          "x": {
+            "value": "0.84",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "4.26",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "-105.02",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_topic": {
+            "value": "/move_box/http_navigation_init_wait_markers",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Repeat",
+        "label": "循环执行四轮高效动态拆垛",
+        "params": {
+          "num_success": {
+            "value": "4",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮高效动态拆垛",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "SubTree",
+                "label": "动态选箱与两级靠近",
+                "params": {
+                  "file": {
+                    "value": "subtree/01_select_and_approach.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "唯一确认后执行动态策略抓取",
+                "params": {
+                  "file": {
+                    "value": "subtree/02_auto_grasp.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "搬运到放置点",
+                "params": {
+                  "file": {
+                    "value": "subtree/03_transport_to_place.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "放置箱体",
+                "params": {
+                  "file": {
+                    "value": "subtree/04_place_box.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "返回等待区域并恢复姿态",
+                "params": {
+                  "file": {
+                    "value": "subtree/05_return_and_ready.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
