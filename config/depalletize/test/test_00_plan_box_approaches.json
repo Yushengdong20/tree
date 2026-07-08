@@ -1,0 +1,142 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "静止验证最高层箱体长边接近位姿规划",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "SelectAndPublishHighestYoloBox",
+        "label": "生成最高层所有箱体的长边两侧接近位姿",
+        "params": {
+          "yolo_topic": {
+            "value": "/yolo/target_boxes3d_string",
+            "source": "CUSTOM"
+          },
+          "output_topic": {
+            "value": "/move_box/yolo_box_pose_map",
+            "source": "CUSTOM"
+          },
+          "map_frame": {
+            "value": "map",
+            "source": "CUSTOM"
+          },
+          "chassis_frame": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "base_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "distance_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "same_level_selection": {
+            "value": "nearest",
+            "source": "CUSTOM"
+          },
+          "top_height_tolerance": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "approach_pose_planning_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "approach_pose_key": {
+            "value": "move_box_selected_approach_pose",
+            "source": "CUSTOM"
+          },
+          "approach_distance_m": {
+            "value": "1.2",
+            "source": "CUSTOM"
+          },
+          "approach_corridor_half_width_m": {
+            "value": "0.35",
+            "source": "CUSTOM"
+          },
+          "valid_box_map_polygon": {
+            "value": [
+              [-0.3, 1.0],
+              [1.0, 1.0],
+              [1.0, 0.1],
+              [-0.3, 0.1]
+            ],
+            "source": "CUSTOM"
+          },
+          "valid_box_polygon_required": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "pallet_map_polygon": {
+            "value": [
+              [-0.3, 1.0],
+              [1.0, 1.0],
+              [1.0, 0.1],
+              [-0.3, 0.1]
+            ],
+            "source": "CUSTOM"
+          },
+          "visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "visualization_topic": {
+            "value": "/move_box/yolo_box_markers",
+            "source": "CUSTOM"
+          },
+          "require_new_frame_after_initialise": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "freeze_after_first_valid_frame": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认导航到选定接近点",
+        "params": {
+          "message": {
+            "value": "已生成并选定接近位姿。确认底盘路径安全后，按 Enter 导航到该坐标...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "导航到选定接近点",
+        "params": {
+          "target_pose_key": {
+            "value": "move_box_selected_approach_pose",
+            "source": "CUSTOM"
+          },
+          "navigation_target_key": {
+            "value": "move_box_selected_approach_pose_navigation_target",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

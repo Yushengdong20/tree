@@ -1,0 +1,295 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "循环抓取并放置零件",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureGraspObjectServices",
+        "label": "创建抓取任务共享服务",
+        "params": {},
+        "childs": []
+      },
+      {
+        "name": "OpenClaw",
+        "label": "启动时张开右夹爪",
+        "params": {
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveBoxHeadToPose",
+        "label": "启动时头部下俯20度",
+        "params": {
+          "yaw": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "pitch": {
+            "value": "20.0",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "启动时腰部回到预备位姿",
+        "params": {
+          "pose": {
+            "value": "[0.1, 0.000, 0.926, 0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "启动时双臂回到预备位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.301, -0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化完成后暂停",
+        "params": {
+          "message": {
+            "value": "抓取任务共享服务已初始化，按 Enter 开始循环抓取放置流程...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "Repeat",
+        "label": "循环搬运零件，A点无目标时等待",
+        "params": {
+          "num_success": {
+            "value": "-1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮从A点抓取并放置到B点",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "HttpNavigateToPose",
+                "label": "导航到A点抓取区",
+                "params": {
+                  "x": {
+                    "value": "-2.10",
+                    "source": "CUSTOM"
+                  },
+                  "y": {
+                    "value": "-5.96",
+                    "source": "CUSTOM"
+                  },
+                  "yaw": {
+                    "value": "-179.34",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "grasp_object_pick_navigation_target",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "MoveTorsoPose",
+                "label": "到达A点后腰部提升到货架抓取高度",
+                "params": {
+                  "pose": {
+                    "value": "[0.117, 0.0, 1.0, 0.0, 0.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "wait_done": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "SubTree",
+                "label": "抓取单个零件并进入搬运姿态",
+                "params": {
+                  "file": {
+                    "value": "subtree/grasp_single_part_right_arm.json",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "MoveTorsoPose",
+                "label": "抓取完成后腰部回到初始姿态",
+                "params": {
+                  "pose": {
+                    "value": "[0.117, 0.000, 0.926, 0.0, 0.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "wait_done": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "Parallel",
+                "label": "前往B点并调整腰部到放置高度",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到B点放置区",
+                    "params": {
+                      "x": {
+                        "value": "2.89",
+                        "source": "CUSTOM"
+                      },
+                      "y": {
+                        "value": "-2.20",
+                        "source": "CUSTOM"
+                      },
+                      "yaw": {
+                        "value": "1.15",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "grasp_object_place_navigation_target",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": []
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "接近B点后调整腰部到台面高度",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "WaitUntilNearNavigationGoal",
+                        "label": "监听接近B点放置区",
+                        "params": {
+                          "odom_topic": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "target_key": {
+                            "value": "grasp_object_place_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "distance_threshold": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "MoveTorsoPose",
+                        "label": "腰部移动到零件放置高度",
+                        "params": {
+                          "pose": {
+                            "value": "[0.3, 0.0, 1.0, 0.0, 0.0, 0.0]",
+                            "source": "CUSTOM"
+                          },
+                          "wait_done": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "SubTree",
+                "label": "放置单个零件并复位",
+                "params": {
+                  "file": {
+                    "value": "subtree/place_single_part_right_arm.json",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

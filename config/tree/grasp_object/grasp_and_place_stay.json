@@ -1,0 +1,183 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "原地循环抓取并左移释放零件",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureGraspObjectServices",
+        "label": "创建抓取任务共享服务",
+        "params": {},
+        "childs": []
+      },
+      {
+        "name": "OpenClaw",
+        "label": "启动时张开右夹爪",
+        "params": {
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveBoxHeadToPose",
+        "label": "启动时头部下俯20度",
+        "params": {
+          "yaw": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "pitch": {
+            "value": "20.0",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "启动时腰部回到预备位姿",
+        "params": {
+          "pose": {
+            "value": "[0.117, 0.000, 1.226, 0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "启动时双臂回到预备位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.301, -0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化完成后暂停",
+        "params": {
+          "message": {
+            "value": "抓取任务共享服务已初始化，按 Enter 开始原地循环抓取释放流程...",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "Repeat",
+        "label": "原地循环抓取零件并左移释放",
+        "params": {
+          "num_success": {
+            "value": "-1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮原地抓取并左移释放",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "SubTree",
+                "label": "原地抓取单个零件并进入持物姿态",
+                "params": {
+                  "file": {
+                    "value": "subtree/grasp_single_part_right_arm_no_check.json",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "抓取后右手向左移动5厘米",
+                "params": {
+                  "pose_frame": {
+                    "value": "waist_yaw_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_pose": {
+                    "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "right_pose": {
+                    "value": "[0.301, -0.25, 0.2, 0.0, -90.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "lock_arm_side": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "OpenClaw",
+                "label": "张开右夹爪释放零件",
+                "params": {
+                  "side": {
+                    "value": "right",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "释放后右臂回到预备位姿",
+                "params": {
+                  "pose_frame": {
+                    "value": "waist_yaw_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_pose": {
+                    "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "right_pose": {
+                    "value": "[0.301, -0.3, 0.2, 0.0, -90.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "lock_arm_side": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

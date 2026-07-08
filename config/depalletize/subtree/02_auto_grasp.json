@@ -10,16 +10,6 @@
     },
     "childs": [
       {
-        "name": "WaitForEnter",
-        "label": "确认执行最高箱抓取",
-        "params": {
-          "message": {
-            "value": "FoundationPose 已在预下腰和底盘停稳后刷新抓取数据。确认 box_center 对应YOLO最高箱，且双臂运动路径安全后，按 Enter 执行选定的抓取策略...",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
         "name": "CheckMoveBoxGraspDataReady",
         "label": "检查抓取点与箱体方向",
         "params": {
@@ -88,7 +78,7 @@
                     "source": "CUSTOM"
                   },
                   "left_descend_below_offset": {
-                    "value": "0.12",
+                    "value": "0.08",
                     "source": "CUSTOM"
                   },
                   "left_lift_offset": {
@@ -224,7 +214,7 @@
                     "source": "CUSTOM"
                   },
                   "left_descend_below_offset": {
-                    "value": "0.12",
+                    "value": "0.08",
                     "source": "CUSTOM"
                   },
                   "left_lift_offset": {
@@ -448,7 +438,7 @@
                     "source": "CUSTOM"
                   },
                   "right_descend_below_offset": {
-                    "value": "0.12",
+                    "value": "0.08",
                     "source": "CUSTOM"
                   },
                   "right_lift_offset": {
@@ -584,7 +574,7 @@
                     "source": "CUSTOM"
                   },
                   "right_descend_below_offset": {
-                    "value": "0.12",
+                    "value": "0.08",
                     "source": "CUSTOM"
                   },
                   "right_lift_offset": {
@@ -808,7 +798,7 @@
                     "source": "CUSTOM"
                   },
                   "direct_descend_below_offset": {
-                    "value": "0.12",
+                    "value": "0.08",
                     "source": "CUSTOM"
                   },
                   "direct_lift_offset": {

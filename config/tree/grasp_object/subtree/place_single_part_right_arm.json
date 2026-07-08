@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "右臂抓取",
+    "label": "右臂放置单个零件子流程",
     "params": {
       "memory": {
         "value": "True",
@@ -10,17 +10,23 @@
     },
     "childs": [
       {
-        "name": "EnsureGraspObjectServices",
-        "label": "创建抓取任务共享服务",
-        "params": {},
-        "childs": []
-      },
-      {
-        "name": "SubTree",
-        "label": "抓取单个零件并进入搬运姿态",
+        "name": "ArmsToPose",
+        "label": "释放前右臂向前向下伸到放置位姿",
         "params": {
-          "file": {
-            "value": "subtree/grasp_single_part_right_arm.json",
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.451, -0.2, 0.0, 137.78184071244635, 19.271783191119013, -43.138315669808705]",
+            "source": "CUSTOM"
+          },
+          "lock_arm_side": {
+            "value": "left",
             "source": "CUSTOM"
           }
         },
@@ -28,7 +34,7 @@
       },
       {
         "name": "OpenClaw",
-        "label": "张开右夹爪松开物体",
+        "label": "张开右夹爪释放零件",
         "params": {
           "side": {
             "value": "right",
@@ -45,10 +51,6 @@
             "value": "[0.117, 0.000, 0.926, 0.0, 0.0, 0.0]",
             "source": "CUSTOM"
           },
-          "enabled_key": {
-            "value": "grasp_object_use_torso",
-            "source": "CUSTOM"
-          },
           "wait_done": {
             "value": "True",
             "source": "CUSTOM"
@@ -58,7 +60,7 @@
       },
       {
         "name": "ArmsToPose",
-        "label": "任务结束双臂返回初始位姿",
+        "label": "放置后双臂返回初始位姿",
         "params": {
           "pose_frame": {
             "value": "waist_yaw_link",

@@ -41,7 +41,7 @@
       },
       {
         "name": "Sequence",
-        "label": "双臂回预备位且腰部直接回0.9米",
+        "label": "双臂回预备位且腰部直接回1.1米",
         "params": {
           "memory": {
             "value": "True",

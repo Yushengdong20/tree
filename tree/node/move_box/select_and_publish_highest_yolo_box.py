@@ -66,6 +66,26 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.grasp_strategy_key = str(
             params.get("grasp_strategy_key", "move_box_grasp_strategy")
         ).strip()
+        # 可选的通用拆垛接近规划。启用后，不再直接取最高层最近箱，而是给每个
+        # 最高层箱体的两条长边各生成一个站位，并先做垛盘/邻箱通道几何过滤。
+        self.approach_pose_planning_enabled = self._to_bool(
+            params.get("approach_pose_planning_enabled", False)
+        )
+        self.approach_pose_key = str(
+            params.get("approach_pose_key", "move_box_selected_approach_pose")
+        ).strip()
+        self.approach_distance_m = float(params.get("approach_distance_m", 1.2))
+        self.approach_corridor_half_width_m = float(
+            params.get("approach_corridor_half_width_m", 0.35)
+        )
+        self.approach_yaw_cost_weight = float(
+            params.get("approach_yaw_cost_weight", 0.01)
+        )
+        # pallet_map_polygon 与 valid_box_map_polygon 语义不同：前者是底盘不可
+        # 进入的实体垛盘区域，后者是允许参与选箱的视觉工作区。
+        self.pallet_map_polygon = parse_map_polygon(
+            params.get("pallet_map_polygon", [])
+        )
         # 同层箱之间使用 map 平面的箱心绝对距离判断是否相邻。该距离与机器人
         # 当前朝向无关；下限用于排除同一箱子的重复检测，上限用于排除远处箱子。
         self.neighbor_center_min_distance = float(
@@ -134,12 +154,20 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.visualization_topic = str(
             params.get("visualization_topic", "/move_box/yolo_box_markers")
         ).strip()
+        self.raw_visualization_topic = str(
+            params.get("raw_visualization_topic", "/move_box/yolo_raw_box_markers")
+        ).strip()
         self.require_new_frame_after_initialise = self._to_bool(
             params.get("require_new_frame_after_initialise", False)
+        )
+        self.freeze_after_first_valid_frame = self._to_bool(
+            params.get("freeze_after_first_valid_frame", False)
         )
         self.latest_boxes = None
         self._message_generation = 0
         self._minimum_generation = 0
+        self._frozen_boxes = None
+        self._frozen_generation = 0
         self.lock = threading.Lock()
         self._last_no_target_log_time = 0.0
         self.tf_listener = tf.TransformListener()
@@ -157,6 +185,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 queue_size=1,
                 latch=True,
             )
+        self.raw_visualization_publisher = None
+        if self.visualization_enabled and self.raw_visualization_topic:
+            self.raw_visualization_publisher = self.ros_node.create_publisher(
+                self.raw_visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
         self.blackboard.register_key(key=self.selected_point_key, access=py_trees.common.Access.WRITE)
         if self.selected_box_key:
             self.blackboard.register_key(
@@ -165,6 +201,11 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         if self.grasp_strategy_key:
             self.blackboard.register_key(
                 key=self.grasp_strategy_key,
+                access=py_trees.common.Access.WRITE,
+            )
+        if self.approach_pose_key:
+            self.blackboard.register_key(
+                key=self.approach_pose_key,
                 access=py_trees.common.Access.WRITE,
             )
 
@@ -178,6 +219,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         super().initialise()
         self._last_no_target_log_time = 0.0
         self._clear_box_visualization()
+        self._clear_raw_box_visualization()
+        self._frozen_boxes = None
+        self._frozen_generation = 0
         if self.require_new_frame_after_initialise:
             with self.lock:
                 self._minimum_generation = self._message_generation + 1
@@ -209,6 +253,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         # - map：只用于比较绝对高度，以及最终发布导航/视觉目标；
         # - distance_frame（通常为 base_link）：用于计算机器人视角的远近和左右。
         # 不能直接用 map x/y 判断左右，因为机器人转向后 map 轴不再等于机器人左右轴。
+        raw_candidates = []
         candidates = []
         filtered_candidates = []
         for index, box in enumerate(boxes):
@@ -226,6 +271,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 "box": box,
                 "geometry": geometry,
             }
+            raw_candidates.append(dict(candidate))
             if not is_map_position_in_polygon(
                 {"x": map_xyz[0], "y": map_xyz[1]},
                 self.valid_box_map_polygon,
@@ -248,6 +294,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 continue
             candidates.append(candidate)
 
+        self._publish_raw_box_visualization(raw_candidates)
         self._log_filtered_candidates(filtered_candidates)
 
         if not candidates:
@@ -283,9 +330,36 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             if self._is_same_level(highest_candidate, candidate, max_height)
         ]
 
-        # 阶段3：仅在最高层中执行二次选择。distance是base_link平面距离；
-        # selection_frame[1]是机器人横向坐标，正值在左、负值在右。
-        if self.same_level_selection == "leftmost":
+        # 阶段3：可选地为最高层所有箱体规划长边两侧站位。当前仓库没有底盘
+        # plan-only接口，因此此处只声明“几何可行”；真实导航规划器可在后续
+        # 读取 approach_pose_key 后补充路径可达性确认。
+        approach_pose = None
+        approach_evaluations = []
+        if self.approach_pose_planning_enabled:
+            map_from_distance = tf_trans.concatenate_matrices(
+                map_from_source,
+                tf_trans.inverse_matrix(distance_from_source),
+            )
+            robot_map_pose = [
+                float(map_from_distance[0, 3]),
+                float(map_from_distance[1, 3]),
+                math.degrees(tf_trans.euler_from_matrix(map_from_distance)[2]),
+            ]
+            selected, approach_pose, approach_evaluations = self._select_reachable_approach(
+                top_candidates,
+                candidates,
+                robot_map_pose,
+            )
+            if selected is None:
+                self._publish_approach_only_visualization(
+                    candidates, top_candidates, approach_evaluations
+                )
+                self._log_no_target(
+                    f"[{self.config_label}] 最高层没有通过垛盘/邻箱通道检查的接近位姿"
+                )
+                return Status.RUNNING
+        # 兼容原2x2流程：未启用新规划时仍按原来的最高层排序选箱。
+        elif self.same_level_selection == "leftmost":
             # ROS 机器人坐标约定：x 向前、y 向左。先取 y 最大者；若 y
             # 相同，则距离更近者优先，保证排序结果稳定。
             selected = max(
@@ -326,6 +400,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             )
         )
         self.blackboard.set(self.selected_point_key, list(selected["map"]), overwrite=True)
+        if approach_pose is not None and self.approach_pose_key:
+            self.blackboard.set(
+                self.approach_pose_key,
+                dict(approach_pose),
+                overwrite=True,
+            )
         if self.selected_box_key:
             self.blackboard.set(self.selected_box_key, selected_box, overwrite=True)
         # 阶段5：根据目标箱同层邻箱的占用情况决定抓取方式。是否相邻使用
@@ -333,6 +413,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         grasp_strategy, left_neighbors, right_neighbors = self._decide_grasp_strategy(
             selected,
             top_candidates,
+            approach_pose=approach_pose,
         )
         if self.grasp_strategy_key:
             self.blackboard.set(
@@ -348,6 +429,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             left_neighbors,
             right_neighbors,
             filtered_candidates,
+            approach_evaluations,
         )
 
         candidate_text = ", ".join(
@@ -372,6 +454,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"geometry={'obb' if selected['geometry'] is not None else 'center_fallback'}, "
             f"left_neighbors={left_neighbors}, right_neighbors={right_neighbors}, "
             f"grasp_strategy={grasp_strategy}, "
+            f"approach_pose={approach_pose}, "
             f"strategy_key={self.grasp_strategy_key}, topic={self.output_topic}"
         )
         self.ros_node.get_logger().info(
@@ -388,6 +471,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         left_neighbors,
         right_neighbors,
         filtered_candidates=None,
+        approach_evaluations=None,
     ):
         """发布所有有效YOLO箱、选中箱和相对关系到RViz。"""
         if self.visualization_publisher is None:
@@ -468,14 +552,105 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             filtered_candidates or [],
             marker_id,
         )
+        marker_id = self._append_pallet_marker(marker_array, marker_id)
+        self._append_approach_markers(
+            marker_array,
+            approach_evaluations or [],
+            marker_id,
+        )
 
         self.visualization_publisher.publish(marker_array)
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已发布RViz箱体关系: "
             f"topic={self.visualization_topic}, boxes={len(candidates)}, "
             f"filtered={len(filtered_candidates or [])}, "
+            f"approaches={len(approach_evaluations or [])}, "
             f"selected=#{selected_index}, strategy={grasp_strategy}"
         )
+
+    def _publish_approach_only_visualization(
+        self, candidates, top_candidates, approach_evaluations
+    ):
+        """没有几何可行站位时，仍在RViz显示箱体与所有被拒绝的接近点。"""
+        if self.visualization_publisher is None:
+            return
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+        marker_id = 1
+        top_indices = {candidate["index"] for candidate in top_candidates}
+        for candidate in candidates:
+            corners = self._visualization_corners(candidate)
+            outline = self._new_marker(marker_id, "yolo_box_outline", Marker.LINE_LIST)
+            marker_id += 1
+            outline.scale.x = 0.018
+            self._set_marker_color(
+                outline,
+                (0.0, 0.85, 1.0) if candidate["index"] in top_indices else (0.25, 0.45, 0.85),
+                1.0,
+            )
+            for start_index, end_index in self._box_edge_indices():
+                outline.points.append(self._point_message(corners[start_index]))
+                outline.points.append(self._point_message(corners[end_index]))
+            marker_array.markers.append(outline)
+        marker_id = self._append_pallet_marker(marker_array, marker_id)
+        self._append_approach_markers(marker_array, approach_evaluations, marker_id)
+        self.visualization_publisher.publish(marker_array)
+
+    def _append_pallet_marker(self, marker_array, marker_id):
+        """显示底盘不可进入的垛盘边界，便于核对站位过滤是否符合现场。"""
+        if not self.pallet_map_polygon:
+            return marker_id
+        marker = self._new_marker(marker_id, "pallet_forbidden_polygon", Marker.LINE_STRIP)
+        marker_id += 1
+        marker.scale.x = 0.045
+        self._set_marker_color(marker, (1.0, 0.45, 0.0), 1.0)
+        for point in self.pallet_map_polygon + self.pallet_map_polygon[:1]:
+            marker.points.append(self._point_message((point["x"], point["y"], 0.03)))
+        marker_array.markers.append(marker)
+        return marker_id
+
+    def _append_approach_markers(self, marker_array, evaluations, marker_id):
+        """绘制候选站位箭头；绿色可行、红色拒绝、紫色为最终选择。"""
+        for evaluation in evaluations:
+            pose = evaluation["pose"]
+            feasible = evaluation["feasible"]
+            selected = evaluation.get("selected", False)
+            color = (0.8, 0.1, 1.0) if selected else (
+                (0.1, 1.0, 0.2) if feasible else (1.0, 0.1, 0.1)
+            )
+            arrow = self._new_marker(marker_id, "box_approach_pose", Marker.ARROW)
+            marker_id += 1
+            arrow.pose.position.x = pose["x"]
+            arrow.pose.position.y = pose["y"]
+            arrow.pose.position.z = pose.get("z", 0.0) + 0.06
+            yaw_rad = math.radians(pose["yaw"])
+            arrow.pose.orientation.z = math.sin(yaw_rad * 0.5)
+            arrow.pose.orientation.w = math.cos(yaw_rad * 0.5)
+            arrow.scale.x = 0.45
+            arrow.scale.y = 0.07
+            arrow.scale.z = 0.07
+            self._set_marker_color(arrow, color, 0.95)
+            marker_array.markers.append(arrow)
+
+            text_marker = self._new_marker(
+                marker_id, "box_approach_text", Marker.TEXT_VIEW_FACING
+            )
+            marker_id += 1
+            text_marker.pose.position.x = pose["x"]
+            text_marker.pose.position.y = pose["y"]
+            text_marker.pose.position.z = pose.get("z", 0.0) + 0.35
+            text_marker.scale.z = 0.09
+            self._set_marker_color(text_marker, color, 1.0)
+            status = "SELECTED" if selected else ("FEASIBLE" if feasible else "REJECTED")
+            text_marker.text = (
+                f"box#{evaluation['box_index']} side={evaluation['side']} {status}\n"
+                f"{evaluation.get('reason', '')}\n"
+                f"({pose['x']:.2f}, {pose['y']:.2f}, {pose['yaw']:.1f}deg)"
+            )
+            marker_array.markers.append(text_marker)
+        return marker_id
 
     def _publish_filtered_box_visualization(self, filtered_candidates):
         """没有有效候选时，也将被过滤箱体及原因保留在RViz中。"""
@@ -530,6 +705,47 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 f"reason={candidate.get('filter_reason', 'unknown')}"
             )
 
+    def _publish_raw_box_visualization(self, raw_candidates):
+        """把原始 YOLO 3D box 单独发到 raw 话题，方便和后续过滤结果分开看。"""
+        if self.raw_visualization_publisher is None:
+            return
+
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        raw_color = (0.75, 0.75, 0.75)
+        marker_id = 1
+        for candidate in raw_candidates:
+            corners = self._visualization_corners(candidate)
+            outline = self._new_marker(marker_id, "yolo_box_raw_outline", Marker.LINE_LIST)
+            marker_id += 1
+            outline.scale.x = 0.012
+            self._set_marker_color(outline, raw_color, 0.55)
+            for start_index, end_index in self._box_edge_indices():
+                outline.points.append(self._point_message(corners[start_index]))
+                outline.points.append(self._point_message(corners[end_index]))
+            marker_array.markers.append(outline)
+
+            text_marker = self._new_marker(
+                marker_id, "yolo_box_raw_text", Marker.TEXT_VIEW_FACING
+            )
+            marker_id += 1
+            text_marker.pose.position.x = candidate["map"][0]
+            text_marker.pose.position.y = candidate["map"][1]
+            text_marker.pose.position.z = self._candidate_top_height(candidate) + 0.08
+            text_marker.scale.z = 0.07
+            self._set_marker_color(text_marker, raw_color, 0.85)
+            text_marker.text = (
+                f"RAW #{candidate['index']}\n"
+                f"map=({candidate['map'][0]:.2f}, {candidate['map'][1]:.2f}, "
+                f"{candidate['map'][2]:.2f})"
+            )
+            marker_array.markers.append(text_marker)
+
+        self.raw_visualization_publisher.publish(marker_array)
+
     def _clear_box_visualization(self):
         """新一轮选箱开始时清除RViz中上一轮的箱体，避免残影误导。"""
         if self.visualization_publisher is None:
@@ -539,6 +755,16 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         marker.action = Marker.DELETEALL
         marker_array.markers.append(marker)
         self.visualization_publisher.publish(marker_array)
+
+    def _clear_raw_box_visualization(self):
+        """清除原始 YOLO 3D box 的独立 RViz 话题，避免残影。"""
+        if self.raw_visualization_publisher is None:
+            return
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.action = Marker.DELETEALL
+        marker_array.markers.append(marker)
+        self.raw_visualization_publisher.publish(marker_array)
 
     def _new_marker(self, marker_id, namespace, marker_type):
         marker = Marker()
@@ -690,6 +916,11 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
 
             return {
                 "map_quat": map_quat,
+                "size": size,
+                "rotation": [
+                    [float(map_from_box[row, column]) for column in range(3)]
+                    for row in range(3)
+                ],
                 "corners": corners,
                 "z_min": min(corner[2] for corner in corners),
                 "z_max": max(corner[2] for corner in corners),
@@ -859,7 +1090,150 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         nearest_y = start[1] + ratio * delta_y
         return math.hypot(point[0] - nearest_x, point[1] - nearest_y)
 
-    def _decide_grasp_strategy(self, selected, top_candidates):
+    def _select_reachable_approach(self, top_candidates, all_candidates, robot_map_pose):
+        """从最高层箱体的长边两侧站位中选择几何代价最低者。"""
+        evaluations = []
+        for candidate in top_candidates:
+            geometry = candidate.get("geometry")
+            if geometry is None:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] box#{candidate['index']} 缺少有效OBB，"
+                    "无法生成长边接近位姿"
+                )
+                continue
+            normal = self._long_edge_approach_normal(geometry)
+            if normal is None:
+                continue
+            for side_sign, side_name in ((1.0, "positive"), (-1.0, "negative")):
+                point_x = candidate["map"][0] + side_sign * normal[0] * self.approach_distance_m
+                point_y = candidate["map"][1] + side_sign * normal[1] * self.approach_distance_m
+                yaw = math.degrees(math.atan2(
+                    candidate["map"][1] - point_y,
+                    candidate["map"][0] - point_x,
+                ))
+                pose = {"x": point_x, "y": point_y, "z": candidate["map"][2], "yaw": yaw}
+                feasible, reason = self._evaluate_approach_geometry(
+                    candidate, pose, all_candidates
+                )
+                travel = math.hypot(point_x - robot_map_pose[0], point_y - robot_map_pose[1])
+                yaw_error = abs(self._normalize_angle_deg(yaw - robot_map_pose[2]))
+                evaluations.append({
+                    "box_index": candidate["index"],
+                    "candidate": candidate,
+                    "side": side_name,
+                    "pose": pose,
+                    "feasible": feasible,
+                    "reason": reason,
+                    "cost": travel + self.approach_yaw_cost_weight * yaw_error,
+                })
+
+        feasible = [evaluation for evaluation in evaluations if evaluation["feasible"]]
+        if not feasible:
+            return None, None, evaluations
+        selected_evaluation = min(feasible, key=lambda item: item["cost"])
+        selected_evaluation["selected"] = True
+        pose = dict(selected_evaluation["pose"])
+        pose["box_index"] = selected_evaluation["box_index"]
+        pose["approach_side"] = selected_evaluation["side"]
+        pose["geometric_only"] = True
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 选中几何可行接近位姿: box=#{pose['box_index']}, "
+            f"side={pose['approach_side']}, pose=({pose['x']:.3f}, {pose['y']:.3f}, "
+            f"{pose['yaw']:.2f}deg), cost={selected_evaluation['cost']:.3f}; "
+            "当前尚未接入底盘plan-only验证"
+        )
+        return selected_evaluation["candidate"], pose, evaluations
+
+    @staticmethod
+    def _long_edge_approach_normal(geometry):
+        """返回水平长边的单位法向；两个正负方向对应两条长边外侧。"""
+        rotation = geometry.get("rotation")
+        size = geometry.get("size")
+        if rotation is None or size is None:
+            return None
+        axes = []
+        for column in range(3):
+            axis_x = float(rotation[0][column])
+            axis_y = float(rotation[1][column])
+            horizontal_norm = math.hypot(axis_x, axis_y)
+            if horizontal_norm > 0.35:
+                axes.append({
+                    "axis": (axis_x / horizontal_norm, axis_y / horizontal_norm),
+                    "size": float(size[column]),
+                    "horizontal_norm": horizontal_norm,
+                })
+        if len(axes) < 2:
+            return None
+        horizontal_axes = sorted(axes, key=lambda item: item["horizontal_norm"], reverse=True)[:2]
+        long_axis = max(horizontal_axes, key=lambda item: item["size"])
+        # 在map水平面直接取长轴的垂线，比依赖另一个可能带倾斜误差的OBB轴更稳定。
+        return -long_axis["axis"][1], long_axis["axis"][0]
+
+    def _evaluate_approach_geometry(self, selected, pose, all_candidates):
+        point = (pose["x"], pose["y"])
+        if self.pallet_map_polygon and is_map_position_in_polygon(
+            {"x": point[0], "y": point[1]}, self.pallet_map_polygon
+        ):
+            return False, "inside_pallet_polygon"
+
+        segment_start = point
+        segment_end = (selected["map"][0], selected["map"][1])
+        for obstacle in all_candidates:
+            if obstacle["index"] == selected["index"]:
+                continue
+            geometry = obstacle.get("geometry")
+            selected_geometry = selected.get("geometry")
+            # 下层支撑箱不会阻挡最高层的水平接近通道；这里只把与目标箱
+            # 垂直实体区间明显重叠的箱子当作通道障碍物。
+            if geometry is not None and selected_geometry is not None:
+                if self._vertical_overlap_ratio(selected_geometry, geometry) < self.same_level_vertical_overlap_ratio:
+                    continue
+            elif abs(obstacle["map"][2] - selected["map"][2]) > self.same_level_center_height_tolerance:
+                continue
+            if geometry is None:
+                obstacle_distance = self._point_segment_distance(
+                    (obstacle["map"][0], obstacle["map"][1]),
+                    segment_start,
+                    segment_end,
+                )
+            else:
+                obstacle_distance = self._segment_polygon_distance(
+                    segment_start,
+                    segment_end,
+                    geometry["footprint"],
+                )
+            if obstacle_distance < self.approach_corridor_half_width_m:
+                return False, f"corridor_blocked_by_box#{obstacle['index']}({obstacle_distance:.2f}m)"
+        return True, "geometry_feasible"
+
+    @classmethod
+    def _segment_polygon_distance(cls, segment_start, segment_end, polygon):
+        if not polygon:
+            return float("inf")
+        if cls._point_in_convex_polygon(segment_start, polygon):
+            return 0.0
+        edges = list(zip(polygon, polygon[1:] + polygon[:1]))
+        if any(cls._segments_intersect(segment_start, segment_end, start, end) for start, end in edges):
+            return 0.0
+        distances = [
+            cls._point_segment_distance(point, segment_start, segment_end)
+            for point in polygon
+        ]
+        distances.extend(
+            cls._point_segment_distance(segment_start, start, end)
+            for start, end in edges
+        )
+        distances.extend(
+            cls._point_segment_distance(segment_end, start, end)
+            for start, end in edges
+        )
+        return min(distances) if distances else float("inf")
+
+    @staticmethod
+    def _normalize_angle_deg(angle):
+        return (float(angle) + 180.0) % 360.0 - 180.0
+
+    def _decide_grasp_strategy(self, selected, top_candidates, approach_pose=None):
         """根据最高层邻箱，返回抓取策略及左右邻箱索引。
 
         新YOLO几何有效时，使用两个OBB水平轮廓的表面间隙与垂直重叠判断邻接；
@@ -880,7 +1254,15 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         for candidate in top_candidates:
             if candidate["index"] == selected["index"]:
                 continue
-            delta_y = candidate["selection_frame"][1] - selected_y
+            if approach_pose is None:
+                delta_y = candidate["selection_frame"][1] - selected_y
+            else:
+                yaw_rad = math.radians(approach_pose["yaw"])
+                left_axis = (-math.sin(yaw_rad), math.cos(yaw_rad))
+                delta_y = (
+                    (candidate["map"][0] - selected_map_x) * left_axis[0]
+                    + (candidate["map"][1] - selected_map_y) * left_axis[1]
+                )
             map_delta_x = candidate["map"][0] - selected_map_x
             map_delta_y = candidate["map"][1] - selected_map_y
             center_distance = math.hypot(map_delta_x, map_delta_y)
@@ -943,6 +1325,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         with self.lock:
             if self._message_generation < self._minimum_generation:
                 return None
+            if self.freeze_after_first_valid_frame:
+                if self._frozen_boxes is None and self.latest_boxes:
+                    # 测试模式下只消费初始化后的第一帧有效 YOLO，避免边看边刷新。
+                    self._frozen_boxes = list(self.latest_boxes)
+                    self._frozen_generation = self._message_generation
+                return self._frozen_boxes
             return self.latest_boxes
 
     def _lookup_transform_matrix(self, target_frame, source_frame):
@@ -1016,6 +1404,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"same_level_selection={self.same_level_selection}, "
             f"duplicate_3d_threshold={self.duplicate_3d_distance_threshold:.3f}, "
             f"map_region_enabled={bool(self.valid_box_map_polygon)}, "
+            f"approach_planning={self.approach_pose_planning_enabled}, "
+            f"approach_distance={self.approach_distance_m:.3f}, "
+            f"pallet_region_enabled={bool(self.pallet_map_polygon)}, "
             f"neighbor_center_range=[{self.neighbor_center_min_distance:.3f}, "
             f"{self.neighbor_center_max_distance:.3f}], "
             f"use_obb={self.use_box_geometry_for_strategy}, "

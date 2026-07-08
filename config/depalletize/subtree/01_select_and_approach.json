@@ -230,6 +230,27 @@
             "value": "True",
             "source": "CUSTOM"
           },
+          "pallet_map_polygon": {
+            "value": [
+              [
+                -0.3,
+                1.0
+              ],
+              [
+                1.0,
+                1.0
+              ],
+              [
+                1.0,
+                0.1
+              ],
+              [
+                -0.3,
+                0.1
+              ]
+            ],
+            "source": "CUSTOM"
+          },
           "require_new_frame_after_initialise": {
             "value": "True",
             "source": "CUSTOM"
@@ -321,7 +342,7 @@
                 "params": {
                   "services_key": {"value": "move_box_services", "source": "CUSTOM"},
                   "pose_key": {"value": "move_box_torso_box_center_pose", "source": "CUSTOM"},
-                  "wait_done": {"value": "True", "source": "CUSTOM"},
+                  "wait_done": {"value": "False", "source": "CUSTOM"},
                   "skip_torso_motion": {"value": "False", "source": "CUSTOM"}
                 }
               }

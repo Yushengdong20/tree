@@ -51,6 +51,8 @@ from tree.ros_interface import create_ros_interface
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_highest_yolo_right_pull_left_grasp_test_cn.json"
 
 # 高效动态拆垛分段实机测试：按 01 -> 05 顺序逐棵验证。
+# 00：静止验证最高层箱体长边两侧站位、通道过滤和RViz，不执行导航。
+# DEFAULT_TREE_FILE_NAME = "depalletize/test/test_00_plan_box_approaches.json"
 # 01：只验证选箱、YOLO粗靠近、FoundationPose精靠近及数据刷新。
 DEFAULT_TREE_FILE_NAME = "depalletize/test/test_01_select_and_approach.json"
 # 02：在 01 基础上增加动态策略抓取，结束时机器人持箱。

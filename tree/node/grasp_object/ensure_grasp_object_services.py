@@ -45,6 +45,11 @@ class EnsureGraspObjectServices(TimedMockAction):
                 f"[{self.config_label}] services 中没有 arm_controller: key={self.services_key}"
             )
             return Status.FAILURE
+        if not hasattr(services, "head_controller"):
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] services 中没有 head_controller: key={self.services_key}"
+            )
+            return Status.FAILURE
         self.blackboard.set(self.model_type_key, services.model_type, overwrite=True)
         return Status.SUCCESS
 
@@ -53,6 +58,7 @@ class EnsureGraspObjectServices(TimedMockAction):
             services is not None
             and hasattr(services, "arm_controller")
             and hasattr(services, "torso_controller")
+            and hasattr(services, "head_controller")
             and getattr(services, "target_frame", None) == WAIST_YAW_LINK_FRAME
             and getattr(services, "model_type", None) == self.model_type
         )

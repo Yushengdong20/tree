@@ -44,6 +44,9 @@ class HttpNavigateToPose(TimedMockAction):
         self.x = float(params.get("x", 0.0))
         self.y = float(params.get("y", 0.0))
         self.yaw = float(params.get("yaw", 0.0))
+        self.target_pose_key = str(params.get("target_pose_key", "")).strip()
+        if self.target_pose_key:
+            self.blackboard.register_key(key=self.target_pose_key, access=common.Access.READ)
         self.navigation_target_key = str(params.get("navigation_target_key", "navigation_target")).strip()
         if self.navigation_target_key:
             self.blackboard.register_key(key=self.navigation_target_key, access=common.Access.WRITE)
@@ -67,6 +70,7 @@ class HttpNavigateToPose(TimedMockAction):
         super().initialise()
         # 进入节点时只做“状态机复位”，不直接访问外部 HTTP。
         # 真正的网络调用留到 update() 中按 phase 分步推进。
+        self._load_target_from_blackboard()
         self._store_navigation_target()
         self._phase = "CREATE_TASK"
         self._task_id = str(uuid.uuid4())
@@ -204,9 +208,34 @@ class HttpNavigateToPose(TimedMockAction):
             overwrite=True,
         )
 
+    def _load_target_from_blackboard(self):
+        """允许前置节点把动态导航目标写到 blackboard。"""
+        if not self.target_pose_key:
+            return
+        if not self.blackboard.exists(self.target_pose_key):
+            raise KeyError(
+                f"blackboard 缺少导航目标: key={self.target_pose_key}"
+            )
+
+        target = self.blackboard.get(self.target_pose_key)
+        if not isinstance(target, dict):
+            raise TypeError(
+                f"blackboard 导航目标必须是 dict: key={self.target_pose_key}, value={target!r}"
+            )
+
+        try:
+            self.x = float(target["x"])
+            self.y = float(target["y"])
+            self.yaw = float(target["yaw"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"blackboard 导航目标缺少有效 x/y/yaw: key={self.target_pose_key}, value={target!r}"
+            ) from exc
+
     def describe_start(self):
         return (
             f"[{self.config_label}] HttpNavigateToPose start: "
             f"x={self.x:.3f}, y={self.y:.3f}, yaw={self.yaw:.3f}, "
+            f"target_pose_key={self.target_pose_key or '<static>'}, "
             f"navigation_target_key={self.navigation_target_key or '<disabled>'}"
         )

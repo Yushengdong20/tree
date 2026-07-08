@@ -125,6 +125,7 @@ class ArmsToPose(TimedMockAction):
                 f"source={target_source}, frame={self.pose_frame}, "
                 f"left={left_target}, right={right_target}"
             )
+            self._log_execution_targets(left_target, right_target, target_source)
 
             # 关键步骤：只在 initialise 中启动一次手臂事件，后续 tick 只查询事件状态。
             self.arm_controller.reach_time = 0.0
@@ -186,6 +187,24 @@ class ArmsToPose(TimedMockAction):
             )
             return None
         return self.blackboard.get(key)
+
+    @staticmethod
+    def _format_pose(pose):
+        return (
+            f"x={pose[0]:.4f}, y={pose[1]:.4f}, z={pose[2]:.4f}, "
+            f"yaw={pose[3]:.2f}deg, pitch={pose[4]:.2f}deg, roll={pose[5]:.2f}deg"
+        )
+
+    def _log_execution_targets(self, left_target, right_target, target_source):
+        left_key = self.left_pose_key or "json/default"
+        right_key = self.right_pose_key or "json/default"
+        # 关键步骤：这里打印的是即将传给 ArmController.start_arm_event 的最终 6 维目标。
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 真正下发双臂目标 pose: "
+            f"source={target_source}, frame={self.pose_frame}, "
+            f"left_key={left_key}, left=({self._format_pose(left_target)}), "
+            f"right_key={right_key}, right=({self._format_pose(right_target)})"
+        )
 
     def update(self):
         if self.should_use_mock_execution():
