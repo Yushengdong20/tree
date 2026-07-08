@@ -64,9 +64,9 @@ from tree.ros_interface import create_ros_interface
 # 05：完整验证一轮，并返回等待区域、恢复下一轮预备姿态。
 # DEFAULT_TREE_FILE_NAME = "depalletize/test/test_05_full_cycle.json"
 # 最终四轮循环树：仅在 01～05 全部通过后启用。
-# DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.json"
+DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.json"
 # 旧版选箱四轮循环树
-DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize_legacy_approach.json"
+# DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize_legacy_approach.json"
 
 
 def parse_main_args(args=None):
