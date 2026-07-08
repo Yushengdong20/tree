@@ -4,6 +4,7 @@
 
 import math
 import time
+from collections import deque
 
 import numpy as np
 import rospy
@@ -28,6 +29,7 @@ class OdomPoseTransformer:
         target_frame="map",
         base_frame="base_link",
         queue_size=10,
+        history_duration_sec=10.0,
     ):
         self.ros_node = ros_node
         self.odom_topic = str(odom_topic).strip()
@@ -35,6 +37,8 @@ class OdomPoseTransformer:
         self.base_frame = str(base_frame).strip()
         self._latest_odom = None
         self._latest_odom_time = None
+        self.history_duration_sec = max(float(history_duration_sec), 1.0)
+        self._odom_history = deque()
 
         # 关键步骤：odom 订阅集中在工具类里，避免每个 node 重复维护订阅和缓存逻辑。
         self._odom_subscriber = self.ros_node.create_message_subscription(
@@ -48,10 +52,30 @@ class OdomPoseTransformer:
         """缓存最新 odom，供行为树节点在 update 中读取。"""
         self._latest_odom = message
         self._latest_odom_time = time.monotonic()
+        stamp_sec = self._odom_stamp_to_seconds(message)
+        self._odom_history.append((stamp_sec, message))
+        min_stamp_sec = stamp_sec - self.history_duration_sec
+        while len(self._odom_history) > 1 and self._odom_history[0][0] < min_stamp_sec:
+            self._odom_history.popleft()
 
     def get_latest_odom(self):
         """返回最近一次收到的 odom 消息。"""
         return self._latest_odom
+
+    def get_nearest_odom_by_stamp_sec(self, stamp_sec):
+        """返回时间上最接近指定秒数时间戳的 odom。"""
+        if stamp_sec is None or not self._odom_history:
+            return None
+
+        target_sec = float(stamp_sec)
+        nearest_msg = None
+        nearest_delta = None
+        for history_stamp_sec, history_msg in self._odom_history:
+            delta = abs(history_stamp_sec - target_sec)
+            if nearest_delta is None or delta < nearest_delta:
+                nearest_delta = delta
+                nearest_msg = history_msg
+        return nearest_msg
 
     def get_current_pose(self):
         """返回当前底盘 map/odom 位姿: (x, y, z, yaw_deg)。"""
@@ -73,12 +97,19 @@ class OdomPoseTransformer:
             return None
         return time.monotonic() - self._latest_odom_time
 
-    def transform_point_to_map(self, tf_listener, point_xyz, source_frame, timeout=0.2):
+    def transform_point_to_map(
+        self,
+        tf_listener,
+        point_xyz,
+        source_frame,
+        timeout=0.2,
+        odom_msg=None,
+    ):
         """先把 source_frame 点转到 base_frame，再用 odom 位姿转到 map/odom。"""
         return transform_point_to_map_via_base_and_odom(
             tf_listener,
             self.ros_node,
-            self._latest_odom,
+            odom_msg if odom_msg is not None else self._latest_odom,
             point_xyz,
             source_frame=source_frame,
             base_frame=self.base_frame,
@@ -93,6 +124,7 @@ class OdomPoseTransformer:
         source_frame,
         fallback_pose,
         timeout=0.2,
+        odom_msg=None,
     ):
         """优先使用 3D odom 转换，失败时按底盘 2D yaw 回退。"""
         try:
@@ -101,6 +133,7 @@ class OdomPoseTransformer:
                 point_xyz,
                 source_frame=source_frame,
                 timeout=timeout,
+                odom_msg=odom_msg,
             ), None
         except Exception as exc:
             if fallback_pose is None:
@@ -124,6 +157,16 @@ class OdomPoseTransformer:
         _, _, yaw = tf_trans.euler_from_quaternion(quaternion)
         return math.degrees(yaw)
 
+    @staticmethod
+    def _odom_stamp_to_seconds(odom_msg):
+        header = getattr(odom_msg, "header", None)
+        stamp = getattr(header, "stamp", None)
+        if stamp is None:
+            return 0.0
+        if hasattr(stamp, "secs"):
+            return float(stamp.secs) + float(stamp.nsecs) * 1e-9
+        return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+
 
 def get_odom_pose_transformer(
     ros_node,
@@ -131,6 +174,7 @@ def get_odom_pose_transformer(
     target_frame="map",
     base_frame="base_link",
     queue_size=10,
+    history_duration_sec=10.0,
 ):
     """返回共享 odom 位姿转换器，同一 ros_node/topic/frame 组合只订阅一次。"""
     key = (
@@ -147,6 +191,7 @@ def get_odom_pose_transformer(
             target_frame=target_frame,
             base_frame=base_frame,
             queue_size=queue_size,
+            history_duration_sec=history_duration_sec,
         )
         _ODOM_POSE_TRANSFORMERS[key] = transformer
     return transformer

@@ -98,6 +98,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.tf_base_frame = str(params.get("tf_base_frame", BASE_LINK_FRAME)).strip()
         self.tf_timeout_sec = float(params.get("tf_timeout_sec", 0.2))
         self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_history_duration_sec = float(
+            params.get("odom_history_duration_sec", 10.0)
+        )
         self.valid_box_map_polygon = parse_map_polygon(
             params.get("valid_box_map_polygon", [])
         )
@@ -162,6 +165,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             self.odom_topic,
             target_frame=self.tf_target_frame,
             base_frame=self.tf_base_frame,
+            history_duration_sec=self.odom_history_duration_sec,
         )
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=FLOW_RESULT_KEY, access=py_trees.common.Access.WRITE)
@@ -454,6 +458,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "x": float(center[0]),
                 "y": float(center[1]),
                 "z": float(center[2]),
+                "_stamp_sec": float(target_pose.get("stamp", 0.0)),
             }
             source_frame = target_pose.get("frame_id") or BASE_LINK_FRAME
             map_position = self._transform_base_position_to_map_position(
@@ -585,6 +590,10 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
     def _transform_base_position_to_map_position(self, services, base_position, source_frame):
         """优先按 source -> base_link -> odom/map 将 YOLO 点转换到 map。"""
+        target_stamp_sec = None
+        if isinstance(base_position, dict):
+            target_stamp_sec = base_position.get("_stamp_sec")
+        odom_msg = self.odom_transformer.get_nearest_odom_by_stamp_sec(target_stamp_sec)
         if self.use_tf_3d_transform:
             map_position, fallback_exc = (
                 self.odom_transformer.transform_point_to_map_with_pose2d_fallback(
@@ -593,13 +602,19 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     source_frame=source_frame,
                     fallback_pose=self._current_pose,
                     timeout=self.tf_timeout_sec,
+                    odom_msg=odom_msg,
                 )
             )
             if fallback_exc is not None:
                 self._log_info(
                     "YOLO坐标转换",
-                    "source->base->odom/map 3D转换失败，回退到2D yaw近似: %s"
-                    % fallback_exc,
+                    "source->base->odom/map 3D转换失败，回退到2D yaw近似: %s, "
+                    "yolo_stamp=%.3f, matched_odom=%s"
+                    % (
+                        fallback_exc,
+                        float(target_stamp_sec or 0.0),
+                        "yes" if odom_msg is not None else "no",
+                    ),
                     "yellow",
                 )
             return map_position
@@ -641,6 +656,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "x": float(center[0]),
                 "y": float(center[1]),
                 "z": float(center[2]),
+                "_stamp_sec": float(target_pose.get("stamp", 0.0)),
             }
             source_frame = target_pose.get("frame_id") or BASE_LINK_FRAME
             map_position = self._transform_base_position_to_map_position(

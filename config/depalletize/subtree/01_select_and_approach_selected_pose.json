@@ -86,6 +86,10 @@
               "odom_topic": {
                 "value": "melon_odom",
                 "source": "CUSTOM"
+              },
+              "odom_history_duration_sec": {
+                "value": "10.0",
+                "source": "CUSTOM"
               }
             }
           },
