@@ -18,6 +18,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
+from tree.utils.geometry import get_odom_pose_transformer
 
 from ..base import TimedMockAction
 
@@ -52,6 +53,16 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.distance_frame = str(params.get("distance_frame", BASE_LINK_FRAME)).strip()
         self.base_frame = str(params.get("base_frame", BASE_LINK_FRAME)).strip()
         self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()
+        self.odom_topic = str(params.get("odom_topic", self.chassis_frame)).strip()
+        self.odom_history_duration_sec = float(
+            params.get("odom_history_duration_sec", 10.0)
+        )
+        self.odom_match_time_offset_sec = float(
+            params.get("odom_match_time_offset_sec", 0.0)
+        )
+        self.odom_match_max_delta_sec = self._optional_float(
+            params.get("odom_match_max_delta_sec", "")
+        )
         self.source_frame_fallback = str(params.get("source_frame_fallback", "camera")).strip()
         self.tf_timeout = float(params.get("tf_timeout", 0.5))
         # 选中箱子的 map 点，格式为 [x, y, z]。粗导航直接读取该 key，
@@ -175,6 +186,13 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.lock = threading.Lock()
         self._last_no_target_log_time = 0.0
         self.tf_listener = tf.TransformListener()
+        self.odom_transformer = get_odom_pose_transformer(
+            self.ros_node,
+            self.odom_topic,
+            target_frame=self.map_frame,
+            base_frame=self.base_frame,
+            history_duration_sec=self.odom_history_duration_sec,
+        )
         self.subscriber = self.ros_node.create_string_subscription(
             self.yolo_topic, self._on_yolo_boxes_string, queue_size=1
         )
@@ -242,15 +260,10 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             return Status.RUNNING
 
         source_frame = boxes[0].get("frame_id") or self.source_frame_fallback
-        # 与头部盯箱链路保持一致，避免直接查询不稳定/不连通的 camera -> map：
-        # T_map_camera = T_map_melon_odom * T_base_link_camera。
-        map_from_source = self._build_split_map_transform(
-            source_frame,
-        )
         distance_from_source = self._lookup_transform_matrix(
             self.distance_frame, source_frame
         )
-        if map_from_source is None or distance_from_source is None:
+        if distance_from_source is None:
             return Status.RUNNING
 
         # 阶段1：把每个 YOLO 点同时转换到两套坐标系。
@@ -261,6 +274,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         candidates = []
         filtered_candidates = []
         for index, box in enumerate(boxes):
+            source_frame = box.get("frame_id") or self.source_frame_fallback
+            transform_result = self._build_time_aligned_map_transform(
+                source_frame,
+                box.get("stamp"),
+            )
+            if transform_result is None:
+                continue
+            map_from_source, matched_odom_stamp_sec, odom_delta_ms = transform_result
             center_point = yolo_box_center_point(box)
             map_xyz = self._matrix_dot_point(map_from_source, center_point)
             distance_xyz = self._matrix_dot_point(distance_from_source, center_point)
@@ -274,6 +295,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 "distance": planar_distance,
                 "box": box,
                 "geometry": geometry,
+                "yolo_stamp": float(box.get("stamp", 0.0)),
+                "matched_odom_stamp": matched_odom_stamp_sec,
+                "odom_delta_ms": odom_delta_ms,
             }
             raw_candidates.append(dict(candidate))
             if not is_map_position_in_polygon(
@@ -437,9 +461,13 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         )
 
         candidate_text = ", ".join(
-            "#{} map=({:.3f},{:.3f},{:.3f}) {}_y={:.3f} distance={:.3f}".format(
+            "#{} map=({:.3f},{:.3f},{:.3f}) {}_y={:.3f} distance={:.3f} "
+            "yolo={:.3f} odom={:.3f} delta={:.1f}ms".format(
                 candidate["index"], *candidate["map"], self.distance_frame,
-                candidate["selection_frame"][1], candidate["distance"]
+                candidate["selection_frame"][1], candidate["distance"],
+                float(candidate.get("yolo_stamp", 0.0)),
+                float(candidate.get("matched_odom_stamp", 0.0)),
+                float(candidate.get("odom_delta_ms", 0.0)),
             )
             for candidate in candidates
         )
@@ -455,6 +483,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"strategy={self.same_level_selection}, index={selected['index']}, "
             f"top_z={max_height:.3f}, selected=({selected['map'][0]:.3f}, "
             f"{selected['map'][1]:.3f}, {selected['map'][2]:.3f}), "
+            f"yolo_stamp={float(selected.get('yolo_stamp', 0.0)):.3f}, "
+            f"matched_odom_stamp={float(selected.get('matched_odom_stamp', 0.0)):.3f}, "
+            f"odom_delta_ms={float(selected.get('odom_delta_ms', 0.0)):.1f}, "
             f"geometry={'obb' if selected['geometry'] is not None else 'center_fallback'}, "
             f"left_neighbors={left_neighbors}, right_neighbors={right_neighbors}, "
             f"grasp_strategy={grasp_strategy}, "
@@ -1339,28 +1370,71 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             tf_trans.translation_matrix(translation), tf_trans.quaternion_matrix(rotation)
         )
 
-    def _build_split_map_transform(self, source_frame):
-        """组合得到 ``map <- YOLO源坐标系`` 的变换矩阵。
+    def _build_time_aligned_map_transform(self, source_frame, stamp_sec):
+        """按YOLO时间戳对齐最近odom，组合 ``map <- YOLO源坐标系`` 变换。
 
-        实机上直接查询 camera -> map 的完整TF链可能不稳定，因此沿用头部盯箱链路，
-        分别查询两段短链后相乘：
-
-        ``T_map_source = T_map_chassis * T_base_source``
-
-        当前底盘发布的 chassis_frame（通常为melon_odom）与base_link按项目既有约定
-        表达同一底盘位姿关系，因此这里不额外插入一段长期TF查询。
+        与 MoveBoxYoloApproachToBox 保持一致：不直接使用当前时刻的 camera->map，
+        而是先查询 ``base_link <- source_frame``，再用与 YOLO 时间最接近的一帧 odom
+        构造 ``map <- base_link``，降低机器人运动时的时序误差。
         """
-        map_from_chassis = self._lookup_transform_matrix(
-            self.map_frame,
-            self.chassis_frame,
-        )
         base_from_source = self._lookup_transform_matrix(
             self.base_frame,
             source_frame,
         )
-        if map_from_chassis is None or base_from_source is None:
+        if base_from_source is None:
             return None
-        return tf_trans.concatenate_matrices(map_from_chassis, base_from_source)
+        target_stamp_sec = float(stamp_sec or 0.0) + self.odom_match_time_offset_sec
+        odom_msg = self.odom_transformer.get_nearest_odom_by_stamp_sec(target_stamp_sec)
+        if odom_msg is None:
+            self._log_no_target(
+                f"[{self.config_label}] 缺少与YOLO时间戳匹配的odom: "
+                f"yolo_stamp={float(stamp_sec or 0.0):.3f}, "
+                f"target_stamp={target_stamp_sec:.3f}, odom_topic={self.odom_topic}"
+            )
+            return None
+        matched_odom_stamp_sec = self._ros_stamp_to_seconds(odom_msg.header.stamp)
+        odom_delta_sec = abs(float(matched_odom_stamp_sec) - target_stamp_sec)
+        if (
+            self.odom_match_max_delta_sec is not None
+            and odom_delta_sec > self.odom_match_max_delta_sec
+        ):
+            self._log_no_target(
+                f"[{self.config_label}] YOLO时间戳匹配到底盘位姿超出窗口: "
+                f"yolo_stamp={float(stamp_sec or 0.0):.3f}, "
+                f"target_stamp={target_stamp_sec:.3f}, "
+                f"matched_odom_stamp={matched_odom_stamp_sec:.3f}, "
+                f"delta_ms={odom_delta_sec * 1000.0:.1f}, "
+                f"limit_ms={self.odom_match_max_delta_sec * 1000.0:.1f}"
+            )
+            return None
+        map_from_base = self._map_from_odom_message(odom_msg)
+        return (
+            tf_trans.concatenate_matrices(map_from_base, base_from_source),
+            matched_odom_stamp_sec,
+            odom_delta_sec * 1000.0,
+        )
+
+    def _map_from_odom_message(self, odom_msg):
+        """从 odom.pose 构造 ``map <- base_link`` 4x4 变换矩阵。"""
+        odom_position = odom_msg.pose.pose.position
+        odom_orientation = odom_msg.pose.pose.orientation
+        return tf_trans.concatenate_matrices(
+            tf_trans.translation_matrix(
+                [
+                    float(odom_position.x),
+                    float(odom_position.y),
+                    float(odom_position.z),
+                ]
+            ),
+            tf_trans.quaternion_matrix(
+                [
+                    float(odom_orientation.x),
+                    float(odom_orientation.y),
+                    float(odom_orientation.z),
+                    float(odom_orientation.w),
+                ]
+            ),
+        )
 
     @staticmethod
     def _matrix_dot_point(matrix, point):
@@ -1384,7 +1458,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"[{self.config_label}] SelectAndPublishHighestYoloBox start: "
             f"input={self.yolo_topic}, output={self.output_topic}, "
             f"map_frame={self.map_frame}, chassis_frame={self.chassis_frame}, "
-            f"base_frame={self.base_frame}, "
+            f"base_frame={self.base_frame}, odom_topic={self.odom_topic}, "
+            f"odom_match_time_offset_sec={self.odom_match_time_offset_sec}, "
+            f"odom_match_max_delta_sec={self.odom_match_max_delta_sec}, "
             f"top_tolerance={self.top_height_tolerance:.3f}, "
             f"same_level_selection={self.same_level_selection}, "
             f"duplicate_3d_threshold={self.duplicate_3d_distance_threshold:.3f}, "

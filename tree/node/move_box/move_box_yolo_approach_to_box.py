@@ -101,6 +101,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.odom_history_duration_sec = float(
             params.get("odom_history_duration_sec", 10.0)
         )
+        self.odom_match_time_offset_sec = float(
+            params.get("odom_match_time_offset_sec", 0.0)
+        )
+        self.odom_match_max_delta_sec = self._optional_float(
+            params.get("odom_match_max_delta_sec", "")
+        )
         self.valid_box_map_polygon = parse_map_polygon(
             params.get("valid_box_map_polygon", [])
         )
@@ -208,6 +214,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if isinstance(value, str):
             return value.lower() in ("true", "1", "yes", "on")
         return bool(value)
+
+    @staticmethod
+    def _optional_float(value):
+        if value is None or str(value).strip() == "":
+            return None
+        return float(value)
 
     def initialise(self):
         super().initialise()
@@ -634,7 +646,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         target_stamp_sec = None
         if isinstance(base_position, dict):
             target_stamp_sec = base_position.get("_stamp_sec")
-        odom_msg = self.odom_transformer.get_nearest_odom_by_stamp_sec(target_stamp_sec)
+        odom_msg = self._get_time_aligned_odom(target_stamp_sec)
         if self.use_tf_3d_transform:
             map_position, fallback_exc = (
                 self.odom_transformer.transform_point_to_map_with_pose2d_fallback(
@@ -664,6 +676,33 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             base_position,
             self._current_pose,
         )
+
+    def _get_time_aligned_odom(self, yolo_stamp_sec):
+        target_stamp_sec = None
+        if yolo_stamp_sec is not None:
+            target_stamp_sec = float(yolo_stamp_sec) + self.odom_match_time_offset_sec
+        odom_msg = self.odom_transformer.get_nearest_odom_by_stamp_sec(target_stamp_sec)
+        if odom_msg is None:
+            return None
+        if self.odom_match_max_delta_sec is None or target_stamp_sec is None:
+            return odom_msg
+        matched_odom_stamp_sec = self._ros_stamp_to_seconds(odom_msg.header.stamp)
+        if abs(matched_odom_stamp_sec - target_stamp_sec) > self.odom_match_max_delta_sec:
+            self._log_info(
+                "YOLO时间对齐超窗",
+                "yolo_stamp=%.3f target_stamp=%.3f matched_odom_stamp=%.3f "
+                "delta_ms=%.1f limit_ms=%.1f"
+                % (
+                    float(yolo_stamp_sec or 0.0),
+                    float(target_stamp_sec),
+                    float(matched_odom_stamp_sec),
+                    abs(matched_odom_stamp_sec - target_stamp_sec) * 1000.0,
+                    self.odom_match_max_delta_sec * 1000.0,
+                ),
+                "yellow",
+            )
+            return None
+        return odom_msg
 
     @staticmethod
     def _build_map_box(source_box, map_position):

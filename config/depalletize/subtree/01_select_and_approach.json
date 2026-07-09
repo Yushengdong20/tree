@@ -83,6 +83,14 @@
             "value": "10.0",
             "source": "CUSTOM"
           },
+          "odom_match_time_offset_sec": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "odom_match_max_delta_sec": {
+            "value": "0.30",
+            "source": "CUSTOM"
+          },
           "valid_box_map_polygon": {
             "value": [
               [
@@ -176,6 +184,22 @@
           },
           "base_frame": {
             "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "odom_history_duration_sec": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "odom_match_time_offset_sec": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "odom_match_max_delta_sec": {
+            "value": "0.30",
             "source": "CUSTOM"
           },
           "source_frame_fallback": {
