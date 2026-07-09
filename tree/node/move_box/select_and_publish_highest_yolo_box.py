@@ -86,7 +86,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         # 候选站位即使不落在垛盘内，也需要和垛盘边界保持最小安全间隙，
         # 否则机器人底盘 footprint 仍可能压到垛盘或在局部规划中不可达。
         self.approach_pallet_clearance_m = float(
-            params.get("approach_pallet_clearance_m", 0.35)
+            params.get("approach_pallet_clearance_m", 0.60)
         )
         if self.approach_pallet_clearance_m < 0.0:
             raise ValueError("approach_pallet_clearance_m cannot be negative")
