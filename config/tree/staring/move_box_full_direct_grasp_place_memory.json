@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "左拉抓箱-放箱完整流程（左手外拉-右手补抓-双手抬箱，箱子记忆版）",
+    "label": "抓箱对齐-直接抓取-放箱完整流程（箱子记忆版）",
     "params": {
       "memory": {
         "value": "True",
@@ -24,14 +24,14 @@
         "label": "初始化完成后暂停（按 Enter）",
         "params": {
           "message": {
-            "value": "move_box 视觉与控制实例已初始化，按 Enter 开始循环左拉抓箱放箱流程（箱子记忆版）...",
+            "value": "move_box 视觉与控制实例已初始化，按 Enter 开始循环抓箱放箱流程（箱子记忆版）...",
             "source": "CUSTOM"
           }
         }
       },
       {
         "name": "Repeat",
-        "label": "循环执行左拉抓箱放箱单轮流程",
+        "label": "循环执行抓箱放箱单轮流程",
         "params": {
           "num_success": {
             "value": "-1",
@@ -41,7 +41,7 @@
         "childs": [
           {
             "name": "Sequence",
-            "label": "单轮左拉抓箱放箱完整流程（更新箱子记忆）",
+            "label": "单轮抓箱放箱完整流程（更新箱子记忆）",
             "params": {
               "memory": {
                 "value": "True",
@@ -75,10 +75,10 @@
               },
               {
                 "name": "SubTree",
-                "label": "左拉抓箱流程（左手外拉-右手补抓-双手抬箱）",
+                "label": "直接抓取箱体到闭爪",
                 "params": {
                   "file": {
-                    "value": "subtree/move_box_left_pull_right_grasp_no_enter_cn.json",
+                    "value": "subtree/move_box_direct_grasp_before_lift_no_enter_memory_cn.json",
                     "source": "CUSTOM"
                   }
                 }
@@ -274,7 +274,7 @@
                             "source": "CUSTOM"
                           },
                           "yaw": {
-                            "value": "86.41201143492874",
+                            "value": "176.41201143492874",
                             "source": "CUSTOM"
                           },
                           "chassis_url": {
@@ -320,7 +320,7 @@
                     "label": "放箱后通用节点回到抓取预备姿态",
                     "params": {
                       "file": {
-                        "value": "subtree/move_box_return_to_grasp_ready_common_cn.json",
+                        "value": "subtree/move_box_return_to_grasp_ready_common_memory_cn.json",
                         "source": "CUSTOM"
                       }
                     }
@@ -341,10 +341,6 @@
                   },
                   "finished_box_targets_key": {
                     "value": "move_box_finished_box_targets",
-                    "source": "CUSTOM"
-                  },
-                  "select_policy": {
-                    "value": "nearest",
                     "source": "CUSTOM"
                   },
                   "valid_box_map_polygon": {
@@ -374,10 +370,6 @@
                   },
                   "enable_colored_log": {
                     "value": "True",
-                    "source": "CUSTOM"
-                  },
-                  "chassis_url": {
-                    "value": "http://localhost:8081",
                     "source": "CUSTOM"
                   }
                 }

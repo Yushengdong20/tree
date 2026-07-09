@@ -48,7 +48,7 @@
         "label": "执行通用回抓取初始位姿子树",
         "params": {
           "file": {
-            "value": "../box/subtree/move_box_return_to_grasp_ready_common_cn.json",
+            "value": "../staring/subtree/move_box_return_to_grasp_ready_common_memory_cn.json",
             "source": "CUSTOM"
           }
         },

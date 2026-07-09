@@ -19,36 +19,22 @@ from tree.ros_interface import create_ros_interface
 
 
 # 默认行为树候选清单：测试时取消目标行注释，并注释当前启用行即可。
-# 只靠近不抓取的往返测试树。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_approach_shuttle_no_grasp_test_cn.json"
+# 只靠近不抓取的往返测试头盯箱和盯点树。
+# DEFAULT_TREE_FILE_NAME = "tree/staring/move_box_approach_shuttle_no_grasp_test_cn.json"
 # 完整搬箱流程头部跟踪版。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_direct_grasp_place_turn_head_track_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/staring/move_box_full_direct_grasp_place_turn_head_track_cn.json"
 # 头部跟踪 YOLO 最近箱体并执行双点导航。
-# DEFAULT_TREE_FILE_NAME = "tree/test/head_track_yolo_box_parallel_navigation_test_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/staring/head_track_yolo_box_parallel_navigation_test_cn.json"
 # 单独测试头部跟踪 YOLO 最近箱体。
-# DEFAULT_TREE_FILE_NAME = "tree/test/head_track_yolo_box_test_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/staring/head_track_yolo_box_test_cn.json"
 # 单独测试头部跟踪 map 固定坐标点。
-# DEFAULT_TREE_FILE_NAME = "tree/test/head_track_map_point_test_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/staring/head_track_map_point_test_cn.json"
 # 头部在两个 map 固定坐标点之间循环切换。
-# DEFAULT_TREE_FILE_NAME = "tree/test/head_track_map_point_switch_test_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/staring/head_track_map_point_switch_test_cn.json"
 # 通用动作节点完整搬箱流程。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_direct_grasp_place_common_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/staring/move_box_full_direct_grasp_place_common_cn.json"
 # 完整实机搬箱流程：抓箱对齐、直接抓取、放箱、返回等待区域。
-# DEFAULT_TREE_FILE_NAME = "tree/box/move_box_full_direct_grasp_place_memory.json"
-# 独立测试左手外拉、右手补抓、双手抬箱。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_left_pull_right_grasp_test_cn.json"
-# 独立测试腰部配合下的双爪同步抓箱。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_dual_claw_grasp_test_cn.json"
-# 固定点位前方两箱的 FoundationPose 左拉拆垛测试。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_left_pull_right_grasp_stack_cn.json"
-# YOLO动态选择最高最左箱，导航抓取、放置并返回等待区的四箱拆垛测试。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_dynamic_left_pull_stack_cn.json"
-# YOLO动态选择最高层最近箱，并自动选择左拉、右拉或双爪直接抓取。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_full_dynamic_auto_grasp_stack_cn.json"
-# 静止筛选 YOLO 最高层最近箱，再由 FoundationPose 精定位执行左拉测试。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_highest_yolo_left_pull_right_grasp_test_cn.json"
-# 静止筛选 YOLO 最高层最右箱，再由 FoundationPose 精定位执行右拉测试。
-# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_highest_yolo_right_pull_left_grasp_test_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/staring/move_box_full_direct_grasp_place_memory.json"
 
 # 高效动态拆垛分段实机测试：按 01 -> 05 顺序逐棵验证。
 # 00：静止验证最高层箱体长边两侧站位、通道过滤和RViz，不执行导航。
