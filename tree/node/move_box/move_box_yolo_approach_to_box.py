@@ -150,6 +150,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             base_frame=self.tf_base_frame,
             history_duration_sec=self.odom_history_duration_sec,
         )
+        self._no_valid_yolo_warning_at = None
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=FLOW_RESULT_KEY, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=FINAL_POSE_KEY, access=py_trees.common.Access.WRITE)
@@ -200,6 +201,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._deadline = None
         self._next_poll_at = None
         self._next_memory_update_at = None
+        self._no_valid_yolo_warning_at = None
 
     @staticmethod
     def _to_bool(value):
@@ -251,11 +253,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                             "YOLO_APPROACH",
                             "当前帧无可用 YOLO 箱体，继续等待下一帧",
                         )
-                        self.ros_node.get_logger().warn(
-                            f"[{self.config_label}] 当前帧未获得可用 YOLO 箱体，继续等待: "
-                            f"updated={updated}, valid={len(self._detected_box_targets)}, "
-                            f"filtered={len(self._filtered_box_targets)}"
-                        )
+                        self._log_no_valid_yolo_warning(updated)
                         return Status.RUNNING
                     raise RuntimeError(f"尚未获得有效 YOLO 箱体中心: updated={updated}")
 
@@ -393,6 +391,20 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         }
         self.ros_node.clear_live_runtime()
         return self._success_status()
+
+    def _log_no_valid_yolo_warning(self, updated, throttle_sec=1.0):
+        now = time.monotonic()
+        if (
+            self._no_valid_yolo_warning_at is not None
+            and now - self._no_valid_yolo_warning_at < throttle_sec
+        ):
+            return
+        self._no_valid_yolo_warning_at = now
+        self.ros_node.get_logger().warning(
+            f"[{self.config_label}] 当前帧未获得可用 YOLO 箱体，继续等待: "
+            f"updated={updated}, valid={len(self._detected_box_targets)}, "
+            f"filtered={len(self._filtered_box_targets)}"
+        )
 
     def _success_status(self):
         # 关键步骤：部分流程里 YOLO 只负责后台粗靠近，成功后保持 RUNNING，避免抢先结束外层并行。
