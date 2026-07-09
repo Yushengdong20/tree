@@ -84,7 +84,7 @@
             "label": "腰部回到1.1m初始化",
             "params": {
               "services_key": {
-                "value": "move_box_services",
+                "value": "robot_services",
                 "source": "CUSTOM"
               },
               "pose": {

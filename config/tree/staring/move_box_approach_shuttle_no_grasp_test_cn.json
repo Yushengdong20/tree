@@ -235,6 +235,10 @@
                             "name": "MoveBoxYoloApproachToBox",
                             "label": "YOLO定位箱体并粗靠近",
                             "params": {
+                              "services_key": {
+                                "value": "robot_services",
+                                "source": "CUSTOM"
+                              },
                               "chassis_url": {
                                 "value": "http://localhost:8081",
                                 "source": "CUSTOM"

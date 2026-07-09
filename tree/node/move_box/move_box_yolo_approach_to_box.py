@@ -208,6 +208,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._next_poll_at = None
         self._next_memory_update_at = None
         self._no_valid_yolo_warning_at = None
+        self._last_yolo_frame_generation = 0
+        self._latest_detection_frame = None
 
     @staticmethod
     def _to_bool(value):
@@ -412,10 +414,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         ):
             return
         self._no_valid_yolo_warning_at = now
+        frame_summary = self._format_detection_frame_summary(self._latest_detection_frame)
         self.ros_node.get_logger().warning(
             f"[{self.config_label}] 当前帧未获得可用 YOLO 箱体，继续等待: "
             f"updated={updated}, valid={len(self._detected_box_targets)}, "
-            f"filtered={len(self._filtered_box_targets)}"
+            f"filtered={len(self._filtered_box_targets)}, {frame_summary}"
         )
 
     def _success_status(self):
@@ -462,16 +465,32 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
     def _update_yolo_targets(self, services):
         """读取 YOLO 多目标结果，并转换成本轮可用于导航和记忆的目标列表。"""
+        detector = getattr(services, "yolo_detector", None)
+        detection_frame = detector.get_latest_detection_frame() if detector is not None else None
+        self._latest_detection_frame = detection_frame
+        frame_generation = int(detection_frame.get("generation", 0)) if detection_frame else 0
+        updated = bool(detection_frame) and frame_generation != self._last_yolo_frame_generation
+
         if self.use_box_memory:
-            updated = services.yolo_detector.update_latest_target_poses()
-            # 关键步骤：记忆模式只用本轮新 YOLO 结果刷新记忆，避免旧缓存覆盖箱子位置。
-            target_poses = services.yolo_detector.get_latest_target_poses() if updated else []
+            # 关键步骤：共享缓存模式下不消费 detector 的 new_detection 标志，
+            # 这样后续选箱节点仍能读取同一帧原始YOLO。
+            target_poses = (
+                detector.transform_detection_frame_to_target_poses(detection_frame)
+                if detection_frame is not None
+                else []
+            )
         else:
-            updated = services.yolo_detector.update_latest_target_pose()
-            target_pose = services.yolo_detector.get_latest_target_pose()
+            target_pose = (
+                detector.transform_detection_frame_to_target_pose(detection_frame)
+                if detection_frame is not None
+                else None
+            )
             target_poses = [] if target_pose is None else [target_pose]
 
-        self._update_visualization_targets(services, updated)
+        if detection_frame is not None:
+            self._last_yolo_frame_generation = frame_generation
+
+        self._update_visualization_targets(services, detection_frame)
 
         self._log_info(
             "YOLO检测",
@@ -718,12 +737,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         box["quat"] = [0.0, 0.0, 0.0, 1.0]
         return box
 
-    def _update_visualization_targets(self, services, updated):
+    def _update_visualization_targets(self, services, detection_frame):
         """仅为RViz维护一份全部YOLO候选，不参与粗导航选目标逻辑。"""
-        if not updated:
+        if not detection_frame:
             return
 
-        raw_detection = self._get_latest_raw_yolo_detection(services)
+        raw_detection = self._extract_boxes_from_detection_frame(detection_frame)
         if not raw_detection:
             return
 
@@ -757,15 +776,10 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             self._visualization_box_targets = visualization_targets
 
     @staticmethod
-    def _get_latest_raw_yolo_detection(services):
-        detector = getattr(services, "yolo_detector", None)
-        if detector is None:
+    def _extract_boxes_from_detection_frame(detection_frame):
+        if not isinstance(detection_frame, dict):
             return []
-        lock = getattr(detector, "detection_lock", None)
-        if lock is None:
-            return list(getattr(detector, "latest_detection", []) or [])
-        with lock:
-            return list(getattr(detector, "latest_detection", []) or [])
+        return [dict(box) for box in detection_frame.get("boxes", [])]
 
     def _build_box_geometry(self, source_box, source_frame, services):
         """尽量把 YOLO 原始3D箱子的8个角点转换到 map，供粗靠近阶段可视化。"""
@@ -1674,4 +1688,23 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         return float(stamp.sec) + float(stamp.nanosec) * 1e-9
 
     def describe_start(self):
-        return f"[{self.config_label}] MoveBoxYoloApproachToBox start"
+        return (
+            f"[{self.config_label}] MoveBoxYoloApproachToBox start: "
+            f"services_key={self.services_key}, "
+            f"odom_topic={self.odom_topic}, "
+            f"odom_match_time_offset_sec={self.odom_match_time_offset_sec}, "
+            f"odom_match_max_delta_sec={self.odom_match_max_delta_sec}, "
+            f"navigation_target_key={self.navigation_target_key}, "
+            f"selected_box_key={self.selected_box_key or '<disabled>'}, "
+            f"selected_map_point_key={self.selected_map_point_key or '<disabled>'}"
+        )
+
+    @staticmethod
+    def _format_detection_frame_summary(detection_frame):
+        if not isinstance(detection_frame, dict):
+            return "yolo_generation=0, yolo_stamp=0.000, raw_boxes=0"
+        return (
+            f"yolo_generation={int(detection_frame.get('generation', 0))}, "
+            f"yolo_stamp={float(detection_frame.get('stamp', 0.0)):.3f}, "
+            f"raw_boxes={len(detection_frame.get('boxes', []) or [])}"
+        )

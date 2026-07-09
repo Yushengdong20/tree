@@ -96,7 +96,7 @@
                 "label": "左夹爪移动到左边缘上方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -118,7 +118,7 @@
                 "label": "左夹爪下降到左边缘下方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -140,7 +140,7 @@
                 "label": "闭合左夹爪",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -154,7 +154,7 @@
                 "label": "左手小幅上提箱体",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -176,7 +176,7 @@
                 "label": "左手向外拉出箱体",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -236,7 +236,7 @@
                 "label": "右夹爪移动到补偿后右边缘上方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -258,7 +258,7 @@
                 "label": "右夹爪下降到补偿后右边缘下方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -280,7 +280,7 @@
                 "label": "闭合右夹爪",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -294,7 +294,7 @@
                 "label": "右手小幅上提箱体",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -382,7 +382,7 @@
                 "label": "右夹爪移动到右边缘上方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -404,7 +404,7 @@
                 "label": "右夹爪下降到右边缘下方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -426,7 +426,7 @@
                 "label": "闭合右夹爪",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -440,7 +440,7 @@
                 "label": "右手小幅上提箱体",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -462,7 +462,7 @@
                 "label": "右手向外拉出箱体",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -522,7 +522,7 @@
                 "label": "左夹爪移动到补偿后左边缘上方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -544,7 +544,7 @@
                 "label": "左夹爪下降到补偿后左边缘下方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -566,7 +566,7 @@
                 "label": "闭合左夹爪",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -580,7 +580,7 @@
                 "label": "左手小幅上提箱体",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {
@@ -664,7 +664,7 @@
                 "label": "双爪同步移动到左右边缘上方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "target_type": {
@@ -694,7 +694,7 @@
                 "label": "双爪同步下探到左右边缘下方",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "target_type": {
@@ -724,7 +724,7 @@
                 "label": "同时闭合左右夹爪",
                 "params": {
                   "services_key": {
-                    "value": "move_box_services",
+                    "value": "robot_services",
                     "source": "CUSTOM"
                   },
                   "side": {

@@ -23,6 +23,10 @@
         "name": "MoveBoxYoloApproachToBox",
         "label": "等待区域读取一帧YOLO最近箱并粗靠近到2米",
         "params": {
+          "services_key": {
+            "value": "robot_services",
+            "source": "CUSTOM"
+          },
           "chassis_url": {
             "value": "http://localhost:8081",
             "source": "CUSTOM"
@@ -158,6 +162,10 @@
         "name": "SelectAndPublishHighestYoloBox",
         "label": "筛选并发布YOLO最高层最近箱及抓取策略",
         "params": {
+          "services_key": {
+            "value": "robot_services",
+            "source": "CUSTOM"
+          },
           "yolo_topic": {
             "value": "/yolo/target_boxes3d_string",
             "source": "CUSTOM"
@@ -409,7 +417,7 @@
                 "name": "MoveTorsoPose",
                 "label": "FP精导航过程中同步调整腰部",
                 "params": {
-                  "services_key": {"value": "move_box_services", "source": "CUSTOM"},
+                  "services_key": {"value": "robot_services", "source": "CUSTOM"},
                   "pose_key": {"value": "move_box_torso_box_center_pose", "source": "CUSTOM"},
                   "wait_done": {"value": "False", "source": "CUSTOM"},
                   "skip_torso_motion": {"value": "False", "source": "CUSTOM"}

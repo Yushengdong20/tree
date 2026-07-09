@@ -194,7 +194,7 @@
                     "label": "双爪同步上提到搬运高度",
                     "params": {
                       "services_key": {
-                        "value": "move_box_services",
+                        "value": "robot_services",
                         "source": "CUSTOM"
                       },
                       "target_type": {
@@ -224,7 +224,7 @@
                     "label": "计算腰部回位后的双手 pitch 恢复目标",
                     "params": {
                       "services_key": {
-                        "value": "move_box_services",
+                        "value": "robot_services",
                         "source": "CUSTOM"
                       },
                       "pitch": {
@@ -246,7 +246,7 @@
                     "label": "直抓后腰部回到初始位姿",
                     "params": {
                       "services_key": {
-                        "value": "move_box_services",
+                        "value": "robot_services",
                         "source": "CUSTOM"
                       },
                       "wait_done": {
@@ -264,7 +264,7 @@
                     "label": "保持双手位置并恢复 pitch",
                     "params": {
                       "services_key": {
-                        "value": "move_box_services",
+                        "value": "robot_services",
                         "source": "CUSTOM"
                       },
                       "pose_frame": {
@@ -510,7 +510,7 @@
                     "label": "双手同步上提并回拉箱体到中心",
                     "params": {
                       "services_key": {
-                        "value": "move_box_services",
+                        "value": "robot_services",
                         "source": "CUSTOM"
                       },
                       "target_type": {
@@ -540,7 +540,7 @@
                     "label": "计算腰部回位后的双手 pitch 恢复目标",
                     "params": {
                       "services_key": {
-                        "value": "move_box_services",
+                        "value": "robot_services",
                         "source": "CUSTOM"
                       },
                       "pitch": {
@@ -562,7 +562,7 @@
                     "label": "后退过程中腰部回到初始位姿",
                     "params": {
                       "services_key": {
-                        "value": "move_box_services",
+                        "value": "robot_services",
                         "source": "CUSTOM"
                       },
                       "wait_done": {
@@ -580,7 +580,7 @@
                     "label": "保持双手位置并恢复 pitch",
                     "params": {
                       "services_key": {
-                        "value": "move_box_services",
+                        "value": "robot_services",
                         "source": "CUSTOM"
                       },
                       "pose_frame": {

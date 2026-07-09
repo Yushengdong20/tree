@@ -1,7 +1,6 @@
 """从一帧 YOLO 多箱结果中锁定最高层目标箱，并发布其 map 位姿。"""
 
 import math
-import threading
 import time
 
 import py_trees
@@ -9,14 +8,13 @@ import tf
 import tf.transformations as tf_trans
 from geometry_msgs.msg import Point
 from kuavo_humanoid_sdk.common.yolo_boxes import (
-    parse_yolo_boxes_string,
     serialize_yolo_box,
     yolo_box_center_point,
 )
 from py_trees.common import Status
 from visualization_msgs.msg import Marker, MarkerArray
 
-from tree.constants import BASE_LINK_FRAME, MAP_FRAME
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
 from tree.utils.geometry import get_odom_pose_transformer
 
@@ -47,6 +45,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.yolo_topic = str(
             params.get("yolo_topic", "/yolo/target_boxes3d_string")
+        ).strip()
+        self.services_key = str(
+            params.get("services_key", ROBOT_SERVICES_KEY)
         ).strip()
         self.output_topic = str(params.get("output_topic", "/move_box/yolo_box_pose_map")).strip()
         self.map_frame = str(params.get("map_frame", MAP_FRAME)).strip()
@@ -178,12 +179,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.freeze_after_first_valid_frame = self._to_bool(
             params.get("freeze_after_first_valid_frame", False)
         )
-        self.latest_boxes = None
-        self._message_generation = 0
         self._minimum_generation = 0
         self._frozen_boxes = None
         self._frozen_generation = 0
-        self.lock = threading.Lock()
         self._last_no_target_log_time = 0.0
         self.tf_listener = tf.TransformListener()
         self.odom_transformer = get_odom_pose_transformer(
@@ -192,9 +190,6 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             target_frame=self.map_frame,
             base_frame=self.base_frame,
             history_duration_sec=self.odom_history_duration_sec,
-        )
-        self.subscriber = self.ros_node.create_string_subscription(
-            self.yolo_topic, self._on_yolo_boxes_string, queue_size=1
         )
         self.publisher = self.ros_node.create_string_publisher(
             self.output_topic, queue_size=1, latch=True
@@ -230,6 +225,11 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 key=self.approach_pose_key,
                 access=py_trees.common.Access.WRITE,
             )
+        if self.services_key:
+            self.blackboard.register_key(
+                key=self.services_key,
+                access=py_trees.common.Access.READ,
+            )
 
     @staticmethod
     def _optional_float(value):
@@ -244,9 +244,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self._clear_raw_box_visualization()
         self._frozen_boxes = None
         self._frozen_generation = 0
-        if self.require_new_frame_after_initialise:
-            with self.lock:
-                self._minimum_generation = self._message_generation + 1
+        # 关键步骤：选箱阶段默认直接复用当前最新缓存帧，只要这帧后续能通过
+        # 区域/高度/距离等筛选，就立即用于选箱，不再强制等待“初始化后的新帧”。
+        self._minimum_generation = 0
 
     def update(self):
         if self.should_use_mock_execution():
@@ -346,6 +346,11 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 f"[{self.config_label}] YOLO单帧3D去重: 原始={raw_candidate_count}, "
                 f"保留={len(candidates)}, 合并={duplicate_text}"
             )
+
+        if self.freeze_after_first_valid_frame and self._frozen_boxes is None and candidates:
+            # 关键步骤：冻结第一帧“真正通过初步选箱筛选”的结果，而不是第一帧非空结果。
+            self._frozen_boxes = [dict(box) for box in boxes]
+            self._frozen_generation = self._get_latest_detector_generation()
 
         # 阶段2：先找最高 z，再用容差形成“最高层候选集合”。
         # 例如最高 z=0.62m、容差=0.06m，则 z>=0.56m 都属于最高层。
@@ -1325,29 +1330,50 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             strategy = "no_safe_strategy"
         return strategy, left_neighbors, right_neighbors
 
-    def _on_yolo_boxes_string(self, data):
-        """解析并缓存最新YOLO Boxes3D String；TF与选箱仍在行为树tick执行。"""
-        boxes = parse_yolo_boxes_string(data)
-        if not boxes:
-            self._log_no_target(
-                f"[{self.config_label}] 收到空或非法 YOLO boxes String: topic={self.yolo_topic}"
-            )
-            return
-        with self.lock:
-            self.latest_boxes = boxes
-            self._message_generation += 1
-
     def _get_latest_boxes(self):
-        with self.lock:
-            if self._message_generation < self._minimum_generation:
-                return None
-            if self.freeze_after_first_valid_frame:
-                if self._frozen_boxes is None and self.latest_boxes:
-                    # 测试模式下只消费初始化后的第一帧有效 YOLO，避免边看边刷新。
-                    self._frozen_boxes = list(self.latest_boxes)
-                    self._frozen_generation = self._message_generation
+        detector_frame = self._get_latest_detector_frame()
+        if detector_frame is None:
+            return None
+        boxes = [dict(box) for box in detector_frame.get("boxes", [])]
+        generation = int(detector_frame.get("generation", 0))
+        return self._select_boxes_by_generation(boxes, generation)
+
+    def _select_boxes_by_generation(self, boxes, generation):
+        if generation < self._minimum_generation:
+            return None
+        if self.freeze_after_first_valid_frame:
+            if self._frozen_boxes is not None:
                 return self._frozen_boxes
-            return self.latest_boxes
+            # 关键步骤：不要在“仅非空”阶段冻结，必须等该帧真正通过后续选箱筛选。
+            return boxes
+        return boxes
+
+    def _get_latest_detector_frame(self):
+        if not self.services_key or not self.blackboard.exists(self.services_key):
+            return None
+        services = self.blackboard.get(self.services_key)
+        detector = getattr(services, "yolo_detector", None)
+        if detector is None:
+            return None
+        getter = getattr(detector, "get_latest_detection_frame", None)
+        if callable(getter):
+            return getter()
+
+        latest_detection = getattr(detector, "latest_detection", None)
+        if not latest_detection:
+            return None
+        return {
+            "stamp": float(latest_detection[0].get("stamp", 0.0)),
+            "frame_id": str(latest_detection[0].get("frame_id", "") or self.base_frame),
+            "generation": int(getattr(detector, "message_generation", 0)),
+            "boxes": [dict(box) for box in latest_detection],
+        }
+
+    def _get_latest_detector_generation(self):
+        detector_frame = self._get_latest_detector_frame()
+        if detector_frame is None:
+            return 0
+        return int(detector_frame.get("generation", 0))
 
     def _lookup_transform_matrix(self, target_frame, source_frame):
         if target_frame == source_frame:
@@ -1450,13 +1476,17 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
     def _log_no_target(self, message):
         now = time.monotonic()
         if now - self._last_no_target_log_time >= self.no_target_log_interval_sec:
-            self.ros_node.get_logger().warning(message)
+            frame_summary = self._format_detection_frame_summary(
+                self._get_latest_detector_frame()
+            )
+            self.ros_node.get_logger().warning(f"{message}, {frame_summary}")
             self._last_no_target_log_time = now
 
     def describe_start(self):
         return (
             f"[{self.config_label}] SelectAndPublishHighestYoloBox start: "
             f"input={self.yolo_topic}, output={self.output_topic}, "
+            f"services_key={self.services_key}, "
             f"map_frame={self.map_frame}, chassis_frame={self.chassis_frame}, "
             f"base_frame={self.base_frame}, odom_topic={self.odom_topic}, "
             f"odom_match_time_offset_sec={self.odom_match_time_offset_sec}, "
@@ -1475,4 +1505,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"same_level_vertical_overlap={self.same_level_vertical_overlap_ratio:.3f}, "
             f"same_level_center_height_limit="
             f"{self.same_level_center_height_tolerance:.3f}"
+        )
+
+    @staticmethod
+    def _format_detection_frame_summary(detection_frame):
+        if not isinstance(detection_frame, dict):
+            return "yolo_generation=0, yolo_stamp=0.000, raw_boxes=0"
+        return (
+            f"yolo_generation={int(detection_frame.get('generation', 0))}, "
+            f"yolo_stamp={float(detection_frame.get('stamp', 0.0)):.3f}, "
+            f"raw_boxes={len(detection_frame.get('boxes', []) or [])}"
         )

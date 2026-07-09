@@ -66,6 +66,11 @@ def build_robot_services(model_type=IK_MODEL_MOVE_BOX) -> RobotServices:
         box_detector = FPBoxDetector(target_frame, tf_listener, box_pose_topic)
         detector_topic = box_pose_topic
     yolo_detector = YoloBoxDetector(target_frame, tf_listener, yolo_target_poses_topic)
+    rospy.loginfo(
+        "MoveBox 共享 YoloBoxDetector 已初始化: topic=%s, target_frame=%s",
+        yolo_detector.pose_topic,
+        target_frame,
+    )
     arm_controller = ArmController(
         tf_listener,
         target_frame,

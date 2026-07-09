@@ -13,6 +13,10 @@
         "name": "SelectAndPublishHighestYoloBox",
         "label": "生成最高层所有箱体的长边两侧接近位姿",
         "params": {
+          "services_key": {
+            "value": "robot_services",
+            "source": "CUSTOM"
+          },
           "yolo_topic": {
             "value": "/yolo/target_boxes3d_string",
             "source": "CUSTOM"
