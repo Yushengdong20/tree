@@ -107,85 +107,54 @@
             },
             "childs": [
               {
-                "name": "Parallel",
-                "label": "并行导航到A点并提升腰部到抓取高度",
+                "name": "HttpNavigateToPose",
+                "label": "导航到A点抓取区",
                 "params": {
-                  "policy": {
-                    "value": "SuccessOnAll",
+                  "x": {
+                    "value": "-1.26",
+                    "source": "CUSTOM"
+                  },
+                  "y": {
+                    "value": "-5.06",
+                    "source": "CUSTOM"
+                  },
+                  "yaw": {
+                    "value": "-179.34",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "grasp_object_pick_navigation_target",
                     "source": "CUSTOM"
                   }
                 },
-                "childs": [
-                  {
-                    "name": "ArmsToPose",
-                    "label": "前往A点时双臂返回初始位姿",
-                    "params": {
-                      "pose_frame": {
-                        "value": "waist_yaw_link",
-                        "source": "CUSTOM"
-                      },
-                      "left_pose": {
-                        "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
-                        "source": "CUSTOM"
-                      },
-                      "right_pose": {
-                        "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
-                        "source": "CUSTOM"
-                      }
-                    },
-                    "childs": []
+                "childs": []
+              },
+              {
+                "name": "MoveTorsoPose",
+                "label": "到达A点后腰部提升到货架抓取高度",
+                "params": {
+                  "pose": {
+                    "value": "[0.117, 0.0, 1.0, 0.0, 0.0, 0.0]",
+                    "source": "CUSTOM"
                   },
-                  {
-                    "name": "HttpNavigateToPose",
-                    "label": "导航到A点抓取区",
-                    "params": {
-                      "x": {
-                        "value": "-2.10",
-                        "source": "CUSTOM"
-                      },
-                      "y": {
-                        "value": "-5.96",
-                        "source": "CUSTOM"
-                      },
-                      "yaw": {
-                        "value": "-179.34",
-                        "source": "CUSTOM"
-                      },
-                      "chassis_url": {
-                        "value": "http://localhost:8081",
-                        "source": "CUSTOM"
-                      },
-                      "navigation_timeout_sec": {
-                        "value": "600",
-                        "source": "CUSTOM"
-                      },
-                      "poll_interval_sec": {
-                        "value": "0.2",
-                        "source": "CUSTOM"
-                      },
-                      "navigation_target_key": {
-                        "value": "grasp_object_pick_navigation_target",
-                        "source": "CUSTOM"
-                      }
-                    },
-                    "childs": []
-                  },
-                  {
-                    "name": "MoveTorsoPose",
-                    "label": "到达A点后腰部提升到货架抓取高度",
-                    "params": {
-                      "pose": {
-                        "value": "[0.117, 0.0, 1.0, 0.0, 0.0, 0.0]",
-                        "source": "CUSTOM"
-                      },
-                      "wait_done": {
-                        "value": "True",
-                        "source": "CUSTOM"
-                      }
-                    },
-                    "childs": []
+                  "wait_done": {
+                    "value": "True",
+                    "source": "CUSTOM"
                   }
-                ]
+                },
+                "childs": []
               },
               {
                 "name": "SubTree",
@@ -193,6 +162,21 @@
                 "params": {
                   "file": {
                     "value": "subtree/grasp_single_part_right_arm.json",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "MoveTorsoPose",
+                "label": "抓取完成后腰部回到初始姿态",
+                "params": {
+                  "pose": {
+                    "value": "[0.117, 0.000, 0.926, 0.0, 0.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "wait_done": {
+                    "value": "True",
                     "source": "CUSTOM"
                   }
                 },
@@ -213,15 +197,15 @@
                     "label": "导航到B点放置区",
                     "params": {
                       "x": {
-                        "value": "-1.13",
+                        "value": "2.89",
                         "source": "CUSTOM"
                       },
                       "y": {
-                        "value": "-5.48",
+                        "value": "-2.20",
                         "source": "CUSTOM"
                       },
                       "yaw": {
-                        "value": "90.0",
+                        "value": "1.15",
                         "source": "CUSTOM"
                       },
                       "chassis_url": {

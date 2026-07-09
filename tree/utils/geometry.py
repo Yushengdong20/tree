@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""move_box 运行时通用工具函数。"""
+"""行为树运行时通用几何工具函数。"""
 
 import math
 import time
@@ -213,6 +213,26 @@ def transform_pose(tf_listener, pose_stamped, target_frame, timeout=0.5):
     return tf_listener.transformPose(target_frame, pose_stamped)
 
 
+def lookup_transform_matrix(tf_listener, ros_node, target_frame, source_frame, timeout=0.5):
+    """等待 TF 并返回 target_frame <- source_frame 的 4x4 变换矩阵。"""
+    stamp = ros_node.zero_time()
+    tf_listener.waitForTransform(
+        target_frame,
+        source_frame,
+        stamp,
+        ros_node.duration(timeout),
+    )
+    translation, quaternion = tf_listener.lookupTransform(
+        target_frame,
+        source_frame,
+        stamp,
+    )
+    return tf_trans.concatenate_matrices(
+        tf_trans.translation_matrix(translation),
+        tf_trans.quaternion_matrix(quaternion),
+    )
+
+
 def transform_point(tf_listener, ros_node, point_xyz, source_frame, target_frame, timeout=0.2):
     """等待 TF 并将三维点转换到目标坐标系。"""
     if source_frame == target_frame:
@@ -350,6 +370,34 @@ def normalize_quaternion(quaternion):
     if norm < 1e-8:
         return np.array([0.0, 0.0, 0.0, 1.0])
     return quat / norm
+
+
+def matrix_to_xyz_ypr(pose_matrix):
+    """将 4x4 位姿矩阵转为 [x, y, z, yaw, pitch, roll]，角度单位为 deg。"""
+    roll, pitch, yaw = tf_trans.euler_from_matrix(pose_matrix)
+    return [
+        float(pose_matrix[0, 3]),
+        float(pose_matrix[1, 3]),
+        float(pose_matrix[2, 3]),
+        math.degrees(yaw),
+        math.degrees(pitch),
+        math.degrees(roll),
+    ]
+
+
+def format_xyz_ypr(xyz_ypr):
+    """格式化 [x, y, z, yaw, pitch, roll]，便于日志输出。"""
+    return (
+        f"x={xyz_ypr[0]:.4f}, y={xyz_ypr[1]:.4f}, z={xyz_ypr[2]:.4f}, "
+        f"yaw={xyz_ypr[3]:.2f}deg, pitch={xyz_ypr[4]:.2f}deg, roll={xyz_ypr[5]:.2f}deg"
+    )
+
+
+def make_xz_pitch_transform(x, z, pitch):
+    """构造仅包含 x/z 平移和 pitch 旋转的 4x4 变换矩阵。"""
+    transform = tf_trans.euler_matrix(0.0, float(pitch), 0.0)
+    transform[:3, 3] = [float(x), 0.0, float(z)]
+    return transform
 
 
 def xyz_ypr_to_pose_stamped(xyz_ypr, frame_id):

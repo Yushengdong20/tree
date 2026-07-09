@@ -49,9 +49,9 @@ class HttpNavigateToPose(TimedMockAction):
         self.y = float(params.get("y", 0.0))
         self.yaw = float(params.get("yaw", 0.0))
         self.target_pose_key = str(params.get("target_pose_key", "")).strip()
+        self.navigation_target_key = str(params.get("navigation_target_key", "navigation_target")).strip()
         if self.target_pose_key:
             self.blackboard.register_key(key=self.target_pose_key, access=common.Access.READ)
-        self.navigation_target_key = str(params.get("navigation_target_key", "navigation_target")).strip()
         if self.navigation_target_key:
             self.blackboard.register_key(key=self.navigation_target_key, access=common.Access.WRITE)
         self.navigation_visualization_enabled = self._to_bool(
@@ -95,7 +95,7 @@ class HttpNavigateToPose(TimedMockAction):
         super().initialise()
         # 进入节点时只做“状态机复位”，不直接访问外部 HTTP。
         # 真正的网络调用留到 update() 中按 phase 分步推进。
-        self._load_target_from_blackboard()
+        self._refresh_target_from_blackboard(allow_missing=True)
         self._store_navigation_target()
         self._publish_navigation_visualization()
         self._phase = "CREATE_TASK"
@@ -110,6 +110,7 @@ class HttpNavigateToPose(TimedMockAction):
         if self.should_use_mock_execution():
             status = self.update_mock_result()
             if status == common.Status.SUCCESS:
+                self._refresh_target_from_blackboard(allow_missing=True)
                 self._store_navigation_result({
                     "simulated": True,
                     "targetPose": {
@@ -131,6 +132,7 @@ class HttpNavigateToPose(TimedMockAction):
 
             if self._phase == "CREATE_TASK":
                 # 第一个 tick 只负责创建导航任务，拿到 task_instance_id 后立刻返回 RUNNING。
+                self._refresh_target_from_blackboard()
                 self._store_navigation_target()
                 self._publish_navigation_visualization()
                 self.ros_node.set_live_runtime(
@@ -235,29 +237,58 @@ class HttpNavigateToPose(TimedMockAction):
             overwrite=True,
         )
 
-    def _load_target_from_blackboard(self):
-        """允许前置节点把动态导航目标写到 blackboard。"""
+    def _refresh_target_from_blackboard(self, allow_missing=False):
+        """配置 target_pose_key 时，从黑板读取导航目标覆盖静态参数。"""
         if not self.target_pose_key:
             return
+
         if not self.blackboard.exists(self.target_pose_key):
-            raise KeyError(
-                f"blackboard 缺少导航目标: key={self.target_pose_key}"
+            if allow_missing:
+                return
+            raise RuntimeError(f"blackboard key 不存在: {self.target_pose_key}")
+
+        target_pose = self._parse_target_pose(self.blackboard.get(self.target_pose_key))
+        if target_pose is None:
+            raise RuntimeError(f"无法解析导航目标: key={self.target_pose_key}")
+
+        # 关键步骤：创建 HTTP 任务前刷新 x/y/yaw，让后续日志、黑板目标和请求体保持一致。
+        self.x, self.y, self.yaw = target_pose
+
+    def _parse_target_pose(self, raw_target):
+        """兼容 dict/list/tuple 或带 x/y/yaw 属性的导航目标。"""
+        if raw_target is None:
+            return None
+
+        if isinstance(raw_target, dict):
+            if "x" in raw_target and "y" in raw_target:
+                return (
+                    float(raw_target["x"]),
+                    float(raw_target["y"]),
+                    float(raw_target.get("yaw", raw_target.get("angle", 0.0))),
+                )
+            if "position" in raw_target:
+                return self._parse_target_pose(raw_target["position"])
+            if "pose" in raw_target:
+                return self._parse_target_pose(raw_target["pose"])
+
+        if isinstance(raw_target, (list, tuple)) and len(raw_target) >= 2:
+            target_yaw = float(raw_target[2]) if len(raw_target) >= 3 else 0.0
+            return float(raw_target[0]), float(raw_target[1]), target_yaw
+
+        if hasattr(raw_target, "x") and hasattr(raw_target, "y"):
+            return (
+                float(raw_target.x),
+                float(raw_target.y),
+                float(getattr(raw_target, "yaw", 0.0)),
             )
 
-        target = self.blackboard.get(self.target_pose_key)
-        if not isinstance(target, dict):
-            raise TypeError(
-                f"blackboard 导航目标必须是 dict: key={self.target_pose_key}, value={target!r}"
-            )
+        if hasattr(raw_target, "position"):
+            return self._parse_target_pose(raw_target.position)
 
-        try:
-            self.x = float(target["x"])
-            self.y = float(target["y"])
-            self.yaw = float(target["yaw"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(
-                f"blackboard 导航目标缺少有效 x/y/yaw: key={self.target_pose_key}, value={target!r}"
-            ) from exc
+        if hasattr(raw_target, "pose"):
+            return self._parse_target_pose(raw_target.pose)
+
+        return None
 
     def describe_start(self):
         return (

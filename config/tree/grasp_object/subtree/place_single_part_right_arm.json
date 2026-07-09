@@ -18,7 +18,7 @@
             "source": "CUSTOM"
           },
           "left_pose": {
-            "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
+            "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
             "source": "CUSTOM"
           },
           "right_pose": {
@@ -38,40 +38,6 @@
         "params": {
           "side": {
             "value": "right",
-            "source": "CUSTOM"
-          }
-        },
-        "childs": []
-      },
-      {
-        "name": "MoveTorsoPose",
-        "label": "腰部回到初始位姿",
-        "params": {
-          "pose": {
-            "value": "[0.117, 0.000, 0.926, 0.0, 0.0, 0.0]",
-            "source": "CUSTOM"
-          },
-          "wait_done": {
-            "value": "True",
-            "source": "CUSTOM"
-          }
-        },
-        "childs": []
-      },
-      {
-        "name": "ArmsToPose",
-        "label": "放置后双臂返回初始位姿",
-        "params": {
-          "pose_frame": {
-            "value": "waist_yaw_link",
-            "source": "CUSTOM"
-          },
-          "left_pose": {
-            "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
-            "source": "CUSTOM"
-          },
-          "right_pose": {
-            "value": "[0.301, -0.3, 0.2, 0.0, -90.0, 0.0]",
             "source": "CUSTOM"
           }
         },

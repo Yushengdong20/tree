@@ -6,12 +6,9 @@ import numpy as np
 import py_trees
 from py_trees.common import Status
 
-from tree.constants import BASE_LINK_FRAME, ROBOT_SERVICES_KEY
+from tree.constants import BASE_LINK_FRAME, CAMERA_FRAME, ROBOT_SERVICES_KEY
 
 from ..base import TimedMockAction
-
-
-SOURCE_FRAME = "camera"
 
 
 class NoGraspObjectError(RuntimeError):
@@ -38,7 +35,7 @@ class RequestGraspPoses(TimedMockAction):
         self.camera_grasp_poses_key = str(
             params.get("camera_grasp_poses_key", "grasp_object_camera_grasp_poses")
         ).strip()
-        self.source_frame = str(params.get("source_frame", SOURCE_FRAME)).strip()
+        self.source_frame = str(params.get("source_frame", CAMERA_FRAME)).strip()
         self.target_frame = str(params.get("target_frame", BASE_LINK_FRAME)).strip()
         self.tf_timeout_sec = float(params.get("tf_timeout_sec", 2.0))
         self.services_key = ROBOT_SERVICES_KEY

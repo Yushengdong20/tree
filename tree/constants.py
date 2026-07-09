@@ -6,6 +6,10 @@ from kuavo_humanoid_sdk.common.constants import (
     WAIST_YAW_LINK_FRAME,
 )
 
+KNEE_LINK_FRAME = "knee_link"
+FIXED_KNEE_FRAME = "fixed_knee"
+CAMERA_FRAME = "camera"
+
 ROBOT_SERVICES_KEY = "robot_services"
 MODEL_TYPE_KEY = "model_type"
 

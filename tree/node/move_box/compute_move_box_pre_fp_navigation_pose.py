@@ -82,6 +82,10 @@ class ComputeMoveBoxPreFpNavigationPose(TimedMockAction):
         approach_yaw_deg = float(source_pose["yaw"])
         box_center = self._extract_box_center(selected_box)
         if box_center is None:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 无法从选中箱体提取 map 中心: "
+                f"key={self.selected_box_key}, value={selected_box!r}"
+            )
             return Status.FAILURE
 
         current_x, current_y, _current_z, current_yaw_deg = current_pose
@@ -175,12 +179,24 @@ class ComputeMoveBoxPreFpNavigationPose(TimedMockAction):
     @staticmethod
     def _extract_box_center(selected_box):
         center = selected_box.get("map")
-        if not isinstance(center, (list, tuple)) or len(center) < 2:
-            return None
-        try:
-            return float(center[0]), float(center[1])
-        except (TypeError, ValueError):
-            return None
+        if center is None:
+            center = selected_box.get("map_position")
+        if center is None:
+            center = selected_box.get("center")
+
+        if isinstance(center, (list, tuple)) and len(center) >= 2:
+            try:
+                return float(center[0]), float(center[1])
+            except (TypeError, ValueError):
+                return None
+
+        if isinstance(center, dict) and "x" in center and "y" in center:
+            try:
+                return float(center["x"]), float(center["y"])
+            except (TypeError, ValueError):
+                return None
+
+        return None
 
     def _build_offset_pose(self, source_pose):
         source_x = float(source_pose["x"])

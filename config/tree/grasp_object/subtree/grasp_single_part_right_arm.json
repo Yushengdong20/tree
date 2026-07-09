@@ -18,11 +18,11 @@
             "source": "CUSTOM"
           },
           "left_pose": {
-            "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
+            "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
             "source": "CUSTOM"
           },
           "right_pose": {
-            "value": "[0.301, -0.3, 0.2, 0.0, -90.0, 0.0]",
+            "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
             "source": "CUSTOM"
           }
         },
@@ -33,7 +33,7 @@
         "label": "请求候选抓取位姿前等待1秒",
         "params": {
           "duration_sec": {
-            "value": "2.0",
+            "value": "1.0",
             "source": "CUSTOM"
           }
         },
@@ -198,7 +198,7 @@
                     "source": "CUSTOM"
                   },
                   "torso_sample_x_max_m": {
-                    "value": "0.4",
+                    "value": "0.3",
                     "source": "CUSTOM"
                   },
                   "torso_sample_z_min_m": {
@@ -326,6 +326,17 @@
                       }
                     },
                     "childs": [
+                      {
+                        "name": "WaitSeconds",
+                        "label": "重新请求候选抓取位姿前等待图像稳定",
+                        "params": {
+                          "duration_sec": {
+                            "value": "1.0",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
                       {
                         "name": "RequestGraspPoses",
                         "label": "原候选失败后重新请求候选抓取位姿",
@@ -536,62 +547,101 @@
         "childs": []
       },
       {
-        "name": "HttpNavigateToPose",
-        "label": "抓取后后退0.3米",
+        "name": "CalculateRelativePose",
+        "label": "计算抓取后后退0.3米目标",
         "params": {
-          "x": {
-            "value": "-1.8000",
+          "odom_topic": {
+            "value": "melon_odom",
             "source": "CUSTOM"
           },
-          "y": {
-            "value": "-5.9565",
-            "source": "CUSTOM"
-          },
-          "yaw": {
-            "value": "-179.34",
-            "source": "CUSTOM"
-          },
-          "chassis_url": {
-            "value": "http://localhost:8081",
-            "source": "CUSTOM"
-          },
-          "navigation_timeout_sec": {
-            "value": "600",
-            "source": "CUSTOM"
-          },
-          "poll_interval_sec": {
-            "value": "0.2",
-            "source": "CUSTOM"
-          },
-          "navigation_target_key": {
+          "output_key": {
             "value": "grasp_object_retreat_navigation_target",
+            "source": "CUSTOM"
+          },
+          "dx": {
+            "value": "-0.3",
+            "source": "CUSTOM"
+          },
+          "dy": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dyaw": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "relative_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "timeout_sec": {
+            "value": "5.0",
             "source": "CUSTOM"
           }
         },
         "childs": []
       },
       {
-        "name": "ArmsToPose",
-        "label": "抓取后右臂回到初始位姿并保持夹爪闭合",
+        "name": "Parallel",
+        "label": "抓取后并行后退和右臂回初始位姿",
         "params": {
-          "pose_frame": {
-            "value": "waist_yaw_link",
-            "source": "CUSTOM"
-          },
-          "left_pose": {
-            "value": "[0.301, 0.3, 0.2, 0.0, -90.0, 0.0]",
-            "source": "CUSTOM"
-          },
-          "right_pose": {
-            "value": "[0.301, -0.3, 0.2, 0.0, -90.0, 0.0]",
-            "source": "CUSTOM"
-          },
-          "lock_arm_side": {
-            "value": "left",
+          "policy": {
+            "value": "SuccessOnAll",
             "source": "CUSTOM"
           }
         },
-        "childs": []
+        "childs": [
+          {
+            "name": "HttpNavigateToPose",
+            "label": "抓取后后退0.3米",
+            "params": {
+              "target_pose_key": {
+                "value": "grasp_object_retreat_navigation_target",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              },
+              "navigation_target_key": {
+                "value": "grasp_object_retreat_navigation_target",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "ArmsToPose",
+            "label": "抓取后右臂回到初始位姿并保持夹爪闭合",
+            "params": {
+              "pose_frame": {
+                "value": "waist_yaw_link",
+                "source": "CUSTOM"
+              },
+              "left_pose": {
+                "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "right_pose": {
+                "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "lock_arm_side": {
+                "value": "left",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          }
+        ]
       }
     ]
   }
