@@ -245,6 +245,18 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     updated = self._update_yolo_targets(services)
                     self._choose_current_target_from_yolo()
                 if self._current_box_target is None:
+                    if not (self.selected_box_key or self.selected_map_point_key):
+                        self.ros_node.set_live_runtime(
+                            self.config_label,
+                            "YOLO_APPROACH",
+                            "当前帧无可用 YOLO 箱体，继续等待下一帧",
+                        )
+                        self.ros_node.get_logger().warn(
+                            f"[{self.config_label}] 当前帧未获得可用 YOLO 箱体，继续等待: "
+                            f"updated={updated}, valid={len(self._detected_box_targets)}, "
+                            f"filtered={len(self._filtered_box_targets)}"
+                        )
+                        return Status.RUNNING
                     raise RuntimeError(f"尚未获得有效 YOLO 箱体中心: updated={updated}")
 
                 self._box_base_position = self._derive_target_base_position(
