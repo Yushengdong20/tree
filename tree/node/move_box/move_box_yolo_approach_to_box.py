@@ -119,15 +119,6 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "/move_box/yolo_navigation_markers",
             )
         ).strip()
-        self.box_visualization_enabled = self._to_bool(
-            params.get("box_visualization_enabled", True)
-        )
-        self.box_visualization_topic = str(
-            params.get(
-                "box_visualization_topic",
-                "/move_box/yolo_navigation_box_markers",
-            )
-        ).strip()
         self.enable_memory_file_log = self._to_bool(
             params.get("enable_memory_file_log", True)
         )
@@ -147,14 +138,6 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if self.navigation_visualization_enabled and self.navigation_visualization_topic:
             self.navigation_visualization_pub = self.ros_node.create_publisher(
                 self.navigation_visualization_topic,
-                MarkerArray,
-                queue_size=1,
-                latch=True,
-            )
-        self.box_visualization_pub = None
-        if self.box_visualization_enabled and self.box_visualization_topic:
-            self.box_visualization_pub = self.ros_node.create_publisher(
-                self.box_visualization_topic,
                 MarkerArray,
                 queue_size=1,
                 latch=True,
@@ -206,6 +189,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._box_global_position = None
         self._detected_box_targets = []
         self._visualization_box_targets = []
+        self._filtered_box_targets = []
         self._current_box_target = None
         self._current_target_source = "无"
         self._target_pose = None
@@ -228,7 +212,6 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._reset_state()
         self._clear_navigation_target_pose()
         self._clear_navigation_visualization()
-        self._clear_box_visualization()
         self._phase = "GET_POSE"
         self._deadline = time.monotonic() + self.navigation_timeout_sec
 
@@ -305,6 +288,21 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     self.target_distance_m,
                 )
                 self._box_distance_m = box_distance_m
+                self._log_info(
+                    "YOLO粗导航求解",
+                    "选中箱map坐标=%s 底盘当前map位姿=(%.3f, %.3f, %.3f) "
+                    "求解导航目标map=(%.3f, %.3f, %.3f)"
+                    % (
+                        self._format_position(self._box_global_position),
+                        self._current_pose.x,
+                        self._current_pose.y,
+                        self._current_pose.yaw,
+                        self._target_pose.x,
+                        self._target_pose.y,
+                        self._target_pose.yaw,
+                    ),
+                    "green",
+                )
                 self.ros_node.get_logger().info(
                     f"[{self.config_label}] YOLO 粗靠近目标: "
                     f"箱子base坐标={self._format_position(self._box_base_position)}, "
@@ -451,6 +449,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             "magenta",
         )
         self._detected_box_targets = []
+        self._filtered_box_targets = []
+        self._visualization_box_targets = []
         filtered_count = 0
         for index, target_pose in enumerate(target_poses):
             center = target_pose.get("center", [0.0, 0.0, 0.0])
@@ -468,6 +468,17 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             )
             if not self._is_map_position_allowed(map_position):
                 filtered_count += 1
+                filtered_target = {
+                    "id": "",
+                    "map_position": map_position,
+                    "box": self._build_map_box(target_pose, map_position),
+                    "geometry": self._build_box_geometry(target_pose, source_frame, services),
+                    "_base_position": base_position,
+                    "filter_reason": "outside_valid_box_map_polygon",
+                    "filter_text": "指定区域外",
+                }
+                self._filtered_box_targets.append(filtered_target)
+                self._visualization_box_targets.append(filtered_target)
                 self._log_info(
                     "YOLO目标过滤",
                     "序号=%d/%d 过滤类型=指定区域外 base坐标=%s map坐标=%s"
@@ -493,6 +504,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             )
             if overlap_target is not None:
                 filtered_count += 1
+                target["filter_reason"] = "overlapped_detected_target"
+                target["filter_text"] = "与已有箱子3D重叠"
+                target["overlap_distance"] = overlap_distance
+                self._filtered_box_targets.append(target)
+                self._visualization_box_targets.append(target)
                 self._log_info(
                     "YOLO目标过滤",
                     "序号=%d/%d 过滤类型=与已有箱子3D重叠 3D距离=%.3fm "
@@ -522,6 +538,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "magenta",
             )
             self._detected_box_targets.append(target)
+            self._visualization_box_targets.append(target)
         self._log_info(
             "YOLO检测统计",
             "原始数量=%d 有效数量=%d 过滤数量=%d"
@@ -532,7 +549,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             ),
             "magenta",
         )
-        self._publish_box_visualization()
+        self._publish_detection_only_visualization()
         self._log_target_list("YOLO有效目标列表", self._detected_box_targets)
         return updated
 
@@ -584,7 +601,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._current_target_source = (
             f"blackboard:{self.selected_box_key or self.selected_map_point_key}"
         )
-        self._publish_box_visualization()
+        self._publish_detection_only_visualization()
         self._log_current_target()
         return True
 
@@ -1309,7 +1326,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 current_map = self._current_box_target.get("map_position")
                 if self._target_distance(target_map, current_map) <= self.min_detected_box_3d_distance_m:
                     is_selected = True
-            color = (1.0, 0.88, 0.0) if is_selected else (0.62, 0.62, 0.62)
+            is_filtered = bool(target.get("filter_reason"))
+            color = (
+                (0.65, 0.65, 0.65)
+                if is_filtered
+                else ((1.0, 0.88, 0.0) if is_selected else (0.20, 0.75, 1.0))
+            )
 
             outline = self._new_navigation_marker(
                 marker_id, "yolo_navigation_box_outline", Marker.LINE_LIST
@@ -1317,7 +1339,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             marker_id += 1
             outline.scale.x = 0.032 if is_selected else 0.014
             self._set_navigation_marker_color(
-                outline, color[0], color[1], color[2], 0.95 if is_selected else 0.55
+                outline,
+                color[0],
+                color[1],
+                color[2],
+                0.35 if is_filtered else (0.95 if is_selected else 0.70),
             )
             for start_index, end_index in self._box_edge_indices():
                 outline.points.append(self._point_message(corners[start_index]))
@@ -1338,7 +1364,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 0.10 if is_selected else 0.05
             )
             self._set_navigation_marker_color(
-                center_marker, color[0], color[1], color[2], 1.0
+                center_marker, color[0], color[1], color[2], 0.65 if is_filtered else 1.0
             )
             marker_array.markers.append(center_marker)
 
@@ -1356,8 +1382,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 text_marker, color[0], color[1], color[2], 1.0
             )
             source_box = target.get("box") or {}
+            filter_suffix = ""
+            if is_filtered:
+                filter_suffix = f" FILTERED[{target.get('filter_text') or target.get('filter_reason')}]"
             text_marker.text = (
-                f"ROUGH YOLO #{index}{' SELECTED' if is_selected else ''}\n"
+                f"ROUGH YOLO #{index}{' SELECTED' if is_selected else ''}{filter_suffix}\n"
                 f"map=({float(map_position.get('x', 0.0)):.2f}, "
                 f"{float(map_position.get('y', 0.0)):.2f}, "
                 f"{float(map_position.get('z', 0.0)):.2f})\n"
@@ -1432,12 +1461,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             f"goal=({target_x:.3f}, {target_y:.3f}, {target_yaw:.3f})"
         )
 
-    def _publish_box_visualization(self):
-        """单独发布粗靠近阶段使用的 YOLO 3D 箱体。"""
-        if self.box_visualization_pub is None:
-            return
-        if self.box_visualization_topic == self.navigation_visualization_topic:
-            # 同话题模式下由导航可视化统一发布，避免两个 DELETEALL 互相覆盖。
+    def _publish_detection_only_visualization(self):
+        """在尚未生成导航目标时发布 YOLO 箱体检测结果。"""
+        if self.navigation_visualization_pub is None:
             return
 
         marker_array = MarkerArray()
@@ -1445,52 +1471,44 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         clear_marker.action = Marker.DELETEALL
         marker_array.markers.append(clear_marker)
 
+        visualization_targets = (
+            self._visualization_box_targets
+            if self._visualization_box_targets
+            else self._detected_box_targets
+        )
         selected_id = id(self._current_box_target) if self._current_box_target is not None else None
         marker_id = 1
-        for index, target in enumerate(self._detected_box_targets):
+        for index, target in enumerate(visualization_targets):
             map_position = target.get("map_position") or {}
             corners = (target.get("geometry") or {}).get("corners") or self._fallback_box_corners(target)
             is_selected = id(target) == selected_id
-            color = (1.0, 0.9, 0.0) if is_selected else (0.72, 0.72, 0.72)
+            is_filtered = bool(target.get("filter_reason"))
+            color = (
+                (0.65, 0.65, 0.65)
+                if is_filtered
+                else ((1.0, 0.9, 0.0) if is_selected else (0.20, 0.75, 1.0))
+            )
 
             outline = self._new_navigation_marker(
-                marker_id, "yolo_rough_box_outline", Marker.LINE_LIST
+                marker_id, "yolo_detection_only_outline", Marker.LINE_LIST
             )
             marker_id += 1
-            outline.scale.x = 0.032 if is_selected else 0.015
+            outline.scale.x = 0.032 if is_selected else 0.014
             self._set_navigation_marker_color(
                 outline,
                 color[0],
                 color[1],
                 color[2],
-                0.95 if is_selected else 0.60,
+                0.35 if is_filtered else (0.95 if is_selected else 0.75),
             )
             for start_index, end_index in self._box_edge_indices():
                 outline.points.append(self._point_message(corners[start_index]))
                 outline.points.append(self._point_message(corners[end_index]))
             marker_array.markers.append(outline)
 
-            center_marker = self._new_navigation_marker(
-                marker_id, "yolo_rough_box_center", Marker.SPHERE
-            )
-            marker_id += 1
-            center_marker.pose.position = Point(
-                x=float(map_position.get("x", 0.0)),
-                y=float(map_position.get("y", 0.0)),
-                z=float(map_position.get("z", 0.0)),
-            )
-            center_marker.pose.orientation.w = 1.0
-            center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = (
-                0.10 if is_selected else 0.06
-            )
-            self._set_navigation_marker_color(
-                center_marker, color[0], color[1], color[2], 1.0
-            )
-            marker_array.markers.append(center_marker)
-
             top_z = max(corner[2] for corner in corners) if corners else float(map_position.get("z", 0.0))
             text_marker = self._new_navigation_marker(
-                marker_id, "yolo_rough_box_text", Marker.TEXT_VIEW_FACING
+                marker_id, "yolo_detection_only_text", Marker.TEXT_VIEW_FACING
             )
             marker_id += 1
             text_marker.pose.position.x = float(map_position.get("x", 0.0))
@@ -1501,8 +1519,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 text_marker, color[0], color[1], color[2], 1.0
             )
             source_box = target.get("box") or {}
+            filter_suffix = ""
+            if is_filtered:
+                filter_suffix = f" FILTERED[{target.get('filter_text') or target.get('filter_reason')}]"
             text_marker.text = (
-                f"ROUGH YOLO #{index}{' SELECTED' if is_selected else ''}\n"
+                f"ROUGH YOLO #{index}{' SELECTED' if is_selected else ''}{filter_suffix}\n"
                 f"map=({float(map_position.get('x', 0.0)):.2f}, "
                 f"{float(map_position.get('y', 0.0)):.2f}, "
                 f"{float(map_position.get('z', 0.0)):.2f})\n"
@@ -1511,10 +1532,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             )
             marker_array.markers.append(text_marker)
 
-        self.box_visualization_pub.publish(marker_array)
+        self.navigation_visualization_pub.publish(marker_array)
         self.ros_node.get_logger().info(
-            f"[{self.config_label}] 已发布YOLO粗靠近3D箱体RViz标记: "
-            f"topic={self.box_visualization_topic}, boxes={len(self._detected_box_targets)}"
+            f"[{self.config_label}] 已发布YOLO检测阶段RViz标记: "
+            f"topic={self.navigation_visualization_topic}, boxes={len(visualization_targets)}, "
+            f"filtered={len(self._filtered_box_targets)}"
         )
 
     def _clear_navigation_visualization(self):
@@ -1525,15 +1547,6 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         marker.action = Marker.DELETEALL
         marker_array.markers.append(marker)
         self.navigation_visualization_pub.publish(marker_array)
-
-    def _clear_box_visualization(self):
-        if self.box_visualization_pub is None:
-            return
-        marker_array = MarkerArray()
-        marker = Marker()
-        marker.action = Marker.DELETEALL
-        marker_array.markers.append(marker)
-        self.box_visualization_pub.publish(marker_array)
 
     def _new_navigation_marker(self, marker_id, namespace, marker_type):
         marker = Marker()

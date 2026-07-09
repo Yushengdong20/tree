@@ -47,14 +47,6 @@
             "value": "/move_box/yolo_navigation_markers",
             "source": "CUSTOM"
           },
-          "box_visualization_enabled": {
-            "value": "True",
-            "source": "CUSTOM"
-          },
-          "box_visualization_topic": {
-            "value": "/move_box/yolo_navigation_markers",
-            "source": "CUSTOM"
-          },
           "navigation_timeout_sec": {
             "value": "600",
             "source": "CUSTOM"

@@ -247,6 +247,14 @@
                                 "value": "move_box_yolo_navigation_target",
                                 "source": "CUSTOM"
                               },
+                              "navigation_visualization_enabled": {
+                                "value": "True",
+                                "source": "CUSTOM"
+                              },
+                              "navigation_visualization_topic": {
+                                "value": "/move_box/yolo_navigation_markers",
+                                "source": "CUSTOM"
+                              },
                               "navigation_timeout_sec": {
                                 "value": "600",
                                 "source": "CUSTOM"
@@ -256,6 +264,55 @@
                                 "source": "CUSTOM"
                               },
                               "keep_running_after_success": {
+                                "value": "True",
+                                "source": "CUSTOM"
+                              },
+                              "use_tf_3d_transform": {
+                                "value": "True",
+                                "source": "CUSTOM"
+                              },
+                              "tf_target_frame": {
+                                "value": "map",
+                                "source": "CUSTOM"
+                              },
+                              "tf_base_frame": {
+                                "value": "base_link",
+                                "source": "CUSTOM"
+                              },
+                              "tf_timeout_sec": {
+                                "value": "0.2",
+                                "source": "CUSTOM"
+                              },
+                              "odom_topic": {
+                                "value": "melon_odom",
+                                "source": "CUSTOM"
+                              },
+                              "odom_history_duration_sec": {
+                                "value": "10.0",
+                                "source": "CUSTOM"
+                              },
+                              "valid_box_map_polygon": {
+                                "value": [
+                                  [
+                                    -1.5,
+                                    3.0
+                                  ],
+                                  [
+                                    -1.5,
+                                    -1.3
+                                  ],
+                                  [
+                                    1.5,
+                                    -1.3
+                                  ],
+                                  [
+                                    1.5,
+                                    3.0
+                                  ]
+                                ],
+                                "source": "CUSTOM"
+                              },
+                              "valid_box_polygon_required": {
                                 "value": "True",
                                 "source": "CUSTOM"
                               }
