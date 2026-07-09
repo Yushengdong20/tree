@@ -282,64 +282,135 @@
         }
       },
       {
-        "name": "ComputeMoveBoxOffsetNavigationTarget",
-        "label": "根据抓取策略点生成后方1米预备导航点",
+        "name": "ComputeMoveBoxPreFpNavigationPose",
+        "label": "判断当前位置是否可直接初始化FP，否则生成预备导航点",
         "params": {
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
           "source_pose_key": {
             "value": "move_box_selected_approach_pose",
             "source": "CUSTOM"
           },
+          "selected_box_key": {
+            "value": "move_box_selected_highest_yolo_box",
+            "source": "CUSTOM"
+          },
           "target_pose_key": {
             "value": "move_box_pre_fp_navigation_pose",
+            "source": "CUSTOM"
+          },
+          "skip_navigation_key": {
+            "value": "move_box_skip_pre_fp_navigation",
             "source": "CUSTOM"
           },
           "offset_distance_m": {
             "value": "1.0",
             "source": "CUSTOM"
           },
-          "offset_direction": {
-            "value": "backward",
+          "max_direct_distance_to_approach_m": {
+            "value": "0.8",
+            "source": "CUSTOM"
+          },
+          "max_direct_yaw_error_deg": {
+            "value": "45.0",
+            "source": "CUSTOM"
+          },
+          "same_side_dot_min": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "pallet_map_polygon": {
+            "value": [
+              [
+                -0.3,
+                1.0
+              ],
+              [
+                1.0,
+                1.0
+              ],
+              [
+                1.0,
+                0.1
+              ],
+              [
+                -0.3,
+                0.1
+              ]
+            ],
+            "source": "CUSTOM"
+          },
+          "pallet_clearance_m": {
+            "value": "0.60",
             "source": "CUSTOM"
           }
         }
       },
       {
-        "name": "HttpNavigateToPose",
-        "label": "导航到抓取策略点后方1米预备位",
+        "name": "Selector",
+        "label": "若当前位置已合适则跳过预备导航，否则导航到预备位",
         "params": {
-          "target_pose_key": {
-            "value": "move_box_pre_fp_navigation_pose",
-            "source": "CUSTOM"
-          },
-          "navigation_target_key": {
-            "value": "move_box_pre_fp_navigation_target",
-            "source": "CUSTOM"
-          },
-          "chassis_url": {
-            "value": "http://localhost:8081",
-            "source": "CUSTOM"
-          },
-          "navigation_visualization_enabled": {
+          "memory": {
             "value": "True",
             "source": "CUSTOM"
-          },
-          "navigation_visualization_topic": {
-            "value": "/move_box/http_navigation_selected_approach_markers",
-            "source": "CUSTOM"
-          },
-          "navigation_timeout_sec": {
-            "value": "600",
-            "source": "CUSTOM"
-          },
-          "odom_topic": {
-            "value": "melon_odom",
-            "source": "CUSTOM"
-          },
-          "poll_interval_sec": {
-            "value": "0.2",
-            "source": "CUSTOM"
           }
-        }
+        },
+        "childs": [
+          {
+            "name": "CheckBlackboardValue",
+            "label": "检查可直接初始化FP并跳过预备导航",
+            "params": {
+              "key": {
+                "value": "move_box_skip_pre_fp_navigation",
+                "source": "CUSTOM"
+              },
+              "expected": {
+                "value": "true",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "HttpNavigateToPose",
+            "label": "导航到抓取策略点后方1米预备位",
+            "params": {
+              "target_pose_key": {
+                "value": "move_box_pre_fp_navigation_pose",
+                "source": "CUSTOM"
+              },
+              "navigation_target_key": {
+                "value": "move_box_pre_fp_navigation_target",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_enabled": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_topic": {
+                "value": "/move_box/http_navigation_selected_approach_markers",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "odom_topic": {
+                "value": "melon_odom",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
       },
       {
         "name": "SetBlackboardValue",
