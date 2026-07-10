@@ -40,7 +40,7 @@ from tree.runtime.http.move_and_grab_flow import (
     transform_global_point_to_base,
 )
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
-from tree.utils.geometry import get_odom_pose_transformer
+from tree.utils.geometry import get_odom_pose_transformer, lookup_transform_matrix
 
 
 class MoveBoxYoloApproachToBox(TimedMockAction):
@@ -470,34 +470,25 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._latest_detection_frame = detection_frame
         frame_generation = int(detection_frame.get("generation", 0)) if detection_frame else 0
         updated = bool(detection_frame) and frame_generation != self._last_yolo_frame_generation
+        raw_detection = self._extract_boxes_from_detection_frame(detection_frame)
+        candidate_targets = self._build_targets_from_raw_detection(services, raw_detection)
 
         if self.use_box_memory:
-            # 关键步骤：共享缓存模式下不消费 detector 的 new_detection 标志，
-            # 这样后续选箱节点仍能读取同一帧原始YOLO。
-            target_poses = (
-                detector.transform_detection_frame_to_target_poses(detection_frame)
-                if detection_frame is not None
-                else []
-            )
+            # 关键步骤：共享缓存模式下直接消费原始YOLO整框，避免箱心与线框来自不同变换链路。
+            target_candidates = candidate_targets
         else:
-            target_pose = (
-                detector.transform_detection_frame_to_target_pose(detection_frame)
-                if detection_frame is not None
-                else None
-            )
-            target_poses = [] if target_pose is None else [target_pose]
+            nearest_target = self._choose_nearest_raw_target(candidate_targets)
+            target_candidates = [] if nearest_target is None else [nearest_target]
 
         if detection_frame is not None:
             self._last_yolo_frame_generation = frame_generation
-
-        self._update_visualization_targets(services, detection_frame)
 
         self._log_info(
             "YOLO检测",
             "是否更新=%s 原始数量=%d 区域过滤启用=%s 3D重叠阈值=%.3fm"
             % (
                 updated,
-                len(target_poses),
+                len(raw_detection),
                 bool(self.valid_box_map_polygon),
                 self.min_detected_box_3d_distance_m,
             ),
@@ -507,27 +498,16 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._filtered_box_targets = []
         self._visualization_box_targets = []
         filtered_count = 0
-        for index, target_pose in enumerate(target_poses):
-            center = target_pose.get("center", [0.0, 0.0, 0.0])
-            base_position = {
-                "x": float(center[0]),
-                "y": float(center[1]),
-                "z": float(center[2]),
-                "_stamp_sec": float(target_pose.get("stamp", 0.0)),
-            }
-            source_frame = target_pose.get("frame_id") or BASE_LINK_FRAME
-            map_position = self._transform_base_position_to_map_position(
-                services,
-                base_position,
-                source_frame,
-            )
+        for index, target in enumerate(target_candidates):
+            base_position = dict(target.get("_base_position") or {})
+            map_position = target.get("map_position") or {}
             if not self._is_map_position_allowed(map_position):
                 filtered_count += 1
                 filtered_target = {
                     "id": "",
                     "map_position": map_position,
-                    "box": self._build_map_box(target_pose, map_position),
-                    "geometry": self._build_box_geometry(target_pose, source_frame, services),
+                    "box": dict(target.get("box") or {}),
+                    "geometry": target.get("geometry"),
                     "_base_position": base_position,
                     "filter_reason": "outside_valid_box_map_polygon",
                     "filter_text": "指定区域外",
@@ -539,7 +519,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     "序号=%d/%d 过滤类型=指定区域外 base坐标=%s map坐标=%s"
                     % (
                         index + 1,
-                        len(target_poses),
+                        len(target_candidates),
                         self._format_position(base_position),
                         self._format_position(map_position),
                     ),
@@ -547,30 +527,30 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 )
                 continue
 
-            target = {
+            valid_target = {
                 "id": "",
                 "map_position": map_position,
-                "box": self._build_map_box(target_pose, map_position),
-                "geometry": self._build_box_geometry(target_pose, source_frame, services),
+                "box": dict(target.get("box") or {}),
+                "geometry": target.get("geometry"),
                 "_base_position": base_position,
             }
             overlap_target, overlap_index, overlap_distance = self._find_overlapped_detected_target(
-                target
+                valid_target
             )
             if overlap_target is not None:
                 filtered_count += 1
-                target["filter_reason"] = "overlapped_detected_target"
-                target["filter_text"] = "与已有箱子3D重叠"
-                target["overlap_distance"] = overlap_distance
-                self._filtered_box_targets.append(target)
-                self._visualization_box_targets.append(target)
+                valid_target["filter_reason"] = "overlapped_detected_target"
+                valid_target["filter_text"] = "与已有箱子3D重叠"
+                valid_target["overlap_distance"] = overlap_distance
+                self._filtered_box_targets.append(valid_target)
+                self._visualization_box_targets.append(valid_target)
                 self._log_info(
                     "YOLO目标过滤",
                     "序号=%d/%d 过滤类型=与已有箱子3D重叠 3D距离=%.3fm "
                     "重叠对象序号=%d base坐标=%s map坐标=%s 重叠对象=%s"
                     % (
                         index + 1,
-                        len(target_poses),
+                        len(target_candidates),
                         overlap_distance,
                         overlap_index + 1,
                         self._format_position(base_position),
@@ -586,14 +566,14 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 "序号=%d/%d base坐标=%s map坐标=%s"
                 % (
                     index + 1,
-                    len(target_poses),
+                    len(target_candidates),
                     self._format_position(base_position),
                     self._format_position(map_position),
                 ),
                 "magenta",
             )
-            self._detected_box_targets.append(target)
-            self._visualization_box_targets.append(target)
+            self._detected_box_targets.append(valid_target)
+            self._visualization_box_targets.append(valid_target)
         self._log_info(
             "YOLO检测统计",
             "原始数量=%d 有效数量=%d 过滤数量=%d"
@@ -607,6 +587,67 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._publish_detection_only_visualization()
         self._log_target_list("YOLO有效目标列表", self._detected_box_targets)
         return updated
+
+    def _build_targets_from_raw_detection(self, services, raw_detection):
+        targets = []
+        for source_box in raw_detection:
+            target = self._build_target_from_raw_box(services, source_box)
+            if target is not None:
+                targets.append(target)
+        return targets
+
+    def _build_target_from_raw_box(self, services, source_box):
+        if not isinstance(source_box, dict):
+            return None
+        center = source_box.get("center", [0.0, 0.0, 0.0])
+        if len(center) < 3:
+            return None
+        source_frame = source_box.get("frame_id") or BASE_LINK_FRAME
+        transform_result = self._build_time_aligned_map_transform(
+            source_frame,
+            source_box.get("stamp"),
+        )
+        if transform_result is None:
+            return None
+        base_from_source, map_from_source = transform_result
+        center_xyz = [float(center[0]), float(center[1]), float(center[2])]
+        base_xyz = self._matrix_dot_xyz(base_from_source, center_xyz)
+        map_xyz = self._matrix_dot_xyz(map_from_source, center_xyz)
+        base_position = {
+            "x": float(base_xyz[0]),
+            "y": float(base_xyz[1]),
+            "z": float(base_xyz[2]),
+            "_stamp_sec": float(source_box.get("stamp", 0.0) or 0.0),
+        }
+        map_position = {
+            "x": float(map_xyz[0]),
+            "y": float(map_xyz[1]),
+            "z": float(map_xyz[2]),
+        }
+        map_box = self._build_map_box(source_box, map_position)
+        geometry = self._build_box_geometry_from_map_transform(map_from_source, source_box, map_xyz)
+        return {
+            "map_position": map_position,
+            "box": map_box,
+            "geometry": geometry,
+            "_base_position": base_position,
+        }
+
+    @staticmethod
+    def _choose_nearest_raw_target(targets):
+        nearest_target = None
+        nearest_distance = None
+        for target in targets or []:
+            base_position = target.get("_base_position") or {}
+            distance = math.sqrt(
+                float(base_position.get("x", 0.0)) ** 2
+                + float(base_position.get("y", 0.0)) ** 2
+                + float(base_position.get("z", 0.0)) ** 2
+            )
+            if nearest_distance is None or distance < nearest_distance:
+                nearest_distance = distance
+                nearest_target = target
+        return nearest_target
 
     def _load_preselected_map_target(self):
         """按master内部box dict格式读取上游锁定目标，兼容旧map点作为回退。"""
@@ -811,6 +852,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             return None
 
         center_xyz = [float(center[0]), float(center[1]), float(center[2])]
+        stamp_sec = float(source_box.get("stamp", 0.0) or 0.0)
         half = [sx * 0.5, sy * 0.5, sz * 0.5]
         corners = []
         for dx in (-half[0], half[0]):
@@ -821,6 +863,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                         "x": center_xyz[0] + float(rotated[0]),
                         "y": center_xyz[1] + float(rotated[1]),
                         "z": center_xyz[2] + float(rotated[2]),
+                        "_stamp_sec": stamp_sec,
                     }
                     map_point = self._transform_base_position_to_map_position(
                         services,
@@ -834,7 +877,128 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                             float(map_point.get("z", 0.0)),
                         ]
                     )
-        return {"corners": corners}
+        return {
+            "corners": corners,
+            "z_max": max(corner[2] for corner in corners) if corners else float(center_xyz[2]),
+            "z_min": min(corner[2] for corner in corners) if corners else float(center_xyz[2]),
+        }
+
+    def _build_box_geometry_from_map_transform(self, map_from_source, source_box, map_xyz):
+        """按 SelectAndPublishHighestYoloBox 的方式直接由 map<-source 变换整框。"""
+        if not isinstance(source_box, dict):
+            return None
+        try:
+            size = [abs(float(value)) for value in source_box.get("size", [])]
+            quat = [float(value) for value in source_box.get("quat", [])]
+            if len(size) != 3 or len(quat) != 4:
+                return None
+            if min(size) < 0.01:
+                return None
+            quat_norm = math.sqrt(sum(value * value for value in quat))
+            if quat_norm < 1e-6:
+                return None
+            quat = [value / quat_norm for value in quat]
+
+            map_box_rotation = tf_trans.concatenate_matrices(
+                map_from_source,
+                tf_trans.quaternion_matrix(quat),
+            )
+            map_box_rotation[0:3, 3] = [0.0, 0.0, 0.0]
+            map_quat = tf_trans.quaternion_from_matrix(map_box_rotation)
+
+            map_from_box = tf_trans.quaternion_matrix(map_quat)
+            map_from_box[0:3, 3] = map_xyz
+            half = [value * 0.5 for value in size]
+            corners = []
+            for sx in (-1.0, 1.0):
+                for sy in (-1.0, 1.0):
+                    for sz in (-1.0, 1.0):
+                        corner = map_from_box.dot([sx * half[0], sy * half[1], sz * half[2], 1.0])
+                        corners.append([float(corner[0]), float(corner[1]), float(corner[2])])
+
+            return {
+                "corners": corners,
+                "z_max": max(corner[2] for corner in corners),
+                "z_min": min(corner[2] for corner in corners),
+            }
+        except Exception:
+            return None
+
+    def _build_time_aligned_map_transform(self, source_frame, stamp_sec):
+        """按 YOLO 时间戳组合 map<-source 变换，和选箱节点保持一致。"""
+        base_from_source = self._lookup_transform_matrix(self.tf_base_frame, source_frame)
+        if base_from_source is None:
+            return None
+        target_stamp_sec = float(stamp_sec or 0.0) + self.odom_match_time_offset_sec
+        odom_msg = self.odom_transformer.get_nearest_odom_by_stamp_sec(target_stamp_sec)
+        if odom_msg is None:
+            return None
+        if self.odom_match_max_delta_sec is not None:
+            matched_odom_stamp_sec = self._ros_stamp_to_seconds(odom_msg.header.stamp)
+            odom_delta_sec = abs(float(matched_odom_stamp_sec) - target_stamp_sec)
+            if odom_delta_sec > self.odom_match_max_delta_sec:
+                self._log_info(
+                    "YOLO时间对齐超窗",
+                    "yolo_stamp=%.3f target_stamp=%.3f matched_odom_stamp=%.3f "
+                    "delta_ms=%.1f limit_ms=%.1f"
+                    % (
+                        float(stamp_sec or 0.0),
+                        float(target_stamp_sec),
+                        float(matched_odom_stamp_sec),
+                        odom_delta_sec * 1000.0,
+                        self.odom_match_max_delta_sec * 1000.0,
+                    ),
+                    "yellow",
+                )
+                return None
+        map_from_base = self._map_from_odom_message(odom_msg)
+        return base_from_source, tf_trans.concatenate_matrices(map_from_base, base_from_source)
+
+    def _lookup_transform_matrix(self, target_frame, source_frame):
+        if target_frame == source_frame:
+            return tf_trans.identity_matrix()
+        try:
+            return lookup_transform_matrix(
+                getattr(self._get_services(), "tf_listener", None),
+                self.ros_node,
+                target_frame,
+                source_frame,
+                timeout=self.tf_timeout_sec,
+            )
+        except Exception as exc:
+            self._log_info(
+                "TF查询失败",
+                "%s <- %s: %s" % (target_frame, source_frame, exc),
+                "yellow",
+            )
+            return None
+
+    @staticmethod
+    def _matrix_dot_xyz(matrix, xyz):
+        transformed = matrix.dot([float(xyz[0]), float(xyz[1]), float(xyz[2]), 1.0])
+        return [float(transformed[0]), float(transformed[1]), float(transformed[2])]
+
+    @staticmethod
+    def _map_from_odom_message(odom_msg):
+        odom_position = odom_msg.pose.pose.position
+        odom_orientation = odom_msg.pose.pose.orientation
+        return tf_trans.concatenate_matrices(
+            tf_trans.translation_matrix(
+                [
+                    float(odom_position.x),
+                    float(odom_position.y),
+                    float(odom_position.z),
+                ]
+            ),
+            tf_trans.quaternion_matrix(
+                [
+                    float(odom_orientation.x),
+                    float(odom_orientation.y),
+                    float(odom_orientation.z),
+                    float(odom_orientation.w),
+                ]
+            ),
+        )
 
     @staticmethod
     def _strip_runtime_target_fields(target):
@@ -1445,7 +1609,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             )
             marker_array.markers.append(center_marker)
 
-            top_z = max(corner[2] for corner in corners) if corners else float(map_position.get("z", 0.0))
+            top_z = self._target_top_height(target, corners)
             text_marker = self._new_navigation_marker(
                 marker_id, "yolo_navigation_box_text_all", Marker.TEXT_VIEW_FACING
             )
@@ -1470,7 +1634,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 f"class={source_box.get('class_id', '?')} "
                 f"score={float(source_box.get('score', 0.0)):.2f}"
             )
-            marker_array.markers.append(text_marker)
+        marker_array.markers.append(text_marker)
 
         box_point = Point(
             x=float(self._box_global_position["x"]),
@@ -1508,6 +1672,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._set_navigation_marker_color(arrow, 0.1, 1.0, 0.2, 1.0)
         marker_array.markers.append(arrow)
 
+        selected_top_z = self._target_top_height(
+            self._current_box_target,
+            (self._current_box_target.get("geometry") or {}).get("corners")
+            if isinstance(self._current_box_target, dict)
+            else None,
+        )
         source_box = (
             self._current_box_target.get("box", {})
             if isinstance(self._current_box_target, dict)
@@ -1516,7 +1686,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         text = self._new_navigation_marker(marker_id, "yolo_navigation_text", Marker.TEXT_VIEW_FACING)
         text.pose.position.x = float(target_x)
         text.pose.position.y = float(target_y)
-        text.pose.position.z = 0.55
+        text.pose.position.z = max(0.55, selected_top_z + 0.12)
         text.pose.orientation.w = 1.0
         text.scale.z = 0.11
         self._set_navigation_marker_color(text, 1.0, 1.0, 1.0, 1.0)
@@ -1583,7 +1753,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 outline.points.append(self._point_message(corners[end_index]))
             marker_array.markers.append(outline)
 
-            top_z = max(corner[2] for corner in corners) if corners else float(map_position.get("z", 0.0))
+            top_z = self._target_top_height(target, corners)
             text_marker = self._new_navigation_marker(
                 marker_id, "yolo_detection_only_text", Marker.TEXT_VIEW_FACING
             )
@@ -1679,6 +1849,16 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             for sy in (-1.0, 1.0)
             for sz in (-1.0, 1.0)
         ]
+
+    @staticmethod
+    def _target_top_height(target, corners=None):
+        geometry = (target or {}).get("geometry") or {}
+        if geometry.get("z_max") is not None:
+            return float(geometry["z_max"])
+        if corners:
+            return max(float(corner[2]) for corner in corners)
+        map_position = (target or {}).get("map_position") or {}
+        return float(map_position.get("z", 0.0))
 
     @staticmethod
     def _ros_stamp_to_seconds(stamp):
