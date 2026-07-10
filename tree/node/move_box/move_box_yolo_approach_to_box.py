@@ -578,7 +578,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             "YOLO检测统计",
             "原始数量=%d 有效数量=%d 过滤数量=%d"
             % (
-                len(target_poses),
+                len(raw_detection),
                 len(self._detected_box_targets),
                 filtered_count,
             ),
