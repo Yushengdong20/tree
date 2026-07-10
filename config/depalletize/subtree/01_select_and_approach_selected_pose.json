@@ -223,7 +223,7 @@
             "source": "CUSTOM"
           },
           "approach_pallet_clearance_m": {
-            "value": "0.60",
+            "value": "0.80",
             "source": "CUSTOM"
           },
           "same_level_selection": {
@@ -247,7 +247,7 @@
             "source": "CUSTOM"
           },
           "neighbor_center_max_distance": {
-            "value": "1.0",
+            "value": "0.65",
             "source": "CUSTOM"
           },
           "use_box_geometry_for_strategy": {
