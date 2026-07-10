@@ -21,7 +21,7 @@
         "childs": [
           {
             "name": "MoveBoxYoloApproachToBox",
-            "label": "等待区域读取一帧YOLO最近箱并粗靠近到2米",
+            "label": "等待区域读取一帧YOLO最近箱并粗靠近到1米",
             "params": {
               "services_key": {
                 "value": "robot_services",
@@ -355,11 +355,11 @@
             "source": "CUSTOM"
           },
           "offset_distance_m": {
-            "value": "1.0",
+            "value": "0.2",
             "source": "CUSTOM"
           },
           "max_direct_distance_to_approach_m": {
-            "value": "0.8",
+            "value": "1.0",
             "source": "CUSTOM"
           },
           "max_direct_yaw_error_deg": {
