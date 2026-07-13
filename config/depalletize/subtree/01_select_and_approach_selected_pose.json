@@ -580,6 +580,14 @@
           "detection_reset_timeout_sec": {
             "value": "10.0",
             "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_topic": {
+            "value": "/move_box/fp_grasp_markers",
+            "source": "CUSTOM"
           }
         }
       },
@@ -736,7 +744,7 @@
                             "source": "CUSTOM"
                           },
                           "wait_done": {
-                            "value": "False",
+                            "value": "True",
                             "source": "CUSTOM"
                           },
                           "skip_torso_motion": {
@@ -787,6 +795,14 @@
           },
           "detection_reset_timeout_sec": {
             "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_topic": {
+            "value": "/move_box/fp_grasp_markers",
             "source": "CUSTOM"
           }
         }

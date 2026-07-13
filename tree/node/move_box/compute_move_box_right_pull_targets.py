@@ -3,8 +3,12 @@
 import numpy as np
 import py_trees
 from py_trees.common import Status
+from visualization_msgs.msg import MarkerArray
 
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.geometry import get_odom_pose_transformer
 from ..base import TimedMockAction
+from .fp_grasp_visualization import publish_fp_box_and_targets
 
 
 class ComputeMoveBoxRightPullTargets(TimedMockAction):
@@ -18,6 +22,29 @@ class ComputeMoveBoxRightPullTargets(TimedMockAction):
         self.box_axes_key = str(
             params.get("box_axes_key", "move_box_latest_box_axes")
         ).strip()
+        self.box_center_key = str(params.get("box_center_key", "move_box_latest_box_center")).strip()
+        self.services_key = str(params.get("services_key", ROBOT_SERVICES_KEY)).strip()
+        self.fp_grasp_visualization_enabled = self._to_bool(
+            params.get("fp_grasp_visualization_enabled", True)
+        )
+        self.fp_grasp_visualization_topic = str(
+            params.get("fp_grasp_visualization_topic", "/move_box/fp_grasp_markers")
+        ).strip()
+        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_transformer = get_odom_pose_transformer(
+            self.ros_node,
+            self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame=BASE_LINK_FRAME,
+        )
+        self.fp_grasp_visualization_publisher = None
+        if self.fp_grasp_visualization_enabled and self.fp_grasp_visualization_topic:
+            self.fp_grasp_visualization_publisher = self.ros_node.create_publisher(
+                self.fp_grasp_visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
         self.target_keys = {
             "left_edge": str(params.get("left_edge_key", "move_box_left_edge_point")).strip(),
             "right_edge": str(params.get("right_edge_key", "move_box_right_edge_point")).strip(),
@@ -34,10 +61,18 @@ class ComputeMoveBoxRightPullTargets(TimedMockAction):
                 params.get("right_pull_key", "move_box_right_pull_target")
             ).strip(),
         }
+        self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.grasp_pair_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.box_axes_key, access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key=self.box_center_key, access=py_trees.common.Access.READ)
         for key in self.target_keys.values():
             self.blackboard.register_key(key=key, access=py_trees.common.Access.WRITE)
+
+    @staticmethod
+    def _to_bool(value):
+        if isinstance(value, str):
+            return value.lower() in ("true", "1", "yes", "on")
+        return bool(value)
 
     def update(self):
         """根据箱体左右抓取点和方向轴生成右手分步目标。"""
@@ -80,6 +115,18 @@ class ComputeMoveBoxRightPullTargets(TimedMockAction):
         self.blackboard.set(self.target_keys["right_below"], below_right_edge, overwrite=True)
         self.blackboard.set(self.target_keys["right_lift"], lift_target, overwrite=True)
         self.blackboard.set(self.target_keys["right_pull"], pull_target, overwrite=True)
+        self._publish_visualization(
+            grasp_pair,
+            box_axes,
+            {
+                "left_edge": left_edge_point,
+                "right_edge": right_edge_point,
+                "right_above": above_right_edge,
+                "right_below": below_right_edge,
+                "right_lift": lift_target,
+                "right_pull": pull_target,
+            },
+        )
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算右手外拉分步目标: "
             f"approach={approach_offset:.3f}, descend={descend_below_offset:.3f}, "
@@ -89,3 +136,29 @@ class ComputeMoveBoxRightPullTargets(TimedMockAction):
 
     def _get_float_param(self, name, default):
         return float(self.params.get(name, self.ros_node.get_param(name, default)))
+
+    def _publish_visualization(self, grasp_pair, box_axes, target_points):
+        box_center = (
+            self.blackboard.get(self.box_center_key)
+            if self.blackboard.exists(self.box_center_key)
+            else None
+        )
+        services = (
+            self.blackboard.get(self.services_key)
+            if self.blackboard.exists(self.services_key)
+            else None
+        )
+        publish_fp_box_and_targets(
+            ros_node=self.ros_node,
+            publisher=self.fp_grasp_visualization_publisher,
+            topic=self.fp_grasp_visualization_topic,
+            config_label=self.config_label,
+            odom_transformer=self.odom_transformer,
+            services=services,
+            box_center=box_center,
+            box_axes=box_axes,
+            strategy="right_pull",
+            grasp_pair=grasp_pair,
+            target_points=target_points,
+            include_grasp_targets=True,
+        )

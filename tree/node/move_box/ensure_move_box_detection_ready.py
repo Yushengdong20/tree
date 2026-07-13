@@ -5,10 +5,15 @@ import time
 
 import py_trees
 from py_trees.common import Status
+from visualization_msgs.msg import MarkerArray
 
+from tree.constants import BASE_LINK_FRAME
+from tree.constants import MAP_FRAME
 from tree.constants import ROBOT_SERVICES_KEY
+from tree.utils.geometry import get_odom_pose_transformer
 
 from ..base import TimedMockAction
+from .fp_grasp_visualization import clear_marker_array, publish_fp_box_and_targets
 from tree.runtime.http.move_and_grab_flow import post_json
 
 
@@ -33,6 +38,19 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self.restart_on_timeout = self._to_bool(params.get("restart_on_timeout", True))
         self.restart_before_wait = self._to_bool(params.get("restart_before_wait", False))
         self.detection_reset_timeout_sec = float(params.get("detection_reset_timeout_sec", 5.0))
+        self.fp_grasp_visualization_enabled = self._to_bool(
+            params.get("fp_grasp_visualization_enabled", True)
+        )
+        self.fp_grasp_visualization_topic = str(
+            params.get("fp_grasp_visualization_topic", "/move_box/fp_grasp_markers")
+        ).strip()
+        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_transformer = get_odom_pose_transformer(
+            self.ros_node,
+            self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame=BASE_LINK_FRAME,
+        )
         self.services = None
         self._phase = "IDLE"
         self._wait_reason = ""
@@ -53,6 +71,14 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
                 key=self.grasp_strategy_key,
                 access=py_trees.common.Access.READ,
             )
+        self.fp_grasp_visualization_publisher = None
+        if self.fp_grasp_visualization_enabled and self.fp_grasp_visualization_topic:
+            self.fp_grasp_visualization_publisher = self.ros_node.create_publisher(
+                self.fp_grasp_visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
 
     @staticmethod
     def _to_bool(value):
@@ -68,6 +94,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self._reset_result = None
         self._reset_generation += 1
         self._detection_cache_cleared = False
+        self._clear_fp_grasp_visualization()
         if self.restart_before_wait:
             self._phase = "RESTART_BEFORE_WAIT"
         else:
@@ -152,6 +179,12 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         grasp_strategy = "未设置"
         if self.grasp_strategy_key and self.blackboard.exists(self.grasp_strategy_key):
             grasp_strategy = self.blackboard.get(self.grasp_strategy_key)
+        self._publish_fp_grasp_visualization(
+            grasp_pair,
+            box_axes,
+            box_center,
+            grasp_strategy,
+        )
         result_message = (
             f"[{self.config_label}] {reason}成功: grasp_pair=True, box_axes=True, "
             f"box_center={box_center}（z 为当前 FoundationPose 目标高度）, "
@@ -283,3 +316,36 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已清空 FoundationPose 旧检测缓存: {reason}"
         )
+
+    def _publish_fp_grasp_visualization(
+        self,
+        grasp_pair,
+        box_axes,
+        box_center,
+        grasp_strategy,
+    ):
+        """仅发布FP箱体在map下的轮廓与方向轴。
+
+        抓取点/分步目标由 ComputeMoveBox*Targets 节点在策略分支内发布，
+        避免 Ensure 阶段提前显示一组可能并不会执行的抓取目标。
+        """
+        if self.fp_grasp_visualization_publisher is None:
+            return
+        publish_fp_box_and_targets(
+            ros_node=self.ros_node,
+            publisher=self.fp_grasp_visualization_publisher,
+            topic=self.fp_grasp_visualization_topic,
+            config_label=self.config_label,
+            odom_transformer=self.odom_transformer,
+            services=self.services,
+            box_center=box_center,
+            box_axes=box_axes,
+            strategy=grasp_strategy,
+            grasp_pair=grasp_pair,
+            target_points=None,
+            include_grasp_targets=False,
+        )
+        return
+
+    def _clear_fp_grasp_visualization(self):
+        clear_marker_array(self.fp_grasp_visualization_publisher)
