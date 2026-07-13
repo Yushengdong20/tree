@@ -24,25 +24,68 @@ from ..base import TimedMockAction
 class SelectAndPublishHighestYoloBox(TimedMockAction):
     """从 YOLO 多目标中选择一个箱子，并给后续导航和抓取决策提供结果。
 
-    选择分两级进行：
+    这个节点的职责可以概括为 6 个阶段：
 
-    1. 使用 ``map z`` 找到最高层。相比相机坐标，map 高度不会随头部姿态变化。
-       ``top_height_tolerance`` 用来把存在少量视觉高度误差的箱子归入同一层。
-    2. 只在最高层候选中按 ``same_level_selection`` 二次选择：
-       - ``nearest``：选择到机器人平面距离最小的箱子；
-       - ``leftmost``：选择机器人视角最左侧的箱子，即 base_link y 最大；
-       - ``rightmost``：选择机器人视角最右侧的箱子，即 base_link y 最小。
+    1. 读取共享 ``YoloBoxDetector`` 的最新一帧原始 YOLO 3D boxes。
+    2. 基于 ``base_link <- source_frame`` 与 YOLO 时间戳对齐的 odom，计算每个 box 的
+       ``map`` 坐标和 ``distance_frame`` 坐标。
+    3. 先做区域/高度/距离过滤，再做单帧 3D 去重。
+    4. 以 ``map z`` 选最高层，并在同层候选中按 ``same_level_selection`` 唯一选箱。
+    5. 如启用 ``approach_pose_planning_enabled``，仅围绕已选中的目标箱生成左右两个
+       长边外侧接近位姿，并按代价选择一个可行站位。
+    6. 根据已选箱在最高层中的左右邻箱关系，生成 ``direct / left_pull /
+       right_pull / no_safe_strategy`` 抓取策略，并发布到 blackboard/ROS 话题。
 
-    输出有两份：
+    主要输出：
 
-    - ROS ``PoseStamped``：map 坐标目标，供上位机/FoundationPose链路使用；
-    - blackboard目标点和抓取策略，供粗导航及后续Selector使用。
+    - ``output_topic``：选中箱在 map 下的 3D box String。
+    - ``selected_point_key``：选中箱中心 [x, y, z]。
+    - ``selected_box_key``：选中箱完整 box dict。
+    - ``grasp_strategy_key``：抓取方式。
+    - ``approach_pose_key``：预计抓取导航点（如果启用接近位姿规划）。
+
+    配置参数可分为几组：
+
+    - 数据源与时序对齐：
+      ``services_key`` / ``odom_topic`` / ``odom_history_duration_sec`` /
+      ``odom_match_time_offset_sec`` / ``odom_match_max_delta_sec`` /
+      ``distance_frame`` / ``base_frame`` / ``source_frame_fallback`` /
+      ``tf_timeout``。
+    - 选箱过滤：
+      ``valid_box_map_polygon`` / ``valid_box_polygon_required`` /
+      ``min_map_height`` / ``max_planar_distance`` /
+      ``duplicate_3d_distance_threshold``。
+    - 最高层与同层选择：
+      ``top_height_tolerance`` / ``same_level_selection`` /
+      ``same_level_center_height_tolerance`` /
+      ``same_level_vertical_overlap_ratio``。
+    - 邻箱与抓取策略：
+      ``neighbor_center_min_distance`` / ``neighbor_center_max_distance`` /
+      ``neighbor_surface_max_gap`` / ``use_box_geometry_for_strategy`` /
+      ``minimum_valid_box_size``。
+    - 预计抓取导航点：
+      ``approach_pose_planning_enabled`` / ``approach_pose_key`` /
+      ``approach_distance_m`` / ``approach_yaw_cost_weight`` /
+      ``pallet_map_polygon`` / ``approach_pallet_clearance_m``。
+    - 可视化与日志：
+      ``visualization_enabled`` / ``visualization_topic`` /
+      ``raw_visualization_topic`` / ``enable_colored_log`` /
+      ``no_target_log_interval_sec``。
+
+    兼容性说明：
+
+    - ``yolo_topic`` 目前主要用于日志语义，实际数据源来自 ``services_key`` 中的
+      共享 ``yolo_detector``。
+    - ``chassis_frame`` 当前仅保留作日志/配置兼容，不参与核心计算。
+    - ``require_new_frame_after_initialise`` 目前仅保留参数入口，当前版本并未真正参与
+      update 逻辑；若需要“初始化后必须等新帧”语义，建议后续补成显式 generation 检查。
     """
 
     allow_manual_result_override = False
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
+        # --- 数据源与坐标系/时间对齐参数 ---
         self.yolo_topic = str(
             params.get("yolo_topic", "/yolo/target_boxes3d_string")
         ).strip()
@@ -66,6 +109,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         )
         self.source_frame_fallback = str(params.get("source_frame_fallback", "camera")).strip()
         self.tf_timeout = float(params.get("tf_timeout", 0.5))
+        # --- blackboard / ROS 输出键值 ---
         # 选中箱子的 map 点，格式为 [x, y, z]。粗导航直接读取该 key，
         # 防止粗导航阶段再次从原始 YOLO 中选择另一个箱子。
         self.selected_point_key = str(
@@ -78,6 +122,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.grasp_strategy_key = str(
             params.get("grasp_strategy_key", "move_box_grasp_strategy")
         ).strip()
+        # --- 接近位姿规划参数 ---
         # 可选的通用拆垛接近规划。启用后，不再直接取最高层最近箱，而是给每个
         # 最高层箱体的两条长边各生成一个站位，并先做垛盘/邻箱通道几何过滤。
         self.approach_pose_planning_enabled = self._to_bool(
@@ -90,6 +135,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.approach_yaw_cost_weight = float(
             params.get("approach_yaw_cost_weight", 0.01)
         )
+        # --- 垛盘禁入与站位安全间隙 ---
         # pallet_map_polygon 与 valid_box_map_polygon 语义不同：前者是底盘不可
         # 进入的实体垛盘区域，后者是允许参与选箱的视觉工作区。
         self.pallet_map_polygon = parse_map_polygon(
@@ -102,6 +148,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         )
         if self.approach_pallet_clearance_m < 0.0:
             raise ValueError("approach_pallet_clearance_m cannot be negative")
+        # --- 邻箱判断与抓取策略参数 ---
         # 同层箱之间使用 map 平面的箱心绝对距离判断是否相邻。该距离与机器人
         # 当前朝向无关；下限用于排除同一箱子的重复检测，上限用于排除远处箱子。
         self.neighbor_center_min_distance = float(
@@ -162,6 +209,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         )
         if self.valid_box_polygon_required and not self.valid_box_map_polygon:
             raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
+        # --- 日志与可视化 ---
         self.no_target_log_interval_sec = float(params.get("no_target_log_interval_sec", 1.0))
         self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
         self.visualization_enabled = self._to_bool(
@@ -244,14 +292,17 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self._clear_raw_box_visualization()
         self._frozen_boxes = None
         self._frozen_generation = 0
-        # 关键步骤：选箱阶段默认直接复用当前最新缓存帧，只要这帧后续能通过
+        # 关键步骤：
+        # 当前版本选箱阶段默认直接复用“当前最新缓存帧”，只要这帧后续能通过
         # 区域/高度/距离等筛选，就立即用于选箱，不再强制等待“初始化后的新帧”。
+        # 因而 require_new_frame_after_initialise 当前是保留参数，还没有真正接入逻辑。
         self._minimum_generation = 0
 
     def update(self):
         if self.should_use_mock_execution():
             return self.update_mock_result()
 
+        # 阶段0：读取共享 detector 的最新一帧原始 YOLO boxes。
         boxes = self._get_latest_boxes()
         if not boxes:
             self._log_no_target(
