@@ -165,7 +165,7 @@
       },
       {
         "name": "SelectAndPublishHighestYoloBox",
-        "label": "筛选并发布YOLO最高层最近箱及抓取策略点",
+        "label": "筛选有效可抓YOLO箱，异常则拒绝并重取帧",
         "params": {
           "services_key": {
             "value": "robot_services",
@@ -185,6 +185,14 @@
           },
           "visualization_topic": {
             "value": "/move_box/yolo_box_markers",
+            "source": "CUSTOM"
+          },
+          "selection_diagnostics_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "selection_diagnostics_topic": {
+            "value": "/move_box/yolo_selection_diagnostics",
             "source": "CUSTOM"
           },
           "map_frame": {
@@ -285,6 +293,38 @@
           },
           "minimum_valid_box_size": {
             "value": "0.03",
+            "source": "CUSTOM"
+          },
+          "reject_on_no_safe_strategy": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "reject_on_abnormal_box": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "max_valid_box_size": {
+            "value": [
+              0.75,
+              0.55,
+              0.45
+            ],
+            "source": "CUSTOM"
+          },
+          "max_valid_box_planar_area": {
+            "value": "0.42",
+            "source": "CUSTOM"
+          },
+          "max_valid_box_aspect_ratio": {
+            "value": "1.8",
+            "source": "CUSTOM"
+          },
+          "wait_new_frame_after_reject": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "reject_log_interval_sec": {
+            "value": "1.0",
             "source": "CUSTOM"
           },
           "duplicate_3d_distance_threshold": {

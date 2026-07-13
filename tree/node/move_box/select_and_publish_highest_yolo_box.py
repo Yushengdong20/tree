@@ -1,4 +1,18 @@
-"""从一帧 YOLO 多箱结果中锁定最高层目标箱，并发布其 map 位姿。"""
+"""从一帧 YOLO 多箱结果中锁定最高层目标箱，并发布其 map 位姿。
+
+运行逻辑总览：
+
+1. 读取共享 ``YoloBoxDetector`` 缓存的最新 YOLO 3D box 帧。
+2. 按 YOLO 时间戳寻找最近的底盘 odom，组合出 ``map <- YOLO源坐标系``，
+   将所有箱心和 OBB 几何变换到 map。
+3. 做任务区域、高度、距离和单帧重复检测过滤。
+4. 选最高层，再按 ``same_level_selection`` 选择本轮目标箱。
+5. 只围绕目标箱长边生成两个接近站位，按垛盘禁入区/安全边距过滤并选代价最低者。
+6. 根据最高层左右邻箱关系计算抓取策略。
+7. 如果开启“拒绝并重取帧”，在发现无安全抓取策略或箱体尺寸异常时：
+   不写 blackboard、不发布已选箱，改为发布诊断可视化并等待下一帧 YOLO。
+8. 只有选箱、站位、抓取策略都有效时，才发布输出并让行为树继续进入 FP/抓取阶段。
+"""
 
 import math
 import time
@@ -67,6 +81,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
       ``approach_pose_planning_enabled`` / ``approach_pose_key`` /
       ``approach_distance_m`` / ``approach_yaw_cost_weight`` /
       ``pallet_map_polygon`` / ``approach_pallet_clearance_m``。
+    - 异常拒绝与诊断：
+      ``reject_on_no_safe_strategy`` / ``reject_on_abnormal_box`` /
+      ``max_valid_box_size`` / ``max_valid_box_planar_area`` /
+      ``max_valid_box_aspect_ratio`` / ``wait_new_frame_after_reject`` /
+      ``selection_diagnostics_enabled`` / ``selection_diagnostics_topic`` /
+      ``reject_log_interval_sec``。
     - 可视化与日志：
       ``visualization_enabled`` / ``visualization_topic`` /
       ``raw_visualization_topic`` / ``enable_colored_log`` /
@@ -179,6 +199,30 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.minimum_valid_box_size = float(
             params.get("minimum_valid_box_size", 0.03)
         )
+        # --- 异常选箱拒绝参数 ---
+        # 常见视觉异常是“两个相邻箱被YOLO合成一个大箱”。这类结果即使通过
+        # map区域过滤，也会让后续最高层、邻箱关系、抓取策略全部跑偏。
+        # 因此这里增加“已选目标是否可接受”的二次门控：不接受则不写黑板，
+        # 直接等待下一帧重新选。
+        self.reject_on_no_safe_strategy = self._to_bool(
+            params.get("reject_on_no_safe_strategy", False)
+        )
+        self.reject_on_abnormal_box = self._to_bool(
+            params.get("reject_on_abnormal_box", False)
+        )
+        self.max_valid_box_size = self._optional_float_list(
+            params.get("max_valid_box_size", [])
+        )
+        self.max_valid_box_planar_area = self._optional_float(
+            params.get("max_valid_box_planar_area", "")
+        )
+        self.max_valid_box_aspect_ratio = self._optional_float(
+            params.get("max_valid_box_aspect_ratio", "")
+        )
+        self.wait_new_frame_after_reject = self._to_bool(
+            params.get("wait_new_frame_after_reject", True)
+        )
+        self.reject_log_interval_sec = float(params.get("reject_log_interval_sec", 1.0))
         # YOLO可能在同一帧中对同一个箱体给出多个3D中心。按机器人距离从近到远
         # 保留代表点，map三维距离小于该阈值的后续检测视为重复目标。
         self.duplicate_3d_distance_threshold = float(
@@ -221,6 +265,15 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.raw_visualization_topic = str(
             params.get("raw_visualization_topic", "/move_box/yolo_raw_box_markers")
         ).strip()
+        self.selection_diagnostics_enabled = self._to_bool(
+            params.get("selection_diagnostics_enabled", False)
+        )
+        self.selection_diagnostics_topic = str(
+            params.get(
+                "selection_diagnostics_topic",
+                "/move_box/yolo_selection_diagnostics",
+            )
+        ).strip()
         self.require_new_frame_after_initialise = self._to_bool(
             params.get("require_new_frame_after_initialise", False)
         )
@@ -228,9 +281,11 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             params.get("freeze_after_first_valid_frame", False)
         )
         self._minimum_generation = 0
+        self._current_detector_generation = 0
         self._frozen_boxes = None
         self._frozen_generation = 0
         self._last_no_target_log_time = 0.0
+        self._last_reject_log_time = 0.0
         self.tf_listener = tf.TransformListener()
         self.odom_transformer = get_odom_pose_transformer(
             self.ros_node,
@@ -254,6 +309,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         if self.visualization_enabled and self.raw_visualization_topic:
             self.raw_visualization_publisher = self.ros_node.create_publisher(
                 self.raw_visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
+        self.selection_diagnostics_publisher = None
+        if self.selection_diagnostics_enabled and self.selection_diagnostics_topic:
+            self.selection_diagnostics_publisher = self.ros_node.create_publisher(
+                self.selection_diagnostics_topic,
                 MarkerArray,
                 queue_size=1,
                 latch=True,
@@ -285,11 +348,27 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             return None
         return float(value)
 
+    @staticmethod
+    def _optional_float_list(value):
+        """解析可选浮点列表；空值表示不启用该阈值。"""
+        if value is None:
+            return []
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            return [float(part.strip()) for part in stripped.split(",") if part.strip()]
+        if isinstance(value, (list, tuple)):
+            return [float(item) for item in value]
+        return []
+
     def initialise(self):
         super().initialise()
         self._last_no_target_log_time = 0.0
+        self._last_reject_log_time = 0.0
         self._clear_box_visualization()
         self._clear_raw_box_visualization()
+        self._clear_selection_diagnostics()
         self._frozen_boxes = None
         self._frozen_generation = 0
         # 关键步骤：
@@ -398,11 +477,6 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 f"保留={len(candidates)}, 合并={duplicate_text}"
             )
 
-        if self.freeze_after_first_valid_frame and self._frozen_boxes is None and candidates:
-            # 关键步骤：冻结第一帧“真正通过初步选箱筛选”的结果，而不是第一帧非空结果。
-            self._frozen_boxes = [dict(box) for box in boxes]
-            self._frozen_generation = self._get_latest_detector_generation()
-
         # 阶段2：先找最高 z，再用容差形成“最高层候选集合”。
         # 例如最高 z=0.62m、容差=0.06m，则 z>=0.56m 都属于最高层。
         # 这样可避免同一排箱子因检测抖动几厘米而被误判为上下两层。
@@ -465,7 +539,48 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 )
                 return Status.RUNNING
 
-        # 阶段5：发布并保存唯一选中的箱子。ROS话题用于跨机器通信，
+        # 阶段5：根据目标箱同层邻箱的占用情况决定抓取方式。
+        # 这一步必须早于 blackboard 写入。若结果为 no_safe_strategy 或箱体
+        # 尺寸异常，则本节点会“拒绝并重取帧”，后续FP与抓取动作不会被触发。
+        grasp_strategy, left_neighbors, right_neighbors = self._decide_grasp_strategy(
+            selected,
+            top_candidates,
+            approach_pose=approach_pose,
+        )
+        rejection_reasons = self._evaluate_selection_rejection(
+            selected,
+            grasp_strategy,
+            left_neighbors,
+            right_neighbors,
+        )
+        if rejection_reasons:
+            self._publish_selection_diagnostics(
+                raw_candidates,
+                candidates,
+                top_candidates,
+                selected,
+                grasp_strategy,
+                left_neighbors,
+                right_neighbors,
+                filtered_candidates,
+                approach_evaluations,
+                rejection_reasons,
+            )
+            self._log_selection_reject(selected, grasp_strategy, rejection_reasons)
+            if self.wait_new_frame_after_reject:
+                self._minimum_generation = max(
+                    self._minimum_generation,
+                    self._current_detector_generation + 1,
+                )
+            return Status.RUNNING
+
+        if self.freeze_after_first_valid_frame and self._frozen_boxes is None and candidates:
+            # 关键步骤：只冻结“通过完整选箱、接近位姿、抓取策略和异常尺寸检查”的帧。
+            # 被拒绝的异常帧不能冻结，否则节点会一直重复拒绝同一帧。
+            self._frozen_boxes = [dict(box) for box in boxes]
+            self._frozen_generation = self._current_detector_generation
+
+        # 阶段6：发布并保存唯一选中的箱子。ROS话题用于跨机器通信，
         # blackboard用于同一行为树内部传递，二者表达的是同一个map目标点。
         selected_box = dict(selected["box"])
         selected_box["frame_id"] = self.map_frame
@@ -492,13 +607,6 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             )
         if self.selected_box_key:
             self.blackboard.set(self.selected_box_key, selected_box, overwrite=True)
-        # 阶段6：根据目标箱同层邻箱的占用情况决定抓取方式。是否相邻使用
-        # map 平面箱心绝对距离，因此不会因机器人斜对箱堆而产生投影误判。
-        grasp_strategy, left_neighbors, right_neighbors = self._decide_grasp_strategy(
-            selected,
-            top_candidates,
-            approach_pose=approach_pose,
-        )
         if self.grasp_strategy_key:
             self.blackboard.set(
                 self.grasp_strategy_key,
@@ -658,6 +766,235 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"approaches={len(approach_evaluations or [])}, "
             f"selected=#{selected_index}, strategy={grasp_strategy}"
         )
+
+    def _evaluate_selection_rejection(
+        self,
+        selected,
+        grasp_strategy,
+        left_neighbors,
+        right_neighbors,
+    ):
+        """返回拒绝当前选箱的中文原因列表；空列表表示可以继续执行。
+
+        这一步是选箱链路的最后一道门：普通过滤负责“这个YOLO目标是否在任务区”，
+        这里负责“这个目标是否像一个可抓的真实单箱，以及是否存在安全抓取策略”。
+        """
+        reasons = []
+
+        if self.reject_on_no_safe_strategy and grasp_strategy == "no_safe_strategy":
+            reasons.append(
+                "无安全抓取方式：目标箱左右两侧均存在同层邻箱，"
+                f"left_neighbors={left_neighbors}, right_neighbors={right_neighbors}"
+            )
+
+        if not self.reject_on_abnormal_box:
+            return reasons
+
+        size = self._candidate_size(selected)
+        if not size:
+            reasons.append("箱体尺寸异常：缺少有效YOLO size/OBB，无法确认单箱尺寸")
+            return reasons
+
+        sorted_size = sorted((abs(float(value)) for value in size), reverse=True)
+        if self.max_valid_box_size:
+            limits = sorted((abs(float(value)) for value in self.max_valid_box_size), reverse=True)
+            for axis, (actual, limit) in enumerate(zip(sorted_size, limits)):
+                if actual > limit:
+                    reasons.append(
+                        "箱体尺寸异常：检测尺寸超过单箱上限，"
+                        f"sorted_size={self._format_float_list(sorted_size)}m, "
+                        f"limit={self._format_float_list(limits)}m, "
+                        f"axis={axis}, actual={actual:.3f}m > {limit:.3f}m"
+                    )
+                    break
+
+        planar_area = self._candidate_planar_area(selected)
+        if (
+            self.max_valid_box_planar_area is not None
+            and planar_area is not None
+            and planar_area > self.max_valid_box_planar_area
+        ):
+            reasons.append(
+                "箱体水平面积异常：疑似两个箱被识别成一个大箱，"
+                f"area={planar_area:.3f}m^2 > "
+                f"limit={self.max_valid_box_planar_area:.3f}m^2"
+            )
+
+        aspect_ratio = self._candidate_aspect_ratio(selected)
+        if (
+            self.max_valid_box_aspect_ratio is not None
+            and aspect_ratio is not None
+            and aspect_ratio > self.max_valid_box_aspect_ratio
+        ):
+            reasons.append(
+                "箱体长宽比异常：疑似两个箱被合并成长条框，"
+                f"aspect_ratio={aspect_ratio:.3f} > "
+                f"limit={self.max_valid_box_aspect_ratio:.3f}"
+            )
+
+        return reasons
+
+    def _publish_selection_diagnostics(
+        self,
+        raw_candidates,
+        candidates,
+        top_candidates,
+        selected,
+        grasp_strategy,
+        left_neighbors,
+        right_neighbors,
+        filtered_candidates,
+        approach_evaluations,
+        rejection_reasons,
+    ):
+        """把被拒绝的整帧YOLO选择过程发布到独立RViz话题。
+
+        这个话题不会和 /move_box/yolo_box_markers 混在一起，避免正常运行中的
+        最新选箱结果被异常诊断刷掉。视觉同学可以直接订阅该话题看“为什么拒绝”。
+        """
+        if self.selection_diagnostics_publisher is None:
+            return
+
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        top_indices = {candidate["index"] for candidate in top_candidates}
+        selected_index = selected["index"]
+        marker_id = 1
+        raw_by_index = {candidate["index"]: candidate for candidate in raw_candidates}
+
+        for candidate in raw_candidates:
+            index = candidate["index"]
+            in_candidates = any(item["index"] == index for item in candidates)
+            is_selected = index == selected_index
+            is_top_level = index in top_indices
+            if is_selected:
+                color = (1.0, 0.9, 0.0)
+                alpha = 1.0
+                scale = 0.04
+            elif in_candidates and is_top_level:
+                color = (0.0, 0.85, 1.0)
+                alpha = 0.9
+                scale = 0.022
+            elif in_candidates:
+                color = (0.25, 0.45, 0.85)
+                alpha = 0.8
+                scale = 0.018
+            else:
+                color = (0.65, 0.65, 0.65)
+                alpha = 0.45
+                scale = 0.014
+
+            corners = self._visualization_corners(candidate)
+            outline = self._new_marker(
+                marker_id, "selection_diag_box_outline", Marker.LINE_LIST
+            )
+            marker_id += 1
+            outline.scale.x = scale
+            self._set_marker_color(outline, color, alpha)
+            for start_index, end_index in self._box_edge_indices():
+                outline.points.append(self._point_message(corners[start_index]))
+                outline.points.append(self._point_message(corners[end_index]))
+            marker_array.markers.append(outline)
+
+            center_marker = self._new_marker(
+                marker_id, "selection_diag_box_center", Marker.SPHERE
+            )
+            marker_id += 1
+            center_marker.pose.position = self._point_message(candidate["map"])
+            center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = (
+                0.10 if is_selected else 0.055
+            )
+            self._set_marker_color(center_marker, color, alpha)
+            marker_array.markers.append(center_marker)
+
+            text_marker = self._new_marker(
+                marker_id, "selection_diag_box_text", Marker.TEXT_VIEW_FACING
+            )
+            marker_id += 1
+            text_marker.pose.position.x = candidate["map"][0]
+            text_marker.pose.position.y = candidate["map"][1]
+            text_marker.pose.position.z = self._candidate_top_height(candidate) + 0.16
+            text_marker.scale.z = 0.10 if is_selected else 0.075
+            self._set_marker_color(text_marker, color, 1.0)
+            status = "SELECTED_REJECTED" if is_selected else (
+                "TOP" if is_top_level else ("VALID" if in_candidates else "RAW_ONLY")
+            )
+            filter_reason = ""
+            if not in_candidates:
+                filtered = next(
+                    (item for item in filtered_candidates if item["index"] == index),
+                    None,
+                )
+                filter_reason = filtered.get("filter_reason", "not_in_candidates") if filtered else "not_in_candidates"
+            text_marker.text = (
+                f"#{index} {status}\n"
+                f"map=({candidate['map'][0]:.2f}, {candidate['map'][1]:.2f}, "
+                f"{candidate['map'][2]:.2f})\n"
+                f"{filter_reason}"
+            )
+            marker_array.markers.append(text_marker)
+
+        for candidate in candidates:
+            if candidate["index"] == selected_index:
+                continue
+            relation = self._new_marker(
+                marker_id, "selection_diag_relation", Marker.LINE_LIST
+            )
+            marker_id += 1
+            relation.scale.x = 0.014
+            relation.points = [
+                self._point_message(selected["map"]),
+                self._point_message(candidate["map"]),
+            ]
+            if candidate["index"] in left_neighbors:
+                relation_color = (1.0, 0.1, 1.0)
+            elif candidate["index"] in right_neighbors:
+                relation_color = (1.0, 0.35, 0.05)
+            else:
+                relation_color = (0.35, 0.45, 0.65)
+            self._set_marker_color(relation, relation_color, 0.9)
+            marker_array.markers.append(relation)
+
+        marker_id = self._append_pallet_marker(marker_array, marker_id)
+        marker_id = self._append_approach_markers(
+            marker_array,
+            approach_evaluations or [],
+            marker_id,
+        )
+
+        reason_text = "\n".join(f"- {reason}" for reason in rejection_reasons)
+        text = self._new_marker(
+            marker_id, "selection_diag_reject_reason", Marker.TEXT_VIEW_FACING
+        )
+        text.pose.position.x = selected["map"][0]
+        text.pose.position.y = selected["map"][1]
+        text.pose.position.z = self._candidate_top_height(selected) + 0.55
+        text.scale.z = 0.105
+        self._set_marker_color(text, (1.0, 0.08, 0.08), 1.0)
+        text.text = (
+            "YOLO选箱被拒绝，等待新帧\n"
+            f"selected=#{selected_index}, strategy={grasp_strategy}\n"
+            f"{reason_text}"
+        )
+        marker_array.markers.append(text)
+
+        # raw_by_index 目前用于保证所有raw候选都被遍历；保留局部变量可以让后续
+        # 扩展按原始index补更多诊断字段时不改整体结构。
+        _ = raw_by_index
+        self.selection_diagnostics_publisher.publish(marker_array)
+
+    def _clear_selection_diagnostics(self):
+        """清除上一轮异常选箱诊断，避免RViz残留让人误判当前帧。"""
+        if self.selection_diagnostics_publisher is None:
+            return
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.action = Marker.DELETEALL
+        marker_array.markers.append(marker)
+        self.selection_diagnostics_publisher.publish(marker_array)
 
     def _publish_approach_only_visualization(
         self, candidates, top_candidates, approach_evaluations
@@ -962,6 +1299,85 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                     (candidate["index"], duplicate["index"], duplicate_distance)
                 )
         return kept, duplicate_records
+
+    def _candidate_size(self, candidate):
+        """获取YOLO给出的箱体三维尺寸，优先使用已验证过的OBB geometry。"""
+        geometry = candidate.get("geometry")
+        if geometry is not None and len(geometry.get("size", [])) == 3:
+            return [float(value) for value in geometry["size"]]
+        raw_size = candidate.get("box", {}).get("size", [])
+        if len(raw_size) == 3:
+            try:
+                size = [abs(float(value)) for value in raw_size]
+            except (TypeError, ValueError):
+                return None
+            if all(math.isfinite(value) for value in size):
+                return size
+        return None
+
+    def _candidate_planar_area(self, candidate):
+        """估计箱体在map水平面的占地面积，用于拦截“两箱合一”的大框。"""
+        geometry = candidate.get("geometry")
+        if geometry is not None and len(geometry.get("footprint", [])) >= 3:
+            return self._polygon_area_2d(geometry["footprint"])
+        size = self._candidate_size(candidate)
+        if not size:
+            return None
+        # 几何无效时退而求其次，用最大两条边作为水平占地面积近似。
+        sorted_size = sorted(size, reverse=True)
+        return sorted_size[0] * sorted_size[1]
+
+    def _candidate_aspect_ratio(self, candidate):
+        """估计箱体水平长宽比；明显过大时通常意味着YOLO把两个箱合并了。"""
+        geometry = candidate.get("geometry")
+        if geometry is not None:
+            horizontal_lengths = []
+            rotation = geometry.get("rotation", [])
+            size = geometry.get("size", [])
+            for column in range(min(3, len(size))):
+                axis_x = float(rotation[0][column])
+                axis_y = float(rotation[1][column])
+                horizontal_norm = math.hypot(axis_x, axis_y)
+                if horizontal_norm > 0.35:
+                    horizontal_lengths.append(abs(float(size[column])))
+            if len(horizontal_lengths) >= 2:
+                horizontal_lengths = sorted(horizontal_lengths, reverse=True)
+                if horizontal_lengths[1] > 1e-6:
+                    return horizontal_lengths[0] / horizontal_lengths[1]
+
+        size = self._candidate_size(candidate)
+        if not size:
+            return None
+        sorted_size = sorted(size, reverse=True)
+        return sorted_size[0] / sorted_size[1] if sorted_size[1] > 1e-6 else None
+
+    @staticmethod
+    def _polygon_area_2d(points):
+        if len(points) < 3:
+            return 0.0
+        area = 0.0
+        for first, second in zip(points, points[1:] + points[:1]):
+            area += first[0] * second[1] - second[0] * first[1]
+        return abs(area) * 0.5
+
+    @staticmethod
+    def _format_float_list(values):
+        return "[" + ", ".join(f"{float(value):.3f}" for value in values) + "]"
+
+    def _log_selection_reject(self, selected, grasp_strategy, rejection_reasons):
+        """节流打印中文拒绝原因；避免低帧率YOLO等待期间刷屏。"""
+        now = time.monotonic()
+        if now - self._last_reject_log_time < self.reject_log_interval_sec:
+            return
+        reason_text = "；".join(rejection_reasons)
+        self.ros_node.get_logger().warning(
+            f"[{self.config_label}] 拒绝当前YOLO选箱并等待新帧: "
+            f"index=#{selected['index']}, map=({selected['map'][0]:.3f}, "
+            f"{selected['map'][1]:.3f}, {selected['map'][2]:.3f}), "
+            f"strategy={grasp_strategy}, generation={self._current_detector_generation}, "
+            f"reason={reason_text}"
+        )
+        self._last_reject_log_time = now
 
     def _transform_box_geometry(self, map_from_source, box, map_xyz):
         """把YOLO局部OBB转换到map，返回姿态、角点、高度区间和水平轮廓。"""
@@ -1387,6 +1803,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             return None
         boxes = [dict(box) for box in detector_frame.get("boxes", [])]
         generation = int(detector_frame.get("generation", 0))
+        self._current_detector_generation = generation
         return self._select_boxes_by_generation(boxes, generation)
 
     def _select_boxes_by_generation(self, boxes, generation):
@@ -1555,7 +1972,14 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"neighbor_surface_gap={self.neighbor_surface_max_gap:.3f}, "
             f"same_level_vertical_overlap={self.same_level_vertical_overlap_ratio:.3f}, "
             f"same_level_center_height_limit="
-            f"{self.same_level_center_height_tolerance:.3f}"
+            f"{self.same_level_center_height_tolerance:.3f}, "
+            f"reject_no_safe={self.reject_on_no_safe_strategy}, "
+            f"reject_abnormal={self.reject_on_abnormal_box}, "
+            f"max_valid_box_size={self.max_valid_box_size}, "
+            f"max_valid_box_planar_area={self.max_valid_box_planar_area}, "
+            f"max_valid_box_aspect_ratio={self.max_valid_box_aspect_ratio}, "
+            f"selection_diagnostics_topic="
+            f"{self.selection_diagnostics_topic if self.selection_diagnostics_publisher else '<disabled>'}"
         )
 
     @staticmethod
