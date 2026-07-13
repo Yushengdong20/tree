@@ -107,6 +107,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.odom_match_max_delta_sec = self._optional_float(
             params.get("odom_match_max_delta_sec", "")
         )
+        self.allowed_class_ids = self._optional_int_set(
+            params.get("allowed_class_ids", [])
+        )
         self.valid_box_map_polygon = parse_map_polygon(
             params.get("valid_box_map_polygon", [])
         )
@@ -222,6 +225,20 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if value is None or str(value).strip() == "":
             return None
         return float(value)
+
+    @staticmethod
+    def _optional_int_set(value):
+        """解析允许的YOLO类别；空列表表示不限制类别。"""
+        if value is None:
+            return set()
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return set()
+            return {int(part.strip()) for part in stripped.split(",") if part.strip()}
+        if isinstance(value, (list, tuple, set)):
+            return {int(item) for item in value}
+        return set()
 
     def initialise(self):
         super().initialise()
@@ -473,12 +490,10 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         raw_detection = self._extract_boxes_from_detection_frame(detection_frame)
         candidate_targets = self._build_targets_from_raw_detection(services, raw_detection)
 
-        if self.use_box_memory:
-            # 关键步骤：共享缓存模式下直接消费原始YOLO整框，避免箱心与线框来自不同变换链路。
-            target_candidates = candidate_targets
-        else:
-            nearest_target = self._choose_nearest_raw_target(candidate_targets)
-            target_candidates = [] if nearest_target is None else [nearest_target]
+        # 关键步骤：先让所有YOLO目标进入过滤与可视化，再从有效集合中选最近箱。
+        # 这样当最近目标属于非箱体类别时，它会以灰色过滤框显示，但不会挡住
+        # 后面的合法 class_id=0/1/2 箱体。
+        target_candidates = candidate_targets
 
         if detection_frame is not None:
             self._last_yolo_frame_generation = frame_generation
@@ -501,6 +516,35 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         for index, target in enumerate(target_candidates):
             base_position = dict(target.get("_base_position") or {})
             map_position = target.get("map_position") or {}
+            source_box = target.get("box") or {}
+            if not self._is_class_allowed(source_box):
+                filtered_count += 1
+                filtered_target = {
+                    "id": "",
+                    "map_position": map_position,
+                    "box": dict(source_box),
+                    "geometry": target.get("geometry"),
+                    "_base_position": base_position,
+                    "filter_reason": "class_id_not_allowed",
+                    "filter_text": "类别不在允许抓取ID内",
+                }
+                self._filtered_box_targets.append(filtered_target)
+                self._visualization_box_targets.append(filtered_target)
+                self._log_info(
+                    "YOLO目标过滤",
+                    "序号=%d/%d 过滤类型=类别不允许 class_id=%s allowed=%s "
+                    "base坐标=%s map坐标=%s"
+                    % (
+                        index + 1,
+                        len(target_candidates),
+                        source_box.get("class_id", "?"),
+                        sorted(self.allowed_class_ids),
+                        self._format_position(base_position),
+                        self._format_position(map_position),
+                    ),
+                    "yellow",
+                )
+                continue
             if not self._is_map_position_allowed(map_position):
                 filtered_count += 1
                 filtered_target = {
@@ -587,6 +631,16 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._publish_detection_only_visualization()
         self._log_target_list("YOLO有效目标列表", self._detected_box_targets)
         return updated
+
+    def _is_class_allowed(self, source_box):
+        """class白名单过滤；未配置白名单时所有类别都可参与计算。"""
+        if not self.allowed_class_ids:
+            return True
+        try:
+            class_id = int(source_box.get("class_id"))
+        except (TypeError, ValueError):
+            return False
+        return class_id in self.allowed_class_ids
 
     def _build_targets_from_raw_detection(self, services, raw_detection):
         targets = []
@@ -1014,8 +1068,9 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         """选择本轮抓取目标，并把其它 YOLO 目标写入箱子记忆。"""
         self._current_target_source = "无"
         if not self.use_box_memory:
-            if self._detected_box_targets:
-                self._current_box_target = self._detected_box_targets[0]
+            nearest_target = self._get_nearest_detected_target()
+            if nearest_target is not None:
+                self._current_box_target = nearest_target
                 self._current_target_source = "单目标检测"
                 self._log_current_target()
             return
@@ -1874,6 +1929,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             f"odom_topic={self.odom_topic}, "
             f"odom_match_time_offset_sec={self.odom_match_time_offset_sec}, "
             f"odom_match_max_delta_sec={self.odom_match_max_delta_sec}, "
+            f"allowed_class_ids={sorted(self.allowed_class_ids) if self.allowed_class_ids else '<all>'}, "
             f"navigation_target_key={self.navigation_target_key}, "
             f"selected_box_key={self.selected_box_key or '<disabled>'}, "
             f"selected_map_point_key={self.selected_map_point_key or '<disabled>'}"

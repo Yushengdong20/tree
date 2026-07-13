@@ -243,6 +243,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             )
         self.min_map_height = self._optional_float(params.get("min_map_height", ""))
         self.max_planar_distance = self._optional_float(params.get("max_planar_distance", ""))
+        self.allowed_class_ids = self._optional_int_set(
+            params.get("allowed_class_ids", [])
+        )
         # 可选的map平面抓箱区域。配置后，区域外的YOLO目标不会参与高度筛选、
         # 去重、抓取策略判断或后续导航。
         self.valid_box_map_polygon = parse_map_polygon(
@@ -362,6 +365,20 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             return [float(item) for item in value]
         return []
 
+    @staticmethod
+    def _optional_int_set(value):
+        """解析允许的YOLO类别；空集合表示不限制类别。"""
+        if value is None:
+            return set()
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return set()
+            return {int(part.strip()) for part in stripped.split(",") if part.strip()}
+        if isinstance(value, (list, tuple, set)):
+            return {int(item) for item in value}
+        return set()
+
     def initialise(self):
         super().initialise()
         self._last_no_target_log_time = 0.0
@@ -430,6 +447,12 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 "odom_delta_ms": odom_delta_ms,
             }
             raw_candidates.append(dict(candidate))
+            if not self._is_class_allowed(box):
+                candidate["filter_reason"] = "class_id_not_allowed"
+                candidate["filter_text"] = "类别不在允许抓取ID内"
+                candidate["filter_visualization_color"] = "gray"
+                filtered_candidates.append(candidate)
+                continue
             if not is_map_position_in_polygon(
                 {"x": map_xyz[0], "y": map_xyz[1]},
                 self.valid_box_map_polygon,
@@ -1092,14 +1115,21 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.visualization_publisher.publish(marker_array)
 
     def _append_filtered_markers(self, marker_array, filtered_candidates, marker_id):
-        """用红色线框和FILTERED文字显示未进入候选集合的YOLO箱体。"""
-        filtered_color = (1.0, 0.08, 0.08)
+        """显示未进入候选集合的YOLO箱体；类别过滤使用灰色淡框。"""
         for candidate in filtered_candidates:
+            filtered_color = (
+                (0.65, 0.65, 0.65)
+                if candidate.get("filter_visualization_color") == "gray"
+                else (1.0, 0.08, 0.08)
+            )
+            filtered_alpha = (
+                0.45 if candidate.get("filter_visualization_color") == "gray" else 0.8
+            )
             corners = self._visualization_corners(candidate)
             outline = self._new_marker(marker_id, "yolo_box_filtered_outline", Marker.LINE_LIST)
             marker_id += 1
             outline.scale.x = 0.025
-            self._set_marker_color(outline, filtered_color, 0.8)
+            self._set_marker_color(outline, filtered_color, filtered_alpha)
             for start_index, end_index in self._box_edge_indices():
                 outline.points.append(self._point_message(corners[start_index]))
                 outline.points.append(self._point_message(corners[end_index]))
@@ -1113,12 +1143,13 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             text_marker.pose.position.y = candidate["map"][1]
             text_marker.pose.position.z = self._candidate_top_height(candidate) + 0.14
             text_marker.scale.z = 0.10
-            self._set_marker_color(text_marker, filtered_color, 1.0)
+            self._set_marker_color(text_marker, filtered_color, 0.95)
             text_marker.text = (
                 f"#{candidate['index']} FILTERED\n"
-                f"{candidate.get('filter_reason', 'unknown')}\n"
+                f"{candidate.get('filter_text') or candidate.get('filter_reason', 'unknown')}\n"
                 f"map=({candidate['map'][0]:.2f}, {candidate['map'][1]:.2f}, "
-                f"{candidate['map'][2]:.2f})"
+                f"{candidate['map'][2]:.2f})\n"
+                f"class={candidate.get('box', {}).get('class_id', '?')}"
             )
             marker_array.markers.append(text_marker)
         return marker_id
@@ -1299,6 +1330,16 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                     (candidate["index"], duplicate["index"], duplicate_distance)
                 )
         return kept, duplicate_records
+
+    def _is_class_allowed(self, box):
+        """class白名单过滤；未配置白名单时所有类别都可参与选箱。"""
+        if not self.allowed_class_ids:
+            return True
+        try:
+            class_id = int(box.get("class_id"))
+        except (TypeError, ValueError):
+            return False
+        return class_id in self.allowed_class_ids
 
     def _candidate_size(self, candidate):
         """获取YOLO给出的箱体三维尺寸，优先使用已验证过的OBB geometry。"""
@@ -1963,6 +2004,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
             f"same_level_selection={self.same_level_selection}, "
             f"duplicate_3d_threshold={self.duplicate_3d_distance_threshold:.3f}, "
             f"map_region_enabled={bool(self.valid_box_map_polygon)}, "
+            f"allowed_class_ids={sorted(self.allowed_class_ids) if self.allowed_class_ids else '<all>'}, "
             f"approach_planning={self.approach_pose_planning_enabled}, "
             f"approach_distance={self.approach_distance_m:.3f}, "
             f"pallet_region_enabled={bool(self.pallet_map_polygon)}, "

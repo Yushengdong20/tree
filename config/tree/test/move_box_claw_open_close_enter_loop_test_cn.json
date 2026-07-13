@@ -1,0 +1,102 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "夹爪按Enter闭合张开循环测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化夹爪控制所需共享服务",
+        "params": {
+          "skip_torso_motion": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化完成后暂停",
+        "params": {
+          "message": {
+            "value": "夹爪控制服务已初始化。按 Enter 开始循环测试：闭合 -> 张开...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Repeat",
+        "label": "循环执行夹爪闭合张开测试",
+        "params": {
+          "num_success": {
+            "value": "-1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮夹爪闭合张开测试",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "WaitForEnter",
+                "label": "按 Enter 闭合双夹爪",
+                "params": {
+                  "message": {
+                    "value": "准备闭合双夹爪。确认安全后按 Enter...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "CloseClaw",
+                "label": "闭合双夹爪",
+                "params": {
+                  "side": {
+                    "value": "both",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "按 Enter 张开双夹爪",
+                "params": {
+                  "message": {
+                    "value": "双夹爪闭合命令已发送。观察状态后按 Enter 张开双夹爪...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "张开双夹爪",
+                "params": {
+                  "side": {
+                    "value": "both",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -110,6 +110,14 @@
                     "value": "0.30",
                     "source": "CUSTOM"
                   },
+                  "allowed_class_ids": {
+                    "value": [
+                      0,
+                      1,
+                      2
+                    ],
+                    "source": "CUSTOM"
+                  },
                   "valid_box_map_polygon": {
                     "value": [
                       [
@@ -221,6 +229,14 @@
           },
           "odom_match_max_delta_sec": {
             "value": "0.30",
+            "source": "CUSTOM"
+          },
+          "allowed_class_ids": {
+            "value": [
+              0,
+              1,
+              2
+            ],
             "source": "CUSTOM"
           },
           "source_frame_fallback": {
