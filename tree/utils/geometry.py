@@ -4,6 +4,7 @@
 
 import math
 import time
+import threading
 from collections import deque
 
 import numpy as np
@@ -39,6 +40,7 @@ class OdomPoseTransformer:
         self._latest_odom_time = None
         self.history_duration_sec = max(float(history_duration_sec), 1.0)
         self._odom_history = deque()
+        self._odom_lock = threading.Lock()
 
         # 关键步骤：odom 订阅集中在工具类里，避免每个 node 重复维护订阅和缓存逻辑。
         self._odom_subscriber = self.ros_node.create_message_subscription(
@@ -50,27 +52,37 @@ class OdomPoseTransformer:
 
     def _on_odom(self, message):
         """缓存最新 odom，供行为树节点在 update 中读取。"""
-        self._latest_odom = message
-        self._latest_odom_time = time.monotonic()
-        stamp_sec = self._odom_stamp_to_seconds(message)
-        self._odom_history.append((stamp_sec, message))
-        min_stamp_sec = stamp_sec - self.history_duration_sec
-        while len(self._odom_history) > 1 and self._odom_history[0][0] < min_stamp_sec:
-            self._odom_history.popleft()
+        with self._odom_lock:
+            self._latest_odom = message
+            self._latest_odom_time = time.monotonic()
+            stamp_sec = self._odom_stamp_to_seconds(message)
+            self._odom_history.append((stamp_sec, message))
+            min_stamp_sec = stamp_sec - self.history_duration_sec
+            while len(self._odom_history) > 1 and self._odom_history[0][0] < min_stamp_sec:
+                self._odom_history.popleft()
 
     def get_latest_odom(self):
         """返回最近一次收到的 odom 消息。"""
-        return self._latest_odom
+        with self._odom_lock:
+            return self._latest_odom
 
     def get_nearest_odom_by_stamp_sec(self, stamp_sec):
         """返回时间上最接近指定秒数时间戳的 odom。"""
-        if stamp_sec is None or not self._odom_history:
+        if stamp_sec is None:
             return None
 
         target_sec = float(stamp_sec)
         nearest_msg = None
         nearest_delta = None
-        for history_stamp_sec, history_msg in self._odom_history:
+        # rospy 的 odom 回调和行为树 tick 在不同线程中运行。这里必须先复制快照，
+        # 否则遍历 deque 时 _on_odom() 追加/裁剪历史会触发
+        # RuntimeError: deque mutated during iteration。
+        with self._odom_lock:
+            history_snapshot = list(self._odom_history)
+        if not history_snapshot:
+            return None
+
+        for history_stamp_sec, history_msg in history_snapshot:
             delta = abs(history_stamp_sec - target_sec)
             if nearest_delta is None or delta < nearest_delta:
                 nearest_delta = delta
@@ -79,11 +91,13 @@ class OdomPoseTransformer:
 
     def get_current_pose(self):
         """返回当前底盘 map/odom 位姿: (x, y, z, yaw_deg)。"""
-        if self._latest_odom is None:
+        with self._odom_lock:
+            latest_odom = self._latest_odom
+        if latest_odom is None:
             return None
 
-        position = self._latest_odom.pose.pose.position
-        orientation = self._latest_odom.pose.pose.orientation
+        position = latest_odom.pose.pose.position
+        orientation = latest_odom.pose.pose.orientation
         return (
             float(position.x),
             float(position.y),
@@ -93,9 +107,11 @@ class OdomPoseTransformer:
 
     def get_latest_odom_age_sec(self):
         """返回最新 odom 距当前的时间，尚未收到时返回 None。"""
-        if self._latest_odom_time is None:
+        with self._odom_lock:
+            latest_odom_time = self._latest_odom_time
+        if latest_odom_time is None:
             return None
-        return time.monotonic() - self._latest_odom_time
+        return time.monotonic() - latest_odom_time
 
     def transform_point_to_map(
         self,
