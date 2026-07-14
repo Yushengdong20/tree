@@ -24,12 +24,19 @@
 """
 
 import ast
+import math
+
+import numpy as np
 
 import py_trees
+import rospy
+import tf.transformations as tf_trans
+from geometry_msgs.msg import Point
 from py_trees.common import Status
+from visualization_msgs.msg import Marker, MarkerArray
 from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.base_event import EventStatus
 
-from tree.constants import BASE_LINK_FRAME, ROBOT_SERVICES_KEY, WAIST_YAW_LINK_FRAME
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY, WAIST_YAW_LINK_FRAME
 
 from ..base import TimedMockAction
 
@@ -73,10 +80,32 @@ class ArmsToPose(TimedMockAction):
         self.pose_frame = str(params.get("pose_frame", default_pose_frame)).strip()
         if self.lock_arm_side not in ("", "left", "right"):
             raise ValueError("lock_arm_side 仅支持 left、right 或空")
+        self.claw_point_diagnostics_visualization_enabled = self._to_bool(
+            params.get("claw_point_diagnostics_visualization_enabled", True)
+        )
+        self.claw_point_diagnostics_visualization_topic = str(
+            params.get(
+                "claw_point_diagnostics_visualization_topic",
+                "/move_box/claw_point_diagnostics_markers",
+            )
+        ).strip()
+        self.claw_point_diagnostics_visualization_pub = None
+        if (
+            self.claw_point_diagnostics_visualization_enabled
+            and self.claw_point_diagnostics_visualization_topic
+        ):
+            self.claw_point_diagnostics_visualization_pub = self.ros_node.create_publisher(
+                self.claw_point_diagnostics_visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
         self.arm_controller = None
         self.started = False
         self.skipped = False
         self.startup_error = None
+        self._claw_point_diagnostics = {}
+        self._diagnostics_logged = False
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         for key in [
             self.left_pose_key,
@@ -95,6 +124,8 @@ class ArmsToPose(TimedMockAction):
         self.started = False
         self.skipped = False
         self.startup_error = None
+        self._claw_point_diagnostics = {}
+        self._diagnostics_logged = False
 
         if self.should_use_mock_execution():
             return
@@ -221,6 +252,7 @@ class ArmsToPose(TimedMockAction):
         if arm_status == EventStatus.RUNNING:
             return Status.RUNNING
         if arm_status == EventStatus.SUCCESS:
+            self._log_claw_point_finish_diagnostics()
             self.started = False
             return Status.SUCCESS
 
@@ -315,6 +347,8 @@ class ArmsToPose(TimedMockAction):
         right_ee_point = arm_controller.claw_point_to_end_effector_point(right_point, "right", right_ypr)
         if left_ee_point is None or right_ee_point is None:
             return None
+        self._store_claw_point_diagnostic_target("left", left_point, left_ee_point, left_ypr)
+        self._store_claw_point_diagnostic_target("right", right_point, right_ee_point, right_ypr)
 
         left_target = [
             left_ee_point[0],
@@ -387,6 +421,7 @@ class ArmsToPose(TimedMockAction):
             ee_point = arm_controller.claw_point_to_end_effector_point(point, side, ypr)
             if ee_point is None:
                 return None, None
+            self._store_claw_point_diagnostic_target(side, point, ee_point, ypr)
             return [*ee_point, *ypr], target_source
 
         direct_pose = self.left_pose if side == "left" else self.right_pose
@@ -444,3 +479,312 @@ class ArmsToPose(TimedMockAction):
             f"lock_arm_side={self.lock_arm_side or 'none'}, "
             f"left={left_desc}, right={right_desc}"
         )
+
+    def _store_claw_point_diagnostic_target(self, side, claw_point, eef_point, ypr):
+        """缓存 claw_point 模式的计算目标，动作完成后与实际 TF 做差。"""
+        self._claw_point_diagnostics[side] = {
+            "target_claw": [float(value) for value in claw_point],
+            "target_eef": [float(value) for value in eef_point],
+            "target_ypr": [float(value) for value in ypr],
+        }
+
+    def _log_claw_point_finish_diagnostics(self):
+        """动作完成后输出目标点与实际TF偏差，便于定位FP/外参/IK误差。"""
+        if self._diagnostics_logged or not self._claw_point_diagnostics:
+            return
+        if self.arm_controller is None:
+            return
+        diagnostic_items = []
+        for side, target in self._claw_point_diagnostics.items():
+            diagnostic_item = self._log_single_claw_point_finish_diagnostic(side, target)
+            if diagnostic_item is not None:
+                diagnostic_items.append(diagnostic_item)
+        self._publish_claw_point_diagnostics_visualization(diagnostic_items)
+        self._diagnostics_logged = True
+
+    def _log_single_claw_point_finish_diagnostic(self, side, target):
+        actual_eef = self.arm_controller.get_current_end_effector_pose(
+            side,
+            target_frame=BASE_LINK_FRAME,
+        )
+        actual_claw = self._lookup_current_claw_pose(side)
+        target_claw = target["target_claw"]
+        target_eef = target["target_eef"]
+        target_ypr = target["target_ypr"]
+        diagnostic_item = {
+            "side": side,
+            "target_claw": [*target_claw, *target_ypr],
+            "target_eef": [*target_eef, *target_ypr],
+            "actual_claw": actual_claw,
+            "actual_eef": actual_eef,
+            "claw_delta": None,
+            "eef_delta": None,
+        }
+
+        if actual_eef is not None:
+            eef_delta = self._pose_delta(actual_eef, [*target_eef, *target_ypr])
+            diagnostic_item["eef_delta"] = eef_delta
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] {side} EEF目标-实际偏差(base_link): "
+                f"target=({target_eef[0]:.3f}, {target_eef[1]:.3f}, {target_eef[2]:.3f}, "
+                f"yaw={target_ypr[0]:.2f}, pitch={target_ypr[1]:.2f}, roll={target_ypr[2]:.2f}), "
+                f"actual=({actual_eef[0]:.3f}, {actual_eef[1]:.3f}, {actual_eef[2]:.3f}, "
+                f"yaw={actual_eef[3]:.2f}, pitch={actual_eef[4]:.2f}, roll={actual_eef[5]:.2f}), "
+                f"delta_xyz=({eef_delta['dx']:.3f}, {eef_delta['dy']:.3f}, {eef_delta['dz']:.3f}), "
+                f"dist={eef_delta['dist']:.3f}m, "
+                f"delta_ypr=({eef_delta['dyaw']:.2f}, {eef_delta['dpitch']:.2f}, "
+                f"{eef_delta['droll']:.2f})deg"
+            )
+        else:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] {side} EEF目标-实际偏差无法计算: 当前EEF TF不可用"
+            )
+
+        if actual_claw is not None:
+            claw_delta = self._pose_delta(actual_claw, [*target_claw, *target_ypr])
+            diagnostic_item["claw_delta"] = claw_delta
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] {side} claw目标-实际偏差(base_link): "
+                f"target=({target_claw[0]:.3f}, {target_claw[1]:.3f}, {target_claw[2]:.3f}, "
+                f"yaw={target_ypr[0]:.2f}, pitch={target_ypr[1]:.2f}, roll={target_ypr[2]:.2f}), "
+                f"actual=({actual_claw[0]:.3f}, {actual_claw[1]:.3f}, {actual_claw[2]:.3f}, "
+                f"yaw={actual_claw[3]:.2f}, pitch={actual_claw[4]:.2f}, roll={actual_claw[5]:.2f}), "
+                f"delta_xyz=({claw_delta['dx']:.3f}, {claw_delta['dy']:.3f}, {claw_delta['dz']:.3f}), "
+                f"dist={claw_delta['dist']:.3f}m, "
+                f"delta_ypr=({claw_delta['dyaw']:.2f}, {claw_delta['dpitch']:.2f}, "
+                f"{claw_delta['droll']:.2f})deg"
+            )
+        else:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] {side} claw目标-实际偏差无法计算: 当前claw TF不可用"
+            )
+        return diagnostic_item
+
+    def _lookup_current_claw_pose(self, side):
+        """查询当前 left_claw/right_claw 在 base_link 下的实际位姿。"""
+        if self.arm_controller is None:
+            return None
+        child_frame = f"{side}_claw"
+        try:
+            self.arm_controller.tf_listener.waitForTransform(
+                BASE_LINK_FRAME,
+                child_frame,
+                rospy.Time(0),
+                rospy.Duration(0.5),
+            )
+            translation, quaternion = self.arm_controller.tf_listener.lookupTransform(
+                BASE_LINK_FRAME,
+                child_frame,
+                rospy.Time(0),
+            )
+        except Exception as exc:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 查询 {BASE_LINK_FRAME}->{child_frame} 当前TF失败: {exc}"
+            )
+            return None
+        roll, pitch, yaw = tf_trans.euler_from_quaternion(quaternion)
+        return [
+            float(translation[0]),
+            float(translation[1]),
+            float(translation[2]),
+            math.degrees(yaw),
+            math.degrees(pitch),
+            math.degrees(roll),
+        ]
+
+    @staticmethod
+    def _pose_delta(actual_pose, target_pose):
+        dx = float(actual_pose[0]) - float(target_pose[0])
+        dy = float(actual_pose[1]) - float(target_pose[1])
+        dz = float(actual_pose[2]) - float(target_pose[2])
+        return {
+            "dx": dx,
+            "dy": dy,
+            "dz": dz,
+            "dist": float(np.linalg.norm([dx, dy, dz])),
+            "dyaw": ArmsToPose._angle_delta_deg(actual_pose[3], target_pose[3]),
+            "dpitch": ArmsToPose._angle_delta_deg(actual_pose[4], target_pose[4]),
+            "droll": ArmsToPose._angle_delta_deg(actual_pose[5], target_pose[5]),
+        }
+
+    @staticmethod
+    def _angle_delta_deg(actual_deg, target_deg):
+        return (float(actual_deg) - float(target_deg) + 180.0) % 360.0 - 180.0
+
+    def _publish_claw_point_diagnostics_visualization(self, diagnostic_items):
+        """把计算落点和实际落点转到 map 下显示，和 FP 抓取点可视化叠加排查。"""
+        if self.claw_point_diagnostics_visualization_pub is None:
+            return
+        if not diagnostic_items:
+            return
+
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        marker_id = 1
+        for item in diagnostic_items:
+            marker_id = self._append_single_claw_point_diagnostic_markers(
+                marker_array,
+                marker_id,
+                item,
+            )
+
+        self.claw_point_diagnostics_visualization_pub.publish(marker_array)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已发布夹爪落点诊断RViz标记: "
+            f"topic={self.claw_point_diagnostics_visualization_topic}, "
+            f"items={len(diagnostic_items)}"
+        )
+
+    def _append_single_claw_point_diagnostic_markers(self, marker_array, marker_id, item):
+        side = item["side"]
+        target_claw_map = self._transform_pose_from_base_to_map(item["target_claw"])
+        actual_claw_map = self._transform_pose_from_base_to_map(item["actual_claw"])
+        target_eef_map = self._transform_pose_from_base_to_map(item["target_eef"])
+        actual_eef_map = self._transform_pose_from_base_to_map(item["actual_eef"])
+
+        if target_claw_map is not None:
+            marker = self._new_diagnostic_marker(marker_id, f"{side}_target_claw", Marker.SPHERE)
+            marker_id += 1
+            marker.pose.position = self._point_message(*target_claw_map[:3])
+            marker.scale.x = marker.scale.y = marker.scale.z = 0.055
+            self._set_marker_color(marker, 0.05, 1.0, 0.15, 1.0)
+            marker_array.markers.append(marker)
+
+        if actual_claw_map is not None:
+            marker = self._new_diagnostic_marker(marker_id, f"{side}_actual_claw", Marker.SPHERE)
+            marker_id += 1
+            marker.pose.position = self._point_message(*actual_claw_map[:3])
+            marker.scale.x = marker.scale.y = marker.scale.z = 0.065
+            self._set_marker_color(marker, 1.0, 0.15, 0.05, 1.0)
+            marker_array.markers.append(marker)
+
+        if target_eef_map is not None:
+            marker = self._new_diagnostic_marker(marker_id, f"{side}_target_eef", Marker.SPHERE)
+            marker_id += 1
+            marker.pose.position = self._point_message(*target_eef_map[:3])
+            marker.scale.x = marker.scale.y = marker.scale.z = 0.04
+            self._set_marker_color(marker, 0.15, 0.75, 1.0, 0.9)
+            marker_array.markers.append(marker)
+
+        if actual_eef_map is not None:
+            marker = self._new_diagnostic_marker(marker_id, f"{side}_actual_eef", Marker.SPHERE)
+            marker_id += 1
+            marker.pose.position = self._point_message(*actual_eef_map[:3])
+            marker.scale.x = marker.scale.y = marker.scale.z = 0.045
+            self._set_marker_color(marker, 1.0, 0.55, 0.05, 0.9)
+            marker_array.markers.append(marker)
+
+        if target_claw_map is not None and actual_claw_map is not None:
+            marker = self._new_diagnostic_marker(marker_id, f"{side}_claw_error_line", Marker.LINE_LIST)
+            marker_id += 1
+            marker.scale.x = 0.018
+            marker.points = [
+                self._point_message(*target_claw_map[:3]),
+                self._point_message(*actual_claw_map[:3]),
+            ]
+            self._set_marker_color(marker, 1.0, 0.9, 0.05, 1.0)
+            marker_array.markers.append(marker)
+
+        text_pose = actual_claw_map or target_claw_map or actual_eef_map or target_eef_map
+        if text_pose is not None:
+            claw_delta = item.get("claw_delta")
+            eef_delta = item.get("eef_delta")
+            text = self._new_diagnostic_marker(marker_id, f"{side}_diagnostic_text", Marker.TEXT_VIEW_FACING)
+            marker_id += 1
+            text.pose.position.x = text_pose[0]
+            text.pose.position.y = text_pose[1]
+            text.pose.position.z = text_pose[2] + 0.18
+            text.pose.orientation.w = 1.0
+            text.scale.z = 0.075
+            self._set_marker_color(text, 1.0, 1.0, 1.0, 1.0)
+            text.text = self._format_diagnostic_text(side, claw_delta, eef_delta)
+            marker_array.markers.append(text)
+
+        return marker_id
+
+    def _transform_pose_from_base_to_map(self, pose):
+        """将 [x,y,z,yaw,pitch,roll] 从 base_link 转成 map；pose 为空则返回 None。"""
+        if pose is None:
+            return None
+        if self.arm_controller is None:
+            return None
+        try:
+            translation, quaternion = self.arm_controller.tf_listener.lookupTransform(
+                MAP_FRAME,
+                BASE_LINK_FRAME,
+                rospy.Time(0),
+            )
+        except Exception as exc:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 夹爪诊断无法转换 {BASE_LINK_FRAME}->{MAP_FRAME}: {exc}"
+            )
+            return None
+
+        transform = tf_trans.concatenate_matrices(
+            tf_trans.translation_matrix(translation),
+            tf_trans.quaternion_matrix(quaternion),
+        )
+        point = tf_trans.translation_from_matrix(
+            np.dot(transform, tf_trans.translation_matrix(pose[:3]))
+        )
+
+        base_orientation = tf_trans.quaternion_from_euler(
+            math.radians(float(pose[5])),
+            math.radians(float(pose[4])),
+            math.radians(float(pose[3])),
+        )
+        map_orientation = tf_trans.quaternion_multiply(quaternion, base_orientation)
+        roll, pitch, yaw = tf_trans.euler_from_quaternion(map_orientation)
+        return [
+            float(point[0]),
+            float(point[1]),
+            float(point[2]),
+            math.degrees(yaw),
+            math.degrees(pitch),
+            math.degrees(roll),
+        ]
+
+    def _format_diagnostic_text(self, side, claw_delta, eef_delta):
+        lines = [f"{side.upper()} CLAW EXEC DIAG"]
+        if claw_delta is not None:
+            lines.append(
+                "claw Δxyz="
+                f"({claw_delta['dx']:.3f},{claw_delta['dy']:.3f},{claw_delta['dz']:.3f}) "
+                f"d={claw_delta['dist']:.3f}m"
+            )
+            lines.append(
+                "claw Δypr="
+                f"({claw_delta['dyaw']:.1f},{claw_delta['dpitch']:.1f},{claw_delta['droll']:.1f})deg"
+            )
+        if eef_delta is not None:
+            lines.append(
+                "eef Δxyz="
+                f"({eef_delta['dx']:.3f},{eef_delta['dy']:.3f},{eef_delta['dz']:.3f}) "
+                f"d={eef_delta['dist']:.3f}m"
+            )
+        return "\n".join(lines)
+
+    def _new_diagnostic_marker(self, marker_id, namespace, marker_type):
+        marker = Marker()
+        marker.header.frame_id = MAP_FRAME
+        marker.header.stamp = self.ros_node.now()
+        marker.ns = f"claw_point_diagnostics/{namespace}"
+        marker.id = marker_id
+        marker.type = marker_type
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        return marker
+
+    @staticmethod
+    def _point_message(x, y, z):
+        return Point(x=float(x), y=float(y), z=float(z))
+
+    @staticmethod
+    def _set_marker_color(marker, red, green, blue, alpha):
+        marker.color.r = red
+        marker.color.g = green
+        marker.color.b = blue
+        marker.color.a = alpha
