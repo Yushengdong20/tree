@@ -19,6 +19,7 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.services_key = ROBOT_SERVICES_KEY
         self.place_plane_height = float(params.get("place_plane_height", ros_node.get_param("place_plane_height", 0.0)))
+        self.place_plane_height_key = str(params.get("place_plane_height_key", "")).strip()
         self.height_offset = float(
             params.get("place_torso_height_offset", ros_node.get_param("place_torso_height_offset", 0.4))
         )
@@ -33,6 +34,8 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
             params.get("target_pose_key", "move_box_place_torso_pose")
         ).strip()
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
+        if self.place_plane_height_key:
+            self.blackboard.register_key(key=self.place_plane_height_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.target_pose_key, access=py_trees.common.Access.WRITE)
 
     def update(self):
@@ -53,8 +56,12 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
             )
             return Status.FAILURE
 
+        place_plane_height = self._get_place_plane_height()
+        if place_plane_height is None:
+            return Status.FAILURE
+
         target_z = min(
-            max(self.place_plane_height + self.height_offset, self.min_height),
+            max(place_plane_height + self.height_offset, self.min_height),
             self.max_height,
         )
         target_pose[0] = self.torso_x
@@ -62,13 +69,36 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         self.blackboard.set(self.target_pose_key, target_pose, overwrite=True)
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算放箱前躯干目标: "
-            f"plane_z={self.place_plane_height:.3f}, pose={target_pose}, "
+            f"plane_z={place_plane_height:.3f}, pose={target_pose}, "
             f"key={self.target_pose_key}"
         )
         return Status.SUCCESS
 
+    def _get_place_plane_height(self):
+        if not self.place_plane_height_key:
+            return self.place_plane_height
+
+        if not self.blackboard.exists(self.place_plane_height_key):
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] blackboard 缺少动态放置平面高度: "
+                f"key={self.place_plane_height_key}"
+            )
+            return None
+
+        try:
+            return float(self.blackboard.get(self.place_plane_height_key))
+        except (TypeError, ValueError) as exc:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 动态放置平面高度无效: "
+                f"key={self.place_plane_height_key}, value={self.blackboard.get(self.place_plane_height_key)!r}, "
+                f"error={exc}"
+            )
+            return None
+
     def describe_start(self):
         return (
             f"[{self.config_label}] ComputeMoveBoxTorsoToPlaceHeightPose start: "
-            f"place_plane_height={self.place_plane_height:.3f}, target_pose_key={self.target_pose_key}"
+            f"place_plane_height={self.place_plane_height:.3f}, "
+            f"place_plane_height_key={self.place_plane_height_key or '<static>'}, "
+            f"target_pose_key={self.target_pose_key}"
         )

@@ -1,0 +1,541 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "等待区抓箱并码垛到垛盘完整流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 视觉与控制实例",
+        "params": {
+          "initial_torso_height": {
+            "value": "1.1",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "初始化码垛计数",
+        "params": {
+          "key": {
+            "value": "move_box_pallet_stack_count",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "初始化后导航到等待区域",
+        "params": {
+          "x": {
+            "value": "0.84",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "4.26",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "-105.02",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_topic": {
+            "value": "/move_box/http_navigation_init_wait_markers",
+            "source": "CUSTOM"
+          },
+          "navigation_target_key": {
+            "value": "navigation_target",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "初始化完成后暂停（按 Enter）",
+        "params": {
+          "message": {
+            "value": "码垛流程已初始化并到达等待区，按 Enter 开始抓箱码垛...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Repeat",
+        "label": "循环执行四格码垛",
+        "params": {
+          "num_success": {
+            "value": "4",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮抓箱并码垛",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "SubTree",
+                "label": "抓箱前导航与底盘对齐",
+                "params": {
+                  "file": {
+                    "value": "../tree/staring/subtree/move_box_yolo_fp_approach_no_enter_cn.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SetBlackboardValue",
+                "label": "置位抓取请求",
+                "params": {
+                  "key": {
+                    "value": "move_box_grasp_requested",
+                    "source": "CUSTOM"
+                  },
+                  "value": {
+                    "value": "true",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "直接抓取箱体到闭爪",
+                "params": {
+                  "file": {
+                    "value": "../tree/staring/subtree/move_box_direct_grasp_before_lift_no_enter_memory_cn.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ComputeMoveBoxPalletStackTarget",
+                "label": "计算当前码垛槽位与垛盘外导航位",
+                "params": {
+                  "pallet_map_polygon": {
+                    "value": [
+                      [
+                        -0.3,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        0.1
+                      ],
+                      [
+                        -0.3,
+                        0.1
+                      ]
+                    ],
+                    "source": "CUSTOM"
+                  },
+                  "slot_rows": {
+                    "value": "2",
+                    "source": "CUSTOM"
+                  },
+                  "slot_cols": {
+                    "value": "2",
+                    "source": "CUSTOM"
+                  },
+                  "max_layers": {
+                    "value": "1",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_x": {
+                    "value": "0.60",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_y": {
+                    "value": "0.40",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_z": {
+                    "value": "0.34",
+                    "source": "CUSTOM"
+                  },
+                  "slot_gap_x": {
+                    "value": "0.04",
+                    "source": "CUSTOM"
+                  },
+                  "slot_gap_y": {
+                    "value": "0.04",
+                    "source": "CUSTOM"
+                  },
+                  "pallet_surface_z": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  },
+                  "place_clearance_z": {
+                    "value": "0.02",
+                    "source": "CUSTOM"
+                  },
+                  "approach_side": {
+                    "value": "positive_y",
+                    "source": "CUSTOM"
+                  },
+                  "place_box_forward_offset_m": {
+                    "value": "0.90",
+                    "source": "CUSTOM"
+                  },
+                  "stack_count_key": {
+                    "value": "move_box_pallet_stack_count",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "move_box_pallet_stack_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "place_plane_height_key": {
+                    "value": "move_box_pallet_stack_place_plane_height",
+                    "source": "CUSTOM"
+                  },
+                  "slot_pose_key": {
+                    "value": "move_box_pallet_stack_slot_pose",
+                    "source": "CUSTOM"
+                  },
+                  "expected_box_pose_key": {
+                    "value": "move_box_pallet_stack_expected_box_pose",
+                    "source": "CUSTOM"
+                  },
+                  "visualization_enabled": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "visualization_topic": {
+                    "value": "/move_box/pallet_stack_markers",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "Parallel",
+                "label": "上提箱体同时导航到垛盘码垛站位",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到垛盘码垛站位",
+                    "params": {
+                      "target_pose_key": {
+                        "value": "move_box_pallet_stack_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_visualization_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_visualization_topic": {
+                        "value": "/move_box/http_navigation_pallet_stack_markers",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "move_box_pallet_stack_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "odom_topic": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "SubTree",
+                    "label": "上提箱体并回位",
+                    "params": {
+                      "file": {
+                        "value": "../tree/staring/subtree/move_box_direct_grasp_lift_restore_no_enter_cn.json",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "接近垛盘站位后调整躯干到码垛高度",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "WaitUntilNearNavigationGoal",
+                        "label": "监听接近垛盘码垛站位",
+                        "params": {
+                          "odom_topic": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "target_key": {
+                            "value": "move_box_pallet_stack_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "distance_threshold": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                        "label": "根据码垛层高计算躯干目标",
+                        "params": {
+                          "place_plane_height_key": {
+                            "value": "move_box_pallet_stack_place_plane_height",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_height_offset": {
+                            "value": "0.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_min_height": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_max_height": {
+                            "value": "1.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_x": {
+                            "value": "0.5",
+                            "source": "CUSTOM"
+                          },
+                          "target_pose_key": {
+                            "value": "move_box_pallet_place_torso_pose",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "MoveTorsoPose",
+                        "label": "根据码垛层高调整躯干",
+                        "params": {
+                          "pose_key": {
+                            "value": "move_box_pallet_place_torso_pose",
+                            "source": "CUSTOM"
+                          },
+                          "wait_done": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          },
+                          "skip_torso_motion": {
+                            "value": "False",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "ComputeMoveBoxPlaceTargets",
+                "label": "根据码垛层高计算双夹爪下降目标",
+                "params": {
+                  "place_plane_height_key": {
+                    "value": "move_box_pallet_stack_place_plane_height",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_z": {
+                    "value": "0.34",
+                    "source": "CUSTOM"
+                  },
+                  "left_target_key": {
+                    "value": "move_box_pallet_place_left_lower_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_target_key": {
+                    "value": "move_box_pallet_place_right_lower_claw_point",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "双夹爪同步下降到码垛高度",
+                "params": {
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_point_key": {
+                    "value": "move_box_pallet_place_left_lower_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_point_key": {
+                    "value": "move_box_pallet_place_right_lower_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -60.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "张开双夹爪释放到垛盘",
+                "params": {
+                  "side": {
+                    "value": "both",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "IncrementBlackboardValue",
+                "label": "码垛成功后推进槽位计数",
+                "params": {
+                  "key": {
+                    "value": "move_box_pallet_stack_count",
+                    "source": "CUSTOM"
+                  },
+                  "step": {
+                    "value": "1",
+                    "source": "CUSTOM"
+                  },
+                  "default_value": {
+                    "value": "0",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "Parallel",
+                "label": "放箱后返回等待区域并同步恢复姿态",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "回到等待区域",
+                    "params": {
+                      "x": {
+                        "value": "0.84",
+                        "source": "CUSTOM"
+                      },
+                      "y": {
+                        "value": "4.26",
+                        "source": "CUSTOM"
+                      },
+                      "yaw": {
+                        "value": "-105.02",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_visualization_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_visualization_topic": {
+                        "value": "/move_box/http_navigation_stack_return_wait_markers",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "odom_topic": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "SubTree",
+                    "label": "放箱后通用节点回到抓取初始位姿",
+                    "params": {
+                      "file": {
+                        "value": "../tree/staring/subtree/move_box_return_to_grasp_ready_common_memory_cn.json",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

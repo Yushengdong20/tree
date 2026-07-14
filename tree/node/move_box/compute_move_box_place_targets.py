@@ -23,10 +23,13 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.services_key = ROBOT_SERVICES_KEY
         self.place_plane_height = float(params.get("place_plane_height", ros_node.get_param("place_plane_height", 0.0)))
+        self.place_plane_height_key = str(params.get("place_plane_height_key", "")).strip()
         self.box_size_z = float(params.get("box_size_z", ros_node.get_param("box_size_z", 0.34)))
         self.left_target_key = str(params.get("left_target_key", "move_box_place_left_lower_claw_point")).strip()
         self.right_target_key = str(params.get("right_target_key", "move_box_place_right_lower_claw_point")).strip()
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
+        if self.place_plane_height_key:
+            self.blackboard.register_key(key=self.place_plane_height_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.left_target_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.right_target_key, access=py_trees.common.Access.WRITE)
 
@@ -82,7 +85,11 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
         if left_claw_point is None or right_claw_point is None:
             return Status.FAILURE
 
-        target_claw_z = self.place_plane_height + self.box_size_z
+        place_plane_height = self._get_place_plane_height()
+        if place_plane_height is None:
+            return Status.FAILURE
+
+        target_claw_z = place_plane_height + self.box_size_z
         lower_left = np.array(left_claw_point, dtype=float)
         lower_right = np.array(right_claw_point, dtype=float)
         lower_left[2] = target_claw_z
@@ -92,12 +99,36 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
         self.blackboard.set(self.right_target_key, lower_right, overwrite=True)
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算放置下降目标: "
-            f"box_size_z={self.box_size_z:.3f}, target_claw_z={target_claw_z:.3f}"
+            f"plane_z={place_plane_height:.3f}, box_size_z={self.box_size_z:.3f}, "
+            f"target_claw_z={target_claw_z:.3f}"
         )
         return Status.SUCCESS
+
+    def _get_place_plane_height(self):
+        if not self.place_plane_height_key:
+            return self.place_plane_height
+
+        if not self.blackboard.exists(self.place_plane_height_key):
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] blackboard 缺少动态放置平面高度: "
+                f"key={self.place_plane_height_key}"
+            )
+            return None
+
+        try:
+            return float(self.blackboard.get(self.place_plane_height_key))
+        except (TypeError, ValueError) as exc:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 动态放置平面高度无效: "
+                f"key={self.place_plane_height_key}, value={self.blackboard.get(self.place_plane_height_key)!r}, "
+                f"error={exc}"
+            )
+            return None
 
     def describe_start(self):
         return (
             f"[{self.config_label}] ComputeMoveBoxPlaceTargets start: "
-            f"place_plane_height={self.place_plane_height:.3f}, box_size_z={self.box_size_z:.3f}"
+            f"place_plane_height={self.place_plane_height:.3f}, "
+            f"place_plane_height_key={self.place_plane_height_key or '<static>'}, "
+            f"box_size_z={self.box_size_z:.3f}"
         )
