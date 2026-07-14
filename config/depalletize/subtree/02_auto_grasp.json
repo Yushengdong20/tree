@@ -98,7 +98,7 @@
                     "source": "CUSTOM"
                   },
                   "left_descend_below_offset": {
-                    "value": "0.08",
+                    "value": "0.03",
                     "source": "CUSTOM"
                   },
                   "left_lift_offset": {
@@ -128,7 +128,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -150,7 +150,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -186,7 +186,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -208,7 +208,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -234,7 +234,7 @@
                     "source": "CUSTOM"
                   },
                   "left_descend_below_offset": {
-                    "value": "0.08",
+                    "value": "0.03",
                     "source": "CUSTOM"
                   },
                   "left_lift_offset": {
@@ -268,7 +268,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -290,7 +290,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -326,7 +326,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -404,7 +404,7 @@
                     "source": "CUSTOM"
                   },
                   "right_descend_below_offset": {
-                    "value": "0.08",
+                    "value": "0.03",
                     "source": "CUSTOM"
                   },
                   "right_lift_offset": {
@@ -434,7 +434,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -456,7 +456,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -492,7 +492,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -514,7 +514,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -540,7 +540,7 @@
                     "source": "CUSTOM"
                   },
                   "right_descend_below_offset": {
-                    "value": "0.08",
+                    "value": "0.03",
                     "source": "CUSTOM"
                   },
                   "right_lift_offset": {
@@ -574,7 +574,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -596,7 +596,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -632,7 +632,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -710,22 +710,12 @@
                     "source": "CUSTOM"
                   },
                   "direct_descend_below_offset": {
-                    "value": "0.08",
+                    "value": "0.03",
                     "source": "CUSTOM"
                   },
                   "direct_lift_offset": {
                     "value": "0.30",
                     "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-              "name": "WaitForEnter",
-              "label": "计算双爪后暂停（按 Enter）",
-              "params": {
-                "message": {
-                  "value": "计算双爪后暂停，按 Enter 开始直接抓箱，双爪同步移动到左右边缘上方...",
-                  "source": "CUSTOM"
                   }
                 }
               },
@@ -754,18 +744,8 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-              "name": "WaitForEnter",
-              "label": "双爪同步移动到左右边缘上方后暂停（按 Enter）",
-              "params": {
-                "message": {
-                  "value": "双爪同步移动到左右边缘上方后暂停，按 Enter 开始双爪同步下探到左右边缘下方...",
-                  "source": "CUSTOM"
                   }
                 }
               },
@@ -794,18 +774,8 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-              "name": "WaitForEnter",
-              "label": "双爪同步下探到左右边缘下方后暂停（按 Enter）",
-              "params": {
-                "message": {
-                  "value": "双爪同步下探到左右边缘下方后暂停，按 Enter 开始同时闭合左右夹爪...",
-                  "source": "CUSTOM"
                   }
                 }
               },
@@ -820,16 +790,6 @@
                   "side": {
                     "value": "both",
                     "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-              "name": "WaitForEnter",
-              "label": "同时闭合左右夹爪后暂停（按 Enter）",
-              "params": {
-                "message": {
-                  "value": "同时闭合左右夹爪后暂停，按 Enter 开始清除抓取请求标志...",
-                  "source": "CUSTOM"
                   }
                 }
               },
