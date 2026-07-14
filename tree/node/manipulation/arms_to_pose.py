@@ -37,6 +37,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.base_event import EventStatus
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY, WAIST_YAW_LINK_FRAME
+from tree.utils.geometry import get_odom_pose_transformer
 
 from ..base import TimedMockAction
 
@@ -89,6 +90,13 @@ class ArmsToPose(TimedMockAction):
                 "/move_box/claw_point_diagnostics_markers",
             )
         ).strip()
+        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_transformer = get_odom_pose_transformer(
+            self.ros_node,
+            self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame=BASE_LINK_FRAME,
+        )
         self.claw_point_diagnostics_visualization_pub = None
         if (
             self.claw_point_diagnostics_visualization_enabled
@@ -101,6 +109,7 @@ class ArmsToPose(TimedMockAction):
                 latch=True,
             )
         self.arm_controller = None
+        self.services = None
         self.started = False
         self.skipped = False
         self.startup_error = None
@@ -121,6 +130,7 @@ class ArmsToPose(TimedMockAction):
         """解析目标并启动非阻塞手臂事件。"""
         super().initialise()
         self.arm_controller = None
+        self.services = None
         self.started = False
         self.skipped = False
         self.startup_error = None
@@ -143,6 +153,7 @@ class ArmsToPose(TimedMockAction):
             return
 
         try:
+            self.services = services
             self.arm_controller = services.arm_controller
             resolved = self._resolve_targets(self.arm_controller)
             if resolved is None:
@@ -624,6 +635,7 @@ class ArmsToPose(TimedMockAction):
         marker_array.markers.append(clear_marker)
 
         marker_id = 1
+        marker_id = self._append_fp_box_diagnostic_markers(marker_array, marker_id)
         for item in diagnostic_items:
             marker_id = self._append_single_claw_point_diagnostic_markers(
                 marker_array,
@@ -705,10 +717,97 @@ class ArmsToPose(TimedMockAction):
 
         return marker_id
 
+    def _append_fp_box_diagnostic_markers(self, marker_array, marker_id):
+        """在夹爪诊断里叠加当前 FP 箱体，方便直接看夹爪相对箱体的位置。"""
+        fp_box = self._get_latest_fp_box_for_diagnostics()
+        if fp_box is None:
+            return marker_id
+
+        center_base, left_axis_base, front_axis_base, up_axis_base, box_size = fp_box
+        center_map = self._transform_pose_from_base_to_map([*center_base, 0.0, 0.0, 0.0])
+        left_axis_map = self._transform_axis_from_base_to_map(center_base, left_axis_base)
+        front_axis_map = self._transform_axis_from_base_to_map(center_base, front_axis_base)
+        up_axis_map = self._transform_axis_from_base_to_map(center_base, up_axis_base)
+        if (
+            center_map is None
+            or left_axis_map is None
+            or front_axis_map is None
+            or up_axis_map is None
+        ):
+            return marker_id
+
+        center = np.array(center_map[:3], dtype=float)
+        corners = self._fp_box_corners(
+            center,
+            left_axis_map,
+            front_axis_map,
+            up_axis_map,
+            box_size,
+        )
+        box_marker = self._new_diagnostic_marker(marker_id, "fp_box_outline", Marker.LINE_LIST)
+        marker_id += 1
+        box_marker.scale.x = 0.025
+        self._set_marker_color(box_marker, 0.0, 0.85, 1.0, 0.95)
+        for start_index, end_index in self._box_edge_indices():
+            box_marker.points.append(self._point_from_vector(corners[start_index]))
+            box_marker.points.append(self._point_from_vector(corners[end_index]))
+        marker_array.markers.append(box_marker)
+
+        center_marker = self._new_diagnostic_marker(marker_id, "fp_box_center", Marker.SPHERE)
+        marker_id += 1
+        center_marker.pose.position = self._point_from_vector(center)
+        center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = 0.075
+        self._set_marker_color(center_marker, 1.0, 1.0, 0.0, 1.0)
+        marker_array.markers.append(center_marker)
+
+        for label, axis, color in (
+            ("fp_left_axis", left_axis_map, (1.0, 0.1, 1.0)),
+            ("fp_front_axis", front_axis_map, (0.1, 1.0, 0.1)),
+            ("fp_up_axis", up_axis_map, (1.0, 0.7, 0.1)),
+        ):
+            arrow = self._new_diagnostic_marker(marker_id, label, Marker.ARROW)
+            marker_id += 1
+            arrow.scale.x = 0.035
+            arrow.scale.y = 0.07
+            arrow.scale.z = 0.07
+            arrow.points = [
+                self._point_from_vector(center),
+                self._point_from_vector(center + axis * 0.30),
+            ]
+            self._set_marker_color(arrow, color[0], color[1], color[2], 0.95)
+            marker_array.markers.append(arrow)
+
+        text = self._new_diagnostic_marker(marker_id, "fp_box_text", Marker.TEXT_VIEW_FACING)
+        marker_id += 1
+        text.pose.position.x = float(center[0])
+        text.pose.position.y = float(center[1])
+        text.pose.position.z = float(center[2] + box_size[2] * 0.5 + 0.16)
+        text.scale.z = 0.075
+        self._set_marker_color(text, 0.0, 0.85, 1.0, 1.0)
+        text.text = (
+            "FP BOX\n"
+            f"center=({center[0]:.2f},{center[1]:.2f},{center[2]:.2f})\n"
+            f"size=({box_size[0]:.2f},{box_size[1]:.2f},{box_size[2]:.2f})"
+        )
+        marker_array.markers.append(text)
+        return marker_id
+
     def _transform_pose_from_base_to_map(self, pose):
-        """将 [x,y,z,yaw,pitch,roll] 从 base_link 转成 map；pose 为空则返回 None。"""
+        """将 [x,y,z,yaw,pitch,roll] 从 base_link 转成 map；pose 为空则返回 None。
+
+        这里刻意和 SelectAndPublishHighestYoloBox 保持同一条转换链路：
+        - base_link 与 melon_odom 视为重合；
+        - melon_odom/odom 消息中的 pose 表示 ``map <- base_link``；
+        - 使用完整 odom 四元数构造 4x4 矩阵，而不是只取二维 yaw。
+        """
         if pose is None:
             return None
+
+        odom_msg = self.odom_transformer.get_latest_odom()
+        if odom_msg is not None:
+            map_from_base = self._map_from_odom_message(odom_msg)
+            return self._transform_pose_by_matrix(map_from_base, pose)
+
         if self.arm_controller is None:
             return None
         try:
@@ -727,6 +826,34 @@ class ArmsToPose(TimedMockAction):
             tf_trans.translation_matrix(translation),
             tf_trans.quaternion_matrix(quaternion),
         )
+        return self._transform_pose_by_matrix(transform, pose)
+
+    @staticmethod
+    def _map_from_odom_message(odom_msg):
+        """从 odom.pose 构造 ``map <- base_link``，与选箱节点保持一致。"""
+        odom_position = odom_msg.pose.pose.position
+        odom_orientation = odom_msg.pose.pose.orientation
+        return tf_trans.concatenate_matrices(
+            tf_trans.translation_matrix(
+                [
+                    float(odom_position.x),
+                    float(odom_position.y),
+                    float(odom_position.z),
+                ]
+            ),
+            tf_trans.quaternion_matrix(
+                [
+                    float(odom_orientation.x),
+                    float(odom_orientation.y),
+                    float(odom_orientation.z),
+                    float(odom_orientation.w),
+                ]
+            ),
+        )
+
+    @staticmethod
+    def _transform_pose_by_matrix(transform, pose):
+        """使用 ``map <- base`` 矩阵转换位置和姿态。"""
         point = tf_trans.translation_from_matrix(
             np.dot(transform, tf_trans.translation_matrix(pose[:3]))
         )
@@ -736,7 +863,8 @@ class ArmsToPose(TimedMockAction):
             math.radians(float(pose[4])),
             math.radians(float(pose[3])),
         )
-        map_orientation = tf_trans.quaternion_multiply(quaternion, base_orientation)
+        transform_orientation = tf_trans.quaternion_from_matrix(transform)
+        map_orientation = tf_trans.quaternion_multiply(transform_orientation, base_orientation)
         roll, pitch, yaw = tf_trans.euler_from_quaternion(map_orientation)
         return [
             float(point[0]),
@@ -746,6 +874,138 @@ class ArmsToPose(TimedMockAction):
             math.degrees(pitch),
             math.degrees(roll),
         ]
+
+    def _transform_axis_from_base_to_map(self, center_base, axis_base):
+        center_pose = self._transform_pose_from_base_to_map([*center_base, 0.0, 0.0, 0.0])
+        end_pose = self._transform_pose_from_base_to_map(
+            [*(np.array(center_base, dtype=float) + np.array(axis_base, dtype=float)), 0.0, 0.0, 0.0]
+        )
+        if center_pose is None or end_pose is None:
+            return None
+        return self._normalize_vector(np.array(end_pose[:3], dtype=float) - np.array(center_pose[:3], dtype=float))
+
+    def _get_latest_fp_box_for_diagnostics(self):
+        """读取当前 FP 箱体中心、方向轴和尺寸；没有有效 FP 数据时返回 None。"""
+        if self.services is None or not hasattr(self.services, "box_detector"):
+            return None
+        detector = self.services.box_detector
+        center = self._as_vector(self._call_optional(detector, "get_latest_box_center"))
+        axes = self._call_optional(detector, "get_latest_box_axes")
+        left_axis = self._normalize_vector(
+            self._as_vector(axes.get("left") if isinstance(axes, dict) else None)
+        )
+        up_axis = self._normalize_vector(
+            self._as_vector(axes.get("up") if isinstance(axes, dict) else None)
+        )
+        front_axis = self._normalize_vector(
+            self._as_vector(self._call_optional(detector, "get_latest_box_front_axis"))
+        )
+        if center is None or left_axis is None or up_axis is None:
+            return None
+        if front_axis is None:
+            front_axis = self._normalize_vector(np.cross(left_axis, up_axis))
+        if front_axis is None:
+            return None
+
+        # 和 FP 抓取点可视化保持一致：先正交化 left，再按 left/up 求 front 方向。
+        left_axis = self._normalize_vector(left_axis - np.dot(left_axis, up_axis) * up_axis)
+        if left_axis is None:
+            return None
+        derived_front_axis = self._normalize_vector(np.cross(left_axis, up_axis))
+        if derived_front_axis is None:
+            return None
+        if np.dot(derived_front_axis, front_axis) < 0.0:
+            derived_front_axis = -derived_front_axis
+
+        box_size = self._parse_box_size(self._call_optional(detector, "get_latest_box_size"))
+        if box_size is None:
+            box_size = self._parse_box_size(
+                [
+                    getattr(detector, "box_size_x", None),
+                    getattr(detector, "box_size_y", None),
+                    getattr(detector, "box_size_z", None),
+                ]
+            )
+        if box_size is None:
+            return None
+        return center, left_axis, derived_front_axis, up_axis, box_size
+
+    @staticmethod
+    def _call_optional(obj, method_name):
+        method = getattr(obj, method_name, None)
+        if not callable(method):
+            return None
+        return method()
+
+    @staticmethod
+    def _as_vector(value):
+        if value is None:
+            return None
+        try:
+            vector = np.array(value, dtype=float).reshape(-1)
+        except Exception:
+            return None
+        if len(vector) < 3 or not np.all(np.isfinite(vector[:3])):
+            return None
+        return vector[:3]
+
+    @staticmethod
+    def _normalize_vector(vector):
+        if vector is None:
+            return None
+        norm = float(np.linalg.norm(vector))
+        if norm < 1e-6 or not math.isfinite(norm):
+            return None
+        return np.array(vector, dtype=float) / norm
+
+    @staticmethod
+    def _parse_box_size(raw_size):
+        if raw_size is None:
+            return None
+        try:
+            if isinstance(raw_size, dict):
+                size = np.array(
+                    [raw_size.get("x"), raw_size.get("y"), raw_size.get("z")],
+                    dtype=float,
+                )
+            else:
+                size = np.array(raw_size[:3], dtype=float)
+        except Exception:
+            return None
+        if len(size) != 3 or not np.all(np.isfinite(size)) or np.any(size <= 0.0):
+            return None
+        return size
+
+    @staticmethod
+    def _fp_box_corners(center, left_axis, front_axis, up_axis, box_size):
+        corners = []
+        for sx in (-1.0, 1.0):
+            for sy in (-1.0, 1.0):
+                for sz in (-1.0, 1.0):
+                    corners.append(
+                        center
+                        + left_axis * sx * box_size[0] * 0.5
+                        + front_axis * sy * box_size[1] * 0.5
+                        + up_axis * sz * box_size[2] * 0.5
+                    )
+        return corners
+
+    @staticmethod
+    def _box_edge_indices():
+        return (
+            (0, 1),
+            (0, 2),
+            (0, 4),
+            (3, 1),
+            (3, 2),
+            (3, 7),
+            (5, 1),
+            (5, 4),
+            (5, 7),
+            (6, 2),
+            (6, 4),
+            (6, 7),
+        )
 
     def _format_diagnostic_text(self, side, claw_delta, eef_delta):
         lines = [f"{side.upper()} CLAW EXEC DIAG"]
@@ -781,6 +1041,10 @@ class ArmsToPose(TimedMockAction):
     @staticmethod
     def _point_message(x, y, z):
         return Point(x=float(x), y=float(y), z=float(z))
+
+    @staticmethod
+    def _point_from_vector(vector):
+        return Point(x=float(vector[0]), y=float(vector[1]), z=float(vector[2]))
 
     @staticmethod
     def _set_marker_color(marker, red, green, blue, alpha):
