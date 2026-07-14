@@ -7,6 +7,7 @@
 base_link 与 melon_odom 视为重合，使用 odom.pose 的完整 4x4 矩阵构造
 ``map <- base_link``，避免 2D yaw 近似和其它可视化产生厘米级差异。
 """
+import math
 
 import numpy as np
 import tf.transformations as tf_trans
