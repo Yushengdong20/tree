@@ -205,7 +205,7 @@
                     "source": "CUSTOM"
                   },
                   "pallet_surface_z": {
-                    "value": "0.0",
+                    "value": "-1.07",
                     "source": "CUSTOM"
                   },
                   "place_clearance_z": {
@@ -217,7 +217,7 @@
                     "source": "CUSTOM"
                   },
                   "place_box_forward_offset_m": {
-                    "value": "0.90",
+                    "value": "1.0",
                     "source": "CUSTOM"
                   },
                   "stack_count_key": {
