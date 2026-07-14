@@ -52,7 +52,7 @@
             "source": "CUSTOM"
           },
           "claw_ypr": {
-            "value": "[0.0, -60.0, 0.0]",
+            "value": "[0.0, -75.0, 0.0]",
             "source": "CUSTOM"
           }
         }

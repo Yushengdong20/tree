@@ -53,6 +53,8 @@ from tree.ros_interface import create_ros_interface
 DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.json"
 # 旧版选箱四轮循环树
 # DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize_legacy_approach.json"
+# 码垛完整流程：等待区抓箱，搬运到垛盘附近并按固定网格码垛。
+DEFAULT_TREE_FILE_NAME = "palletize/move_box_full_direct_grasp_palletize.json"
 # 夹爪测试树
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_claw_open_close_enter_loop_test_cn.json"
 

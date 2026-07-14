@@ -118,7 +118,7 @@
                 "label": "抓箱前导航与底盘对齐",
                 "params": {
                   "file": {
-                    "value": "../tree/staring/subtree/move_box_yolo_fp_approach_no_enter_cn.json",
+                    "value": "subtree/move_box_yolo_fp_approach_no_enter_cn.json",
                     "source": "CUSTOM"
                   }
                 }
@@ -142,7 +142,7 @@
                 "label": "直接抓取箱体到闭爪",
                 "params": {
                   "file": {
-                    "value": "../tree/staring/subtree/move_box_direct_grasp_before_lift_no_enter_memory_cn.json",
+                    "value": "subtree/move_box_direct_grasp_before_lift_no_enter_memory_cn.json",
                     "source": "CUSTOM"
                   }
                 }
@@ -303,7 +303,7 @@
                     "label": "上提箱体并回位",
                     "params": {
                       "file": {
-                        "value": "../tree/staring/subtree/move_box_direct_grasp_lift_restore_no_enter_cn.json",
+                        "value": "subtree/move_box_direct_grasp_lift_restore_no_enter_cn.json",
                         "source": "CUSTOM"
                       }
                     }
@@ -431,7 +431,7 @@
                     "source": "CUSTOM"
                   },
                   "claw_ypr": {
-                    "value": "[0.0, -60.0, 0.0]",
+                    "value": "[0.0, -75.0, 0.0]",
                     "source": "CUSTOM"
                   }
                 }
@@ -525,7 +525,7 @@
                     "label": "放箱后通用节点回到抓取初始位姿",
                     "params": {
                       "file": {
-                        "value": "../tree/staring/subtree/move_box_return_to_grasp_ready_common_memory_cn.json",
+                        "value": "subtree/move_box_return_to_grasp_ready_common_memory_cn.json",
                         "source": "CUSTOM"
                       }
                     }
