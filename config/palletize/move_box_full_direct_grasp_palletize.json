@@ -172,6 +172,19 @@
                     ],
                     "source": "CUSTOM"
                   },
+                  "slot_reference_points": {
+                    "value": [
+                      [
+                        0.67,
+                        0.77
+                      ],
+                      [
+                        0.03,
+                        0.77
+                      ]
+                    ],
+                    "source": "CUSTOM"
+                  },
                   "slot_rows": {
                     "value": "2",
                     "source": "CUSTOM"
@@ -213,7 +226,7 @@
                     "source": "CUSTOM"
                   },
                   "approach_side": {
-                    "value": "positive_y",
+                    "value": "negative_y",
                     "source": "CUSTOM"
                   },
                   "place_box_forward_offset_m": {
@@ -344,6 +357,14 @@
                             "value": "move_box_pallet_stack_place_plane_height",
                             "source": "CUSTOM"
                           },
+                          "place_plane_frame": {
+                            "value": "map",
+                            "source": "CUSTOM"
+                          },
+                          "odom_topic": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
                           "place_torso_height_offset": {
                             "value": "0.4",
                             "source": "CUSTOM"
@@ -394,6 +415,14 @@
                 "params": {
                   "place_plane_height_key": {
                     "value": "move_box_pallet_stack_place_plane_height",
+                    "source": "CUSTOM"
+                  },
+                  "place_plane_frame": {
+                    "value": "map",
+                    "source": "CUSTOM"
+                  },
+                  "odom_topic": {
+                    "value": "melon_odom",
                     "source": "CUSTOM"
                   },
                   "box_size_z": {

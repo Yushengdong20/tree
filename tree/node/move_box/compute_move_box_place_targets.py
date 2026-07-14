@@ -9,9 +9,9 @@ import numpy as np
 import py_trees
 from py_trees.common import Status
 
-from tree.utils.geometry import ypr_to_rotation_matrix
+from tree.utils.geometry import get_odom_pose_transformer, ypr_to_rotation_matrix
 
-from tree.constants import ROBOT_SERVICES_KEY
+from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
 
 from ..base import TimedMockAction
 
@@ -24,6 +24,8 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
         self.services_key = ROBOT_SERVICES_KEY
         self.place_plane_height = float(params.get("place_plane_height", ros_node.get_param("place_plane_height", 0.0)))
         self.place_plane_height_key = str(params.get("place_plane_height_key", "")).strip()
+        self.place_plane_frame = str(params.get("place_plane_frame", "base_link")).strip() or "base_link"
+        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
         self.box_size_z = float(params.get("box_size_z", ros_node.get_param("box_size_z", 0.34)))
         self.left_target_key = str(params.get("left_target_key", "move_box_place_left_lower_claw_point")).strip()
         self.right_target_key = str(params.get("right_target_key", "move_box_place_right_lower_claw_point")).strip()
@@ -32,6 +34,12 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
             self.blackboard.register_key(key=self.place_plane_height_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.left_target_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.right_target_key, access=py_trees.common.Access.WRITE)
+        self.odom_transformer = get_odom_pose_transformer(
+            self.ros_node,
+            self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame="base_link",
+        )
 
     def _current_claw_point(self, arm_controller, side):
         if side not in ("left", "right"):
@@ -88,8 +96,11 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
         place_plane_height = self._get_place_plane_height()
         if place_plane_height is None:
             return Status.FAILURE
+        place_plane_height_base = self._resolve_place_plane_height_in_base(place_plane_height)
+        if place_plane_height_base is None:
+            return Status.FAILURE
 
-        target_claw_z = place_plane_height + self.box_size_z
+        target_claw_z = place_plane_height_base + self.box_size_z
         lower_left = np.array(left_claw_point, dtype=float)
         lower_right = np.array(right_claw_point, dtype=float)
         lower_left[2] = target_claw_z
@@ -99,7 +110,9 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
         self.blackboard.set(self.right_target_key, lower_right, overwrite=True)
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算放置下降目标: "
-            f"plane_z={place_plane_height:.3f}, box_size_z={self.box_size_z:.3f}, "
+            f"plane_z={place_plane_height:.3f}({self.place_plane_frame}), "
+            f"plane_z_base={place_plane_height_base:.3f}, "
+            f"box_size_z={self.box_size_z:.3f}, "
             f"target_claw_z={target_claw_z:.3f}"
         )
         return Status.SUCCESS
@@ -125,10 +138,38 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
             )
             return None
 
+    def _resolve_place_plane_height_in_base(self, place_plane_height):
+        """把配置/黑板中的放置平面高度转换成 base_link 下的 z。
+
+        旧放箱流程里的 place_plane_height 本来就是 base_link 高度，所以默认不变。
+        码垛流程给的是 map 系垛盘高度，需要减去当前 base_link 在 map 下的 z。
+        """
+        frame = self.place_plane_frame.lower()
+        if frame in ("base", "base_link", ""):
+            return float(place_plane_height)
+
+        if frame in ("map", MAP_FRAME.lower()):
+            current_pose = self.odom_transformer.get_current_pose()
+            if current_pose is None:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 等待 odom 后才能把 map 放置高度转换到 base_link: "
+                    f"odom_topic={self.odom_topic}"
+                )
+                return None
+            base_map_z = float(current_pose[2])
+            return float(place_plane_height) - base_map_z
+
+        self.ros_node.get_logger().error(
+            f"[{self.config_label}] 不支持的 place_plane_frame={self.place_plane_frame!r}，"
+            "仅支持 base_link/map"
+        )
+        return None
+
     def describe_start(self):
         return (
             f"[{self.config_label}] ComputeMoveBoxPlaceTargets start: "
             f"place_plane_height={self.place_plane_height:.3f}, "
             f"place_plane_height_key={self.place_plane_height_key or '<static>'}, "
+            f"place_plane_frame={self.place_plane_frame}, "
             f"box_size_z={self.box_size_z:.3f}"
         )

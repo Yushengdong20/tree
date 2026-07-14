@@ -1,8 +1,9 @@
 """计算 move_box 码垛目标。
 
-第一版码垛采用“固定垛盘 polygon + 网格槽位 + stack_count”的确定性策略：
+第一版码垛采用“固定垛盘 polygon/参考点 + 网格槽位 + stack_count”的确定性策略：
 
-1. 从 JSON 读取垛盘 map 多边形，自动取最长边作为 pallet-x，垂直方向作为 pallet-y。
+1. 优先从 JSON 读取两个 slot_reference_points，作为 row0 的两个箱心参考点；
+   未配置时读取垛盘 map 多边形，自动取最长边作为 pallet-x。
 2. 按 box_size / rows / cols / gap 在垛盘中心铺开网格。
 3. 根据 blackboard 中的 stack_count 选择当前槽位和层数。
 4. 反推出一个垛盘外导航位：机器人面向槽位，槽位位于机器人前方
@@ -41,6 +42,11 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
                 [[-0.3, 1.0], [1.0, 1.0], [1.0, 0.1], [-0.3, 0.1]],
             )
         )
+        # 可选：两个 map 参考点，表示 row0/col0 与 row0/col1 的目标箱心。
+        # 配置后 slot0/slot1 直接落在这两个点上，后续 row 按箱宽+间隙朝垛盘内部推进。
+        self.slot_reference_points = self._parse_polygon(params.get("slot_reference_points", []))
+        # 可选：显式指定 row 增长方向；不填时由“参考点连线 -> 垛盘 polygon 中心”自动判断。
+        self.slot_reference_row_axis = self._parse_vector(params.get("slot_reference_row_axis", []))
         self.rows = int(params.get("slot_rows", 2))
         self.cols = int(params.get("slot_cols", 2))
         self.max_layers = int(params.get("max_layers", 1))
@@ -152,6 +158,9 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
             return 0
 
     def _build_pallet_geometry(self):
+        if len(self.slot_reference_points) >= 2:
+            return self._build_reference_points_geometry()
+
         if len(self.pallet_map_polygon) < 3:
             self.ros_node.get_logger().error(
                 f"[{self.config_label}] pallet_map_polygon 至少需要 3 个点"
@@ -204,8 +213,84 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
             "yaw": math.degrees(math.atan2(x_axis[1], x_axis[0])),
         }
 
+    def _build_reference_points_geometry(self):
+        p0 = self.slot_reference_points[0]
+        p1 = self.slot_reference_points[1]
+        dx = p1[0] - p0[0]
+        dy = p1[1] - p0[1]
+        slot_step_x = math.hypot(dx, dy)
+        if slot_step_x <= 1e-6:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] slot_reference_points 两点重合，无法定义码垛方向: {self.slot_reference_points}"
+            )
+            return None
+
+        x_axis = (dx / slot_step_x, dy / slot_step_x)
+        y_axis = self._reference_row_axis(x_axis, p0, p1)
+        required_x = self.cols * self.box_size_x + max(0, self.cols - 1) * self.slot_gap_x
+        required_y = self.rows * self.box_size_y + max(0, self.rows - 1) * self.slot_gap_y
+        expected_step_x = self.box_size_x + self.slot_gap_x
+        if self.cols > 1 and abs(slot_step_x - expected_step_x) > 0.08:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 两参考点间距与箱长+间隙差异较大: "
+                f"reference_step={slot_step_x:.3f}, expected={expected_step_x:.3f}"
+            )
+
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 使用码垛参考点生成槽位: "
+            f"p0=({p0[0]:.3f},{p0[1]:.3f}), p1=({p1[0]:.3f},{p1[1]:.3f}), "
+            f"x_axis=({x_axis[0]:.3f},{x_axis[1]:.3f}), "
+            f"row_axis=({y_axis[0]:.3f},{y_axis[1]:.3f})"
+        )
+        return {
+            "mode": "reference_points",
+            "reference_origin": p0,
+            "reference_second": p1,
+            "slot_step_x": slot_step_x,
+            "center": ((p0[0] + p1[0]) * 0.5, (p0[1] + p1[1]) * 0.5),
+            "x_axis": x_axis,
+            "y_axis": y_axis,
+            "extent_x": required_x,
+            "extent_y": required_y,
+            "required_x": required_x,
+            "required_y": required_y,
+            "yaw": math.degrees(math.atan2(x_axis[1], x_axis[0])),
+        }
+
+    def _reference_row_axis(self, x_axis, p0, p1):
+        explicit_axis = self.slot_reference_row_axis
+        if explicit_axis is not None:
+            return explicit_axis
+
+        candidate = (-x_axis[1], x_axis[0])
+        if len(self.pallet_map_polygon) >= 3:
+            cx = sum(point[0] for point in self.pallet_map_polygon) / len(self.pallet_map_polygon)
+            cy = sum(point[1] for point in self.pallet_map_polygon) / len(self.pallet_map_polygon)
+            mid = ((p0[0] + p1[0]) * 0.5, (p0[1] + p1[1]) * 0.5)
+            to_center = (cx - mid[0], cy - mid[1])
+            if self._dot(to_center, candidate) < 0.0:
+                candidate = (-candidate[0], -candidate[1])
+        return candidate
+
     def _compute_slot_pose(self, geometry, row, col, layer):
         del layer
+        if geometry.get("mode") == "reference_points":
+            origin = geometry["reference_origin"]
+            x_axis = geometry["x_axis"]
+            y_axis = geometry["y_axis"]
+            offset_x = col * geometry["slot_step_x"]
+            offset_y = row * (self.box_size_y + self.slot_gap_y)
+            x = origin[0] + offset_x * x_axis[0] + offset_y * y_axis[0]
+            y = origin[1] + offset_x * x_axis[1] + offset_y * y_axis[1]
+            return {
+                "x": float(x),
+                "y": float(y),
+                "z": float(self.pallet_surface_z),
+                "yaw": float(geometry["yaw"]),
+                "row": int(row),
+                "col": int(col),
+            }
+
         start_x = -0.5 * geometry["required_x"] + 0.5 * self.box_size_x
         start_y = -0.5 * geometry["required_y"] + 0.5 * self.box_size_y
         offset_x = start_x + col * (self.box_size_x + self.slot_gap_x)
@@ -270,6 +355,33 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
         polygon.points.append(polygon.points[0])
         self._set_color(polygon, 1.0, 0.45, 0.0, 1.0)
         marker_array.markers.append(polygon)
+
+        if geometry.get("mode") == "reference_points":
+            for ref_index, ref_point in enumerate(
+                (geometry["reference_origin"], geometry["reference_second"])
+            ):
+                ref_marker = self._new_marker(
+                    marker_id, "pallet_slot_reference_points", Marker.SPHERE
+                )
+                marker_id += 1
+                ref_marker.pose.position.x = float(ref_point[0])
+                ref_marker.pose.position.y = float(ref_point[1])
+                ref_marker.pose.position.z = self.pallet_surface_z + 0.08
+                ref_marker.scale.x = ref_marker.scale.y = ref_marker.scale.z = 0.12
+                self._set_color(ref_marker, 1.0, 0.0, 1.0, 1.0)
+                marker_array.markers.append(ref_marker)
+
+                ref_text = self._new_marker(
+                    marker_id, "pallet_slot_reference_text", Marker.TEXT_VIEW_FACING
+                )
+                marker_id += 1
+                ref_text.pose.position.x = float(ref_point[0])
+                ref_text.pose.position.y = float(ref_point[1])
+                ref_text.pose.position.z = self.pallet_surface_z + 0.22
+                ref_text.scale.z = 0.09
+                ref_text.text = f"STACK REF{ref_index}\n({ref_point[0]:.2f},{ref_point[1]:.2f})"
+                self._set_color(ref_text, 1.0, 0.0, 1.0, 1.0)
+                marker_array.markers.append(ref_text)
 
         for row in range(self.rows):
             for col in range(self.cols):
@@ -379,6 +491,21 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
                 continue
             parsed.append((float(point[0]), float(point[1])))
         return parsed
+
+    @staticmethod
+    def _parse_vector(raw_vector):
+        vector = parse_param_value(raw_vector)
+        if not isinstance(vector, (list, tuple)) or len(vector) < 2:
+            return None
+        try:
+            x = float(vector[0])
+            y = float(vector[1])
+        except (TypeError, ValueError):
+            return None
+        norm = math.hypot(x, y)
+        if not math.isfinite(norm) or norm <= 1e-6:
+            return None
+        return (x / norm, y / norm)
 
     def describe_start(self):
         return (

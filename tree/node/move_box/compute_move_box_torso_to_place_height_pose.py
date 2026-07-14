@@ -7,7 +7,8 @@
 import py_trees
 from py_trees.common import Status
 
-from tree.constants import ROBOT_SERVICES_KEY
+from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.geometry import get_odom_pose_transformer
 
 from ..base import TimedMockAction
 
@@ -20,6 +21,8 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         self.services_key = ROBOT_SERVICES_KEY
         self.place_plane_height = float(params.get("place_plane_height", ros_node.get_param("place_plane_height", 0.0)))
         self.place_plane_height_key = str(params.get("place_plane_height_key", "")).strip()
+        self.place_plane_frame = str(params.get("place_plane_frame", "base_link")).strip() or "base_link"
+        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
         self.height_offset = float(
             params.get("place_torso_height_offset", ros_node.get_param("place_torso_height_offset", 0.4))
         )
@@ -37,6 +40,12 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         if self.place_plane_height_key:
             self.blackboard.register_key(key=self.place_plane_height_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.target_pose_key, access=py_trees.common.Access.WRITE)
+        self.odom_transformer = get_odom_pose_transformer(
+            self.ros_node,
+            self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame="base_link",
+        )
 
     def update(self):
         if self.should_use_mock_execution():
@@ -59,9 +68,12 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         place_plane_height = self._get_place_plane_height()
         if place_plane_height is None:
             return Status.FAILURE
+        place_plane_height_base = self._resolve_place_plane_height_in_base(place_plane_height)
+        if place_plane_height_base is None:
+            return Status.FAILURE
 
         target_z = min(
-            max(place_plane_height + self.height_offset, self.min_height),
+            max(place_plane_height_base + self.height_offset, self.min_height),
             self.max_height,
         )
         target_pose[0] = self.torso_x
@@ -69,7 +81,8 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         self.blackboard.set(self.target_pose_key, target_pose, overwrite=True)
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算放箱前躯干目标: "
-            f"plane_z={place_plane_height:.3f}, pose={target_pose}, "
+            f"plane_z={place_plane_height:.3f}({self.place_plane_frame}), "
+            f"plane_z_base={place_plane_height_base:.3f}, pose={target_pose}, "
             f"key={self.target_pose_key}"
         )
         return Status.SUCCESS
@@ -95,10 +108,33 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
             )
             return None
 
+    def _resolve_place_plane_height_in_base(self, place_plane_height):
+        frame = self.place_plane_frame.lower()
+        if frame in ("base", "base_link", ""):
+            return float(place_plane_height)
+
+        if frame in ("map", MAP_FRAME.lower()):
+            current_pose = self.odom_transformer.get_current_pose()
+            if current_pose is None:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 等待 odom 后才能把 map 放置高度转换到 base_link: "
+                    f"odom_topic={self.odom_topic}"
+                )
+                return None
+            base_map_z = float(current_pose[2])
+            return float(place_plane_height) - base_map_z
+
+        self.ros_node.get_logger().error(
+            f"[{self.config_label}] 不支持的 place_plane_frame={self.place_plane_frame!r}，"
+            "仅支持 base_link/map"
+        )
+        return None
+
     def describe_start(self):
         return (
             f"[{self.config_label}] ComputeMoveBoxTorsoToPlaceHeightPose start: "
             f"place_plane_height={self.place_plane_height:.3f}, "
             f"place_plane_height_key={self.place_plane_height_key or '<static>'}, "
+            f"place_plane_frame={self.place_plane_frame}, "
             f"target_pose_key={self.target_pose_key}"
         )
