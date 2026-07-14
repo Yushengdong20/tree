@@ -90,6 +90,20 @@ class ArmsToPose(TimedMockAction):
                 "/move_box/claw_point_diagnostics_markers",
             )
         ).strip()
+        self.claw_wireframe_visualization_enabled = self._to_bool(
+            params.get("claw_wireframe_visualization_enabled", True)
+        )
+        # U 型夹爪线框仅用于 RViz 调参示意：假设 left_claw/right_claw 原点是夹爪接触中心，
+        # local +x 为夹指伸出方向，local +/-y 为两根夹指左右方向。
+        self.claw_wireframe_finger_length = float(
+            params.get("claw_wireframe_finger_length", 0.12)
+        )
+        self.claw_wireframe_opening_width = float(
+            params.get("claw_wireframe_opening_width", 0.10)
+        )
+        self.claw_wireframe_back_offset = float(
+            params.get("claw_wireframe_back_offset", 0.035)
+        )
         self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
         self.odom_transformer = get_odom_pose_transformer(
             self.ros_node,
@@ -672,6 +686,13 @@ class ArmsToPose(TimedMockAction):
             marker.scale.x = marker.scale.y = marker.scale.z = 0.065
             self._set_marker_color(marker, 1.0, 0.15, 0.05, 1.0)
             marker_array.markers.append(marker)
+            marker_id = self._append_claw_wireframe_marker(
+                marker_array,
+                marker_id,
+                side,
+                actual_claw_map,
+                actual=True,
+            )
 
         if target_eef_map is not None:
             marker = self._new_diagnostic_marker(marker_id, f"{side}_target_eef", Marker.SPHERE)
@@ -715,6 +736,62 @@ class ArmsToPose(TimedMockAction):
             text.text = self._format_diagnostic_text(side, claw_delta, eef_delta)
             marker_array.markers.append(text)
 
+        return marker_id
+
+    def _append_claw_wireframe_marker(self, marker_array, marker_id, side, claw_pose_map, actual):
+        """在 map 下画一个跟随 left_claw/right_claw 位姿的简化 U 型夹爪线框。"""
+        if not self.claw_wireframe_visualization_enabled or claw_pose_map is None:
+            return marker_id
+
+        half_width = max(self.claw_wireframe_opening_width * 0.5, 0.005)
+        back_x = -abs(self.claw_wireframe_back_offset)
+        tip_x = max(self.claw_wireframe_finger_length - abs(self.claw_wireframe_back_offset), 0.02)
+
+        # U 型：后横梁 + 两根夹指。local 原点放在开口中心附近，便于观察 claw 原点与夹持中心关系。
+        local_segments = (
+            ([back_x, -half_width, 0.0], [back_x, half_width, 0.0]),
+            ([back_x, -half_width, 0.0], [tip_x, -half_width, 0.0]),
+            ([back_x, half_width, 0.0], [tip_x, half_width, 0.0]),
+            ([0.0, -half_width * 0.35, 0.0], [0.0, half_width * 0.35, 0.0]),
+        )
+
+        marker = self._new_diagnostic_marker(
+            marker_id,
+            f"{side}_{'actual' if actual else 'target'}_claw_u_wireframe",
+            Marker.LINE_LIST,
+        )
+        marker_id += 1
+        marker.scale.x = 0.012
+        if side == "left":
+            self._set_marker_color(marker, 1.0, 0.1, 1.0, 1.0)
+        else:
+            self._set_marker_color(marker, 1.0, 0.45, 0.05, 1.0)
+        for start_local, end_local in local_segments:
+            marker.points.append(
+                self._point_from_vector(
+                    self._transform_local_point_by_pose(claw_pose_map, start_local)
+                )
+            )
+            marker.points.append(
+                self._point_from_vector(
+                    self._transform_local_point_by_pose(claw_pose_map, end_local)
+                )
+            )
+        marker_array.markers.append(marker)
+
+        text = self._new_diagnostic_marker(
+            marker_id,
+            f"{side}_{'actual' if actual else 'target'}_claw_u_text",
+            Marker.TEXT_VIEW_FACING,
+        )
+        marker_id += 1
+        text.pose.position.x = float(claw_pose_map[0])
+        text.pose.position.y = float(claw_pose_map[1])
+        text.pose.position.z = float(claw_pose_map[2] + 0.08)
+        text.scale.z = 0.055
+        self._set_marker_color(text, marker.color.r, marker.color.g, marker.color.b, 1.0)
+        text.text = f"{side} claw U"
+        marker_array.markers.append(text)
         return marker_id
 
     def _append_fp_box_diagnostic_markers(self, marker_array, marker_id):
@@ -874,6 +951,30 @@ class ArmsToPose(TimedMockAction):
             math.degrees(pitch),
             math.degrees(roll),
         ]
+
+    @staticmethod
+    def _transform_local_point_by_pose(pose, local_point):
+        """将 claw 局部坐标点按 map 下 claw 位姿转换到 map。"""
+        translation = tf_trans.translation_matrix(
+            [float(pose[0]), float(pose[1]), float(pose[2])]
+        )
+        rotation = tf_trans.quaternion_matrix(
+            tf_trans.quaternion_from_euler(
+                math.radians(float(pose[5])),
+                math.radians(float(pose[4])),
+                math.radians(float(pose[3])),
+            )
+        )
+        transform = tf_trans.concatenate_matrices(translation, rotation)
+        point = transform.dot(
+            [
+                float(local_point[0]),
+                float(local_point[1]),
+                float(local_point[2]),
+                1.0,
+            ]
+        )
+        return np.array([float(point[0]), float(point[1]), float(point[2])], dtype=float)
 
     def _transform_axis_from_base_to_map(self, center_base, axis_base):
         center_pose = self._transform_pose_from_base_to_map([*center_base, 0.0, 0.0, 0.0])
