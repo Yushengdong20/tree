@@ -3,11 +3,13 @@
 这里只做诊断显示，不改变任何黑板数据或实际抓取目标。
 输入的 FP 箱体中心、方向轴、抓取点仍然保持原来的 base_link 计算链路；
 发布 marker 前再用当前 odom 位姿转换到 map，方便在全局视角下确认落点。
+这里和 SelectAndPublishHighestYoloBox / ArmsToPose 夹爪诊断保持同一条转换链路：
+base_link 与 melon_odom 视为重合，使用 odom.pose 的完整 4x4 矩阵构造
+``map <- base_link``，避免 2D yaw 近似和其它可视化产生厘米级差异。
 """
 
-import math
-
 import numpy as np
+import tf.transformations as tf_trans
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -49,10 +51,11 @@ def publish_fp_box_and_targets(
         ros_node.get_logger().warning(f"[{config_label}] FP可视化跳过: center/axes 无效")
         return
 
-    current_pose = odom_transformer.get_current_pose() if odom_transformer is not None else None
-    if current_pose is None:
+    odom_msg = odom_transformer.get_latest_odom() if odom_transformer is not None else None
+    if odom_msg is None:
         ros_node.get_logger().warning(f"[{config_label}] FP可视化跳过: 尚未获得 map 下底盘位姿")
         return
+    map_from_base = _map_from_odom_message(odom_msg)
 
     left_axis_base = _normalize(
         left_axis_base - np.dot(left_axis_base, up_axis_base) * up_axis_base
@@ -63,10 +66,13 @@ def publish_fp_box_and_targets(
     if np.dot(front_axis_base, raw_front_axis_base) < 0.0:
         front_axis_base = -front_axis_base
 
-    center = _point_base_to_map(center_base, current_pose)
-    left_axis = _axis_base_to_map(left_axis_base, current_pose)
-    front_axis = _axis_base_to_map(front_axis_base, current_pose)
-    up_axis = _axis_base_to_map(up_axis_base, current_pose)
+    center = _point_base_to_map(center_base, map_from_base)
+    left_axis = _axis_base_to_map(center_base, left_axis_base, map_from_base)
+    front_axis = _axis_base_to_map(center_base, front_axis_base, map_from_base)
+    up_axis = _axis_base_to_map(center_base, up_axis_base, map_from_base)
+    if left_axis is None or front_axis is None or up_axis is None:
+        ros_node.get_logger().warning(f"[{config_label}] FP可视化跳过: 坐标轴转换失败")
+        return
     box_size, box_size_source = _get_fp_box_size(services)
 
     marker_array = MarkerArray()
@@ -110,7 +116,7 @@ def publish_fp_box_and_targets(
             marker_array,
             marker_id,
             "left_grasp",
-            _point_base_to_map(left_grasp, current_pose) if left_grasp is not None else None,
+            _point_base_to_map(left_grasp, map_from_base) if left_grasp is not None else None,
             (1.0, 0.1, 1.0),
             "LEFT GRASP",
             0.095,
@@ -120,7 +126,7 @@ def publish_fp_box_and_targets(
             marker_array,
             marker_id,
             "right_grasp",
-            _point_base_to_map(right_grasp, current_pose) if right_grasp is not None else None,
+            _point_base_to_map(right_grasp, map_from_base) if right_grasp is not None else None,
             (1.0, 0.45, 0.05),
             "RIGHT GRASP",
             0.095,
@@ -141,7 +147,7 @@ def publish_fp_box_and_targets(
                 marker_array,
                 marker_id,
                 f"target_{label}",
-                _point_base_to_map(point, current_pose) if point is not None else None,
+                _point_base_to_map(point, map_from_base) if point is not None else None,
                 target_colors[index % len(target_colors)],
                 label,
                 0.065,
@@ -229,34 +235,38 @@ def _parse_box_size(raw_size):
     return size
 
 
-def _point_base_to_map(point, current_pose):
-    yaw_rad = math.radians(float(current_pose[3]))
-    cos_yaw = math.cos(yaw_rad)
-    sin_yaw = math.sin(yaw_rad)
-    return np.array(
-        [
-            float(current_pose[0]) + cos_yaw * point[0] - sin_yaw * point[1],
-            float(current_pose[1]) + sin_yaw * point[0] + cos_yaw * point[1],
-            float(current_pose[2]) + point[2],
-        ],
-        dtype=float,
-    )
-
-
-def _axis_base_to_map(axis, current_pose):
-    yaw_rad = math.radians(float(current_pose[3]))
-    cos_yaw = math.cos(yaw_rad)
-    sin_yaw = math.sin(yaw_rad)
-    return _normalize(
-        np.array(
+def _map_from_odom_message(odom_msg):
+    """从 odom.pose 构造 ``map <- base_link``，与选箱节点保持一致。"""
+    odom_position = odom_msg.pose.pose.position
+    odom_orientation = odom_msg.pose.pose.orientation
+    return tf_trans.concatenate_matrices(
+        tf_trans.translation_matrix(
             [
-                cos_yaw * axis[0] - sin_yaw * axis[1],
-                sin_yaw * axis[0] + cos_yaw * axis[1],
-                axis[2],
-            ],
-            dtype=float,
-        )
+                float(odom_position.x),
+                float(odom_position.y),
+                float(odom_position.z),
+            ]
+        ),
+        tf_trans.quaternion_matrix(
+            [
+                float(odom_orientation.x),
+                float(odom_orientation.y),
+                float(odom_orientation.z),
+                float(odom_orientation.w),
+            ]
+        ),
     )
+
+
+def _point_base_to_map(point, map_from_base):
+    transformed = map_from_base.dot([float(point[0]), float(point[1]), float(point[2]), 1.0])
+    return np.array([float(transformed[0]), float(transformed[1]), float(transformed[2])], dtype=float)
+
+
+def _axis_base_to_map(center_base, axis_base, map_from_base):
+    center_map = _point_base_to_map(center_base, map_from_base)
+    end_map = _point_base_to_map(np.array(center_base, dtype=float) + np.array(axis_base, dtype=float), map_from_base)
+    return _normalize(end_map - center_map)
 
 
 def _fp_box_corners(center, left_axis, front_axis, up_axis, box_size):
