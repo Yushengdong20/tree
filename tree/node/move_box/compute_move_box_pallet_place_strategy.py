@@ -30,7 +30,7 @@ from tree.runtime.http.move_and_grab_flow import (
     transform_base_point_to_global,
     transform_global_point_to_base,
 )
-from tree.utils.geometry import get_odom_pose_transformer, ypr_to_rotation_matrix
+from tree.utils.geometry import ypr_to_rotation_matrix
 from tree.utils.params import parse_param_value
 
 from ..base import TimedMockAction
@@ -150,8 +150,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         ):
             self.blackboard.register_key(key=key, access=py_trees.common.Access.WRITE)
 
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=MAP_FRAME,
             base_frame="base_link",

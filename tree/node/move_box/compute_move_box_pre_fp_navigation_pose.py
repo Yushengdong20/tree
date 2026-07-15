@@ -7,8 +7,6 @@ from py_trees.common import Status
 
 from tree.constants import CHASSIS_FRAME
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
-from tree.utils.geometry import get_odom_pose_transformer
-
 from ..base import TimedMockAction
 
 
@@ -61,8 +59,7 @@ class ComputeMoveBoxPreFpNavigationPose(TimedMockAction):
             key=self.skip_navigation_key,
             access=py_trees.common.Access.WRITE,
         )
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
         )
 

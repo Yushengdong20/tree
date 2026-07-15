@@ -9,7 +9,6 @@ from py_trees.common import Status
 
 from ..base import TimedMockAction
 from tree.constants import CHASSIS_FRAME
-from tree.utils.geometry import get_odom_pose_transformer
 
 
 class CalculateRelativePose(TimedMockAction):
@@ -40,8 +39,7 @@ class CalculateRelativePose(TimedMockAction):
                 self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
 
         # 关键步骤：复用共享 odom 订阅器，避免每个行为树节点重复创建订阅。
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
         )
 

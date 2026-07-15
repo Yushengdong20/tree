@@ -37,8 +37,6 @@ from visualization_msgs.msg import Marker, MarkerArray
 from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.base_event import EventStatus
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY, WAIST_YAW_LINK_FRAME
-from tree.utils.geometry import get_odom_pose_transformer
-
 from ..base import TimedMockAction
 
 
@@ -110,8 +108,7 @@ class ArmsToPose(TimedMockAction):
             params.get("claw_wireframe_back_offset", 0.035)
         )
         self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=MAP_FRAME,
             base_frame=BASE_LINK_FRAME,

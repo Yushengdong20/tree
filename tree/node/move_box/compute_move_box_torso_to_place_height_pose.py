@@ -8,8 +8,6 @@ import py_trees
 from py_trees.common import Status
 
 from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
-from tree.utils.geometry import get_odom_pose_transformer
-
 from ..base import TimedMockAction
 
 
@@ -40,8 +38,7 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         if self.place_plane_height_key:
             self.blackboard.register_key(key=self.place_plane_height_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.target_pose_key, access=py_trees.common.Access.WRITE)
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=MAP_FRAME,
             base_frame="base_link",

@@ -41,7 +41,7 @@ from tree.runtime.http.move_and_grab_flow import (
     transform_global_point_to_base,
 )
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
-from tree.utils.geometry import get_odom_pose_transformer, lookup_transform_matrix
+from tree.utils.geometry import lookup_transform_matrix
 
 
 class MoveBoxYoloApproachToBox(TimedMockAction):
@@ -153,8 +153,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 latch=True,
             )
         # 关键步骤：YOLO 目标转 map 不直接查完整 TF 链，而是复用工具里的 odom 位姿缓存。
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=self.tf_target_frame,
             base_frame=self.tf_base_frame,

@@ -30,8 +30,6 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
-from tree.utils.geometry import get_odom_pose_transformer
-
 from ..base import TimedMockAction
 
 
@@ -290,8 +288,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self._last_no_target_log_time = 0.0
         self._last_reject_log_time = 0.0
         self.tf_listener = tf.TransformListener()
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=self.map_frame,
             base_frame=self.base_frame,

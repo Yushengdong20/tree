@@ -37,7 +37,7 @@ from tree.runtime.http.move_and_grab_flow import (
     post_navigation_task_status,
     transform_global_point_to_base,
 )
-from tree.utils.geometry import get_odom_pose_transformer, transform_base_point_to_map_with_pose2d
+from tree.utils.geometry import transform_base_point_to_map_with_pose2d
 
 
 class MoveBoxFpApproachToBox(TimedMockAction):
@@ -58,8 +58,7 @@ class MoveBoxFpApproachToBox(TimedMockAction):
         )
         self.poll_interval_sec = float(params.get("poll_interval_sec", DEFAULT_POLL_INTERVAL_SEC))
         self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=MAP_FRAME,
             base_frame=BASE_LINK_FRAME,

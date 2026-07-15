@@ -6,7 +6,15 @@ from py_trees.common import Status
 from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.mobile_manipulate.ik_library import (
     IK_MODEL_MOVE_BOX,
 )
-from tree.constants import MODEL_TYPE_KEY, ROBOT_SERVICES_KEY
+from tree.constants import (
+    BASE_LINK_FRAME,
+    CHASSIS_FRAME,
+    MAP_FRAME,
+    MODEL_TYPE_KEY,
+    ODOM_POSE_TRANSFORMER_KEY,
+    ROBOT_SERVICES_KEY,
+)
+from tree.utils.geometry import get_odom_pose_transformer
 
 from ..base import TimedMockAction
 
@@ -18,10 +26,17 @@ class EnsureMoveBoxServices(TimedMockAction):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.services_key = ROBOT_SERVICES_KEY
         self.model_type_key = MODEL_TYPE_KEY
+        self.odom_transformer_key = ODOM_POSE_TRANSFORMER_KEY
         self.model_type = str(params.get("model_type", IK_MODEL_MOVE_BOX)).strip() or IK_MODEL_MOVE_BOX
+        self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
+        self.odom_target_frame = str(params.get("odom_target_frame", MAP_FRAME)).strip()
+        self.odom_base_frame = str(params.get("odom_base_frame", BASE_LINK_FRAME)).strip()
+        self.odom_history_duration_sec = float(params.get("odom_history_duration_sec", 10.0))
+        self.odom_queue_size = int(params.get("odom_queue_size", 10))
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.model_type_key, access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key=self.odom_transformer_key, access=py_trees.common.Access.WRITE)
 
     def update(self):
         """若服务不存在则创建，并在同一节点内完成头、腰、手臂的准备动作。"""
@@ -42,8 +57,27 @@ class EnsureMoveBoxServices(TimedMockAction):
                 f"[{self.config_label}] reused robot services: services_id={id(services)}"
             )
         self.blackboard.set(self.model_type_key, services.model_type, overwrite=True)
+        self._ensure_shared_odom_transformer()
         self._prepare_robot(services)
         return Status.SUCCESS
+
+    def _ensure_shared_odom_transformer(self):
+        """统一初始化并缓存 odom 位姿转换器，供后续节点从 blackboard 复用。"""
+        transformer = get_odom_pose_transformer(
+            self.ros_node,
+            odom_topic=self.odom_topic,
+            target_frame=self.odom_target_frame,
+            base_frame=self.odom_base_frame,
+            queue_size=self.odom_queue_size,
+            history_duration_sec=self.odom_history_duration_sec,
+        )
+        self.blackboard.set(self.odom_transformer_key, transformer, overwrite=True)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已初始化共享 OdomPoseTransformer: "
+            f"key={self.odom_transformer_key}, topic={self.odom_topic}, "
+            f"target_frame={self.odom_target_frame}, base_frame={self.odom_base_frame}, "
+            f"history={transformer.history_duration_sec:.1f}s, transformer_id={id(transformer)}"
+        )
 
     def _is_move_box_services(self, services):
         return (
@@ -87,4 +121,8 @@ class EnsureMoveBoxServices(TimedMockAction):
 
     def describe_start(self):
         """返回节点开始执行时的日志描述。"""
-        return f"[{self.config_label}] EnsureMoveBoxServices start: key={self.services_key}"
+        return (
+            f"[{self.config_label}] EnsureMoveBoxServices start: "
+            f"key={self.services_key}, odom_key={self.odom_transformer_key}, "
+            f"odom_topic={self.odom_topic}"
+        )

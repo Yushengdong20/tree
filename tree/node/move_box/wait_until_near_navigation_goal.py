@@ -9,8 +9,6 @@ from py_trees.common import Status
 
 from ..base import TimedMockAction
 from tree.constants import CHASSIS_FRAME
-from tree.utils.geometry import get_odom_pose_transformer
-
 
 class WaitUntilNearNavigationGoal(TimedMockAction):
     """持续监听里程计，距离和可选角度满足阈值时返回 SUCCESS。"""
@@ -34,8 +32,7 @@ class WaitUntilNearNavigationGoal(TimedMockAction):
             self.blackboard.register_key(key=self.target_key, access=py_trees.common.Access.READ)
 
         # 关键步骤：复用工具类里的 odom 订阅，避免多个 node 各自维护 odom 缓存。
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
         )
 

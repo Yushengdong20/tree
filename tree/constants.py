@@ -13,6 +13,7 @@ CHASSIS_FRAME = "melon_odom"
 
 ROBOT_SERVICES_KEY = "robot_services"
 MODEL_TYPE_KEY = "model_type"
+ODOM_POSE_TRANSFORMER_KEY = "odom_pose_transformer"
 
 FLOW_RESULT_KEY = "flow_result"
 FINAL_POSE_KEY = "final_pose"

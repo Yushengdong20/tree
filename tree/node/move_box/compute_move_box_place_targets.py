@@ -10,7 +10,7 @@ import py_trees
 from py_trees.common import Status
 
 from tree.runtime.http.move_and_grab_flow import Pose2D, transform_global_point_to_base
-from tree.utils.geometry import get_odom_pose_transformer, ypr_to_rotation_matrix
+from tree.utils.geometry import ypr_to_rotation_matrix
 
 from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
 
@@ -48,8 +48,7 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
             self.blackboard.register_key(key=self.expected_box_pose_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.left_target_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.right_target_key, access=py_trees.common.Access.WRITE)
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=MAP_FRAME,
             base_frame="base_link",

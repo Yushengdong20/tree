@@ -21,7 +21,6 @@ from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, FLOW_RESULT_KEY, MAP_FRAME
-from tree.utils.geometry import get_odom_pose_transformer
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
     DEFAULT_CHASSIS_URL,
@@ -64,8 +63,7 @@ class HttpNavigateToPose(TimedMockAction):
             params.get("navigation_visualization_topic", "/move_box/http_navigation_markers")
         ).strip()
         self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=MAP_FRAME,
             base_frame=BASE_LINK_FRAME,

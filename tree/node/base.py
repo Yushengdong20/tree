@@ -12,6 +12,13 @@ import time
 
 import py_trees
 
+from tree.constants import (
+    BASE_LINK_FRAME,
+    CHASSIS_FRAME,
+    MAP_FRAME,
+    ODOM_POSE_TRANSFORMER_KEY,
+)
+
 
 class TimedMockAction(py_trees.behaviour.Behaviour):
     """项目内大多数叶子节点的公共基类。"""
@@ -45,6 +52,36 @@ class TimedMockAction(py_trees.behaviour.Behaviour):
         避免一进入节点就直接访问真实 HTTP 服务。
         """
         return self.allow_manual_result_override and self._manual_result_mode_enabled()
+
+    def get_odom_pose_transformer(
+        self,
+        odom_topic=CHASSIS_FRAME,
+        target_frame=MAP_FRAME,
+        base_frame=BASE_LINK_FRAME,
+        queue_size=10,
+        history_duration_sec=10.0,
+        key=ODOM_POSE_TRANSFORMER_KEY,
+    ):
+        """获取共享 odom 转换器。
+
+        新流程由 EnsureMoveBoxServices 统一创建 OdomPoseTransformer 并写入
+        blackboard。业务节点通过这个方法优先复用 blackboard 中的实例；
+        若测试树没有跑初始化节点，则自动回退到 geometry.py 的全局缓存创建逻辑。
+        """
+        if key:
+            self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
+        from tree.utils.geometry import get_shared_odom_pose_transformer
+
+        return get_shared_odom_pose_transformer(
+            self.blackboard,
+            self.ros_node,
+            odom_topic=odom_topic,
+            target_frame=target_frame,
+            base_frame=base_frame,
+            queue_size=queue_size,
+            history_duration_sec=history_duration_sec,
+            key=key,
+        )
 
     @staticmethod
     def _to_bool(value) -> bool:

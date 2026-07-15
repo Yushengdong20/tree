@@ -6,7 +6,6 @@ from py_trees.common import Status
 from visualization_msgs.msg import MarkerArray
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
-from tree.utils.geometry import get_odom_pose_transformer
 from ..base import TimedMockAction
 from .fp_grasp_visualization import publish_fp_box_and_targets
 
@@ -31,8 +30,7 @@ class ComputeMoveBoxRightPullTargets(TimedMockAction):
             params.get("fp_grasp_visualization_topic", "/move_box/fp_grasp_markers")
         ).strip()
         self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
-        self.odom_transformer = get_odom_pose_transformer(
-            self.ros_node,
+        self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
             target_frame=MAP_FRAME,
             base_frame=BASE_LINK_FRAME,

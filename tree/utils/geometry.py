@@ -16,7 +16,7 @@ from geometry_msgs.msg import PointStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
 
-from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, MAP_FRAME
+from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, MAP_FRAME, ODOM_POSE_TRANSFORMER_KEY
 
 
 _ODOM_POSE_TRANSFORMERS = {}
@@ -212,6 +212,58 @@ def get_odom_pose_transformer(
             history_duration_sec=history_duration_sec,
         )
         _ODOM_POSE_TRANSFORMERS[key] = transformer
+    return transformer
+
+
+def get_shared_odom_pose_transformer(
+    blackboard,
+    ros_node,
+    odom_topic=CHASSIS_FRAME,
+    target_frame=MAP_FRAME,
+    base_frame=BASE_LINK_FRAME,
+    queue_size=10,
+    history_duration_sec=10.0,
+    key=ODOM_POSE_TRANSFORMER_KEY,
+):
+    """优先从 blackboard 读取统一初始化的 odom 转换器，缺失时回退创建。
+
+    新流程中，EnsureMoveBoxServices 会在 blackboard 写入一个共享
+    OdomPoseTransformer。其它节点通过本函数读取它，避免每个节点看起来
+    都在各自初始化 odom 订阅。
+
+    为了兼容单测/老树，如果 blackboard 中没有共享对象，或请求的
+    odom_topic/target_frame/base_frame 与共享对象不一致，则回退到原来的
+    get_odom_pose_transformer()。原函数内部仍有全局缓存，同一组合只会订阅一次。
+    """
+    requested_topic = str(odom_topic).strip()
+    requested_target = str(target_frame).strip()
+    requested_base = str(base_frame).strip()
+    requested_history = max(float(history_duration_sec), 1.0)
+
+    transformer = None
+    if blackboard is not None and key and blackboard.exists(key):
+        candidate = blackboard.get(key)
+        if (
+            isinstance(candidate, OdomPoseTransformer)
+            and candidate.odom_topic == requested_topic
+            and candidate.target_frame == requested_target
+            and candidate.base_frame == requested_base
+        ):
+            transformer = candidate
+
+    if transformer is None:
+        transformer = get_odom_pose_transformer(
+            ros_node,
+            odom_topic=requested_topic,
+            target_frame=requested_target,
+            base_frame=requested_base,
+            queue_size=queue_size,
+            history_duration_sec=requested_history,
+        )
+
+    # 某些节点需要更长历史窗口；共享实例可安全放大窗口，后续回调会按新窗口裁剪。
+    if transformer.history_duration_sec < requested_history:
+        transformer.history_duration_sec = requested_history
     return transformer
 
 
