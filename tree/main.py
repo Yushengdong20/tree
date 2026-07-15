@@ -55,6 +55,8 @@ DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.jso
 # DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize_legacy_approach.json"
 # 码垛完整流程：等待区抓箱，搬运到垛盘附近并按固定网格码垛。
 DEFAULT_TREE_FILE_NAME = "palletize/move_box_full_direct_grasp_palletize.json"
+# 码垛策略版：动态预估箱体，按直接/左推/右推策略执行真实放箱，每步 Enter 确认。
+# DEFAULT_TREE_FILE_NAME = "palletize/move_box_palletize_strategy_preview.json"
 # 夹爪测试树
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_claw_open_close_enter_loop_test_cn.json"
 

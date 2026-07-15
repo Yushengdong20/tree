@@ -1,0 +1,90 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "计算码垛放箱策略并预览动态箱体",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "ComputeMoveBoxPalletPlaceStrategy",
+        "label": "计算码垛放箱策略与动态预估箱体",
+        "params": {
+          "stack_count_key": {
+            "value": "move_box_pallet_stack_count",
+            "source": "CUSTOM"
+          },
+          "slot_pose_key": {
+            "value": "move_box_pallet_stack_slot_pose",
+            "source": "CUSTOM"
+          },
+          "expected_box_pose_key": {
+            "value": "move_box_pallet_stack_expected_box_pose",
+            "source": "CUSTOM"
+          },
+          "place_plane_height_key": {
+            "value": "move_box_pallet_stack_place_plane_height",
+            "source": "CUSTOM"
+          },
+          "slot_rows": {
+            "value": "2",
+            "source": "CUSTOM"
+          },
+          "slot_cols": {
+            "value": "2",
+            "source": "CUSTOM"
+          },
+          "box_size_x": {
+            "value": "0.60",
+            "source": "CUSTOM"
+          },
+          "box_size_y": {
+            "value": "0.40",
+            "source": "CUSTOM"
+          },
+          "box_size_z": {
+            "value": "0.34",
+            "source": "CUSTOM"
+          },
+          "pre_place_lateral_offset_m": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "push_distance_m": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "claw_lift_clearance_m": {
+            "value": "0.18",
+            "source": "CUSTOM"
+          },
+          "strategy_mode": {
+            "value": "auto",
+            "source": "CUSTOM"
+          },
+          "visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "visualization_topic": {
+            "value": "/move_box/pallet_place_dynamic_estimate_markers",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "码垛策略预览确认：检查动态预估箱体与推送方向",
+        "params": {
+          "message": {
+            "value": "已计算码垛放箱策略，请检查 /move_box/pallet_place_dynamic_estimate_markers：蓝色=手中箱体估计，橙色=预落位，绿色=最终目标，红箭头=推送方向。按 Enter 继续导航到垛盘...",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

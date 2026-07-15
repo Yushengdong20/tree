@@ -1,0 +1,672 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "根据码垛策略执行放箱",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "ComputeMoveBoxPalletPlaceStrategy",
+        "label": "到达垛盘后重算码垛放箱策略与动作点",
+        "params": {
+          "stack_count_key": {
+            "value": "move_box_pallet_stack_count",
+            "source": "CUSTOM"
+          },
+          "slot_pose_key": {
+            "value": "move_box_pallet_stack_slot_pose",
+            "source": "CUSTOM"
+          },
+          "expected_box_pose_key": {
+            "value": "move_box_pallet_stack_expected_box_pose",
+            "source": "CUSTOM"
+          },
+          "place_plane_height_key": {
+            "value": "move_box_pallet_stack_place_plane_height",
+            "source": "CUSTOM"
+          },
+          "slot_rows": {
+            "value": "2",
+            "source": "CUSTOM"
+          },
+          "slot_cols": {
+            "value": "2",
+            "source": "CUSTOM"
+          },
+          "box_size_x": {
+            "value": "0.60",
+            "source": "CUSTOM"
+          },
+          "box_size_y": {
+            "value": "0.40",
+            "source": "CUSTOM"
+          },
+          "box_size_z": {
+            "value": "0.34",
+            "source": "CUSTOM"
+          },
+          "pre_place_lateral_offset_m": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "push_distance_m": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "claw_lift_clearance_m": {
+            "value": "0.18",
+            "source": "CUSTOM"
+          },
+          "strategy_mode": {
+            "value": "auto",
+            "source": "CUSTOM"
+          },
+          "visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "visualization_topic": {
+            "value": "/move_box/pallet_place_dynamic_estimate_markers",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "码垛执行确认0：检查重算后的策略与动作点",
+        "params": {
+          "message": {
+            "value": "已在垛盘站位重算码垛策略和夹爪动作点，请检查 /move_box/pallet_place_dynamic_estimate_markers 与日志，按 Enter 根据策略执行放箱...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Selector",
+        "label": "根据码垛策略选择放箱动作",
+        "params": {
+          "memory": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "直接放箱分支",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "选择直接放箱",
+                "params": {
+                  "key": {
+                    "value": "move_box_pallet_place_strategy",
+                    "source": "CUSTOM"
+                  },
+                  "expected": {
+                    "value": "direct_place",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ComputeMoveBoxPlaceTargets",
+                "label": "根据码垛层高计算双夹爪下降目标",
+                "params": {
+                  "place_plane_height_key": {
+                    "value": "move_box_pallet_stack_place_plane_height",
+                    "source": "CUSTOM"
+                  },
+                  "place_plane_frame": {
+                    "value": "map",
+                    "source": "CUSTOM"
+                  },
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "expected_box_pose_key": {
+                    "value": "move_box_pallet_stack_expected_box_pose",
+                    "source": "CUSTOM"
+                  },
+                  "align_xy_to_expected_box": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_z": {
+                    "value": "0.34",
+                    "source": "CUSTOM"
+                  },
+                  "left_target_key": {
+                    "value": "move_box_pallet_place_left_lower_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_target_key": {
+                    "value": "move_box_pallet_place_right_lower_claw_point",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "直接放箱确认1：已计算双爪下降目标",
+                "params": {
+                  "message": {
+                    "value": "直接放箱：已计算双爪下降目标，请检查日志和 /move_box/claw_point_diagnostics_markers，按 Enter 执行双爪下降...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "直接放箱：双夹爪同步下降到码垛高度",
+                "params": {
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_point_key": {
+                    "value": "move_box_pallet_place_left_lower_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_point_key": {
+                    "value": "move_box_pallet_place_right_lower_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "直接放箱确认2：双爪已下降",
+                "params": {
+                  "message": {
+                    "value": "直接放箱：双爪下降动作已结束，请确认箱体位置，按 Enter 张开双爪释放...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "直接放箱：张开双夹爪释放",
+                "params": {
+                  "side": {
+                    "value": "both",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "直接放箱确认3：已张爪释放",
+                "params": {
+                  "message": {
+                    "value": "直接放箱：已张开双爪释放，请确认落点，按 Enter 结束放箱分支...",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "Sequence",
+            "label": "右爪左推放箱分支",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "选择右爪左推放箱",
+                "params": {
+                  "key": {
+                    "value": "move_box_pallet_place_strategy",
+                    "source": "CUSTOM"
+                  },
+                  "expected": {
+                    "value": "right_push_left_place",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "右推左放确认1：准备下降到右偏预落位",
+                "params": {
+                  "message": {
+                    "value": "右推左放：准备双爪夹箱下降到右偏预落位，请检查橙色预落位，按 Enter 执行...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "右推左放：双爪下降到预落位",
+                "params": {
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_point_key": {
+                    "value": "move_box_pallet_pre_place_left_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_point_key": {
+                    "value": "move_box_pallet_pre_place_right_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "右推左放确认2：预落位完成，准备张开左爪",
+                "params": {
+                  "message": {
+                    "value": "右推左放：箱体已到预落位，请确认安全后按 Enter 张开左爪...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "右推左放：张开左爪",
+                "params": {
+                  "side": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "右推左放确认3：左爪已张开，准备上抬左爪",
+                "params": {
+                  "message": {
+                    "value": "右推左放：左爪已张开，请确认未夹住箱体后按 Enter 上抬左爪避让...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "右推左放：上抬左爪避让",
+                "params": {
+                  "side": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  },
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "point_key": {
+                    "value": "move_box_pallet_lift_left_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "右推左放确认4：准备右爪向左推箱",
+                "params": {
+                  "message": {
+                    "value": "右推左放：左爪已避让，准备右爪向左推箱到绿色最终目标，按 Enter 执行...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "右推左放：右爪向左推箱",
+                "params": {
+                  "side": {
+                    "value": "right",
+                    "source": "CUSTOM"
+                  },
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "point_key": {
+                    "value": "move_box_pallet_push_right_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "右推左放确认5：推送完成，准备张开右爪",
+                "params": {
+                  "message": {
+                    "value": "右推左放：右爪推送完成，请确认箱体到位后按 Enter 张开右爪...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "右推左放：张开右爪释放",
+                "params": {
+                  "side": {
+                    "value": "right",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "右推左放确认6：右爪已张开，准备上抬右爪",
+                "params": {
+                  "message": {
+                    "value": "右推左放：右爪已张开，请确认释放完成后按 Enter 上抬右爪退出...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "右推左放：上抬右爪退出",
+                "params": {
+                  "side": {
+                    "value": "right",
+                    "source": "CUSTOM"
+                  },
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "point_key": {
+                    "value": "move_box_pallet_lift_right_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "右推左放确认7：放箱分支完成",
+                "params": {
+                  "message": {
+                    "value": "右推左放：右爪已上抬退出，请确认最终落点，按 Enter 结束放箱分支...",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "Sequence",
+            "label": "左爪右推放箱分支",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "选择左爪右推放箱",
+                "params": {
+                  "key": {
+                    "value": "move_box_pallet_place_strategy",
+                    "source": "CUSTOM"
+                  },
+                  "expected": {
+                    "value": "left_push_right_place",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "左推右放确认1：准备下降到左偏预落位",
+                "params": {
+                  "message": {
+                    "value": "左推右放：准备双爪夹箱下降到左偏预落位，请检查橙色预落位，按 Enter 执行...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "左推右放：双爪下降到预落位",
+                "params": {
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_point_key": {
+                    "value": "move_box_pallet_pre_place_left_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_point_key": {
+                    "value": "move_box_pallet_pre_place_right_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "左推右放确认2：预落位完成，准备张开右爪",
+                "params": {
+                  "message": {
+                    "value": "左推右放：箱体已到预落位，请确认安全后按 Enter 张开右爪...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "左推右放：张开右爪",
+                "params": {
+                  "side": {
+                    "value": "right",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "左推右放确认3：右爪已张开，准备上抬右爪",
+                "params": {
+                  "message": {
+                    "value": "左推右放：右爪已张开，请确认未夹住箱体后按 Enter 上抬右爪避让...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "左推右放：上抬右爪避让",
+                "params": {
+                  "side": {
+                    "value": "right",
+                    "source": "CUSTOM"
+                  },
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "point_key": {
+                    "value": "move_box_pallet_lift_right_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "左推右放确认4：准备左爪向右推箱",
+                "params": {
+                  "message": {
+                    "value": "左推右放：右爪已避让，准备左爪向右推箱到绿色最终目标，按 Enter 执行...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "左推右放：左爪向右推箱",
+                "params": {
+                  "side": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  },
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "point_key": {
+                    "value": "move_box_pallet_push_left_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "左推右放确认5：推送完成，准备张开左爪",
+                "params": {
+                  "message": {
+                    "value": "左推右放：左爪推送完成，请确认箱体到位后按 Enter 张开左爪...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "左推右放：张开左爪释放",
+                "params": {
+                  "side": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "左推右放确认6：左爪已张开，准备上抬左爪",
+                "params": {
+                  "message": {
+                    "value": "左推右放：左爪已张开，请确认释放完成后按 Enter 上抬左爪退出...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "左推右放：上抬左爪退出",
+                "params": {
+                  "side": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  },
+                  "target_type": {
+                    "value": "claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "pose_frame": {
+                    "value": "base_link",
+                    "source": "CUSTOM"
+                  },
+                  "point_key": {
+                    "value": "move_box_pallet_lift_left_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "claw_ypr": {
+                    "value": "[0.0, -75.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "左推右放确认7：放箱分支完成",
+                "params": {
+                  "message": {
+                    "value": "左推右放：左爪已上抬退出，请确认最终落点，按 Enter 结束放箱分支...",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
