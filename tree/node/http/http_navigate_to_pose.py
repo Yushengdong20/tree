@@ -20,7 +20,7 @@ from py_trees import common
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
 
-from tree.constants import FLOW_RESULT_KEY, MAP_FRAME
+from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, FLOW_RESULT_KEY, MAP_FRAME
 from tree.utils.geometry import get_odom_pose_transformer
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
@@ -49,9 +49,12 @@ class HttpNavigateToPose(TimedMockAction):
         self.y = float(params.get("y", 0.0))
         self.yaw = float(params.get("yaw", 0.0))
         self.target_pose_key = str(params.get("target_pose_key", "")).strip()
+        self.enabled_key = str(params.get("enabled_key", "")).strip()
         self.navigation_target_key = str(params.get("navigation_target_key", "navigation_target")).strip()
         if self.target_pose_key:
             self.blackboard.register_key(key=self.target_pose_key, access=common.Access.READ)
+        if self.enabled_key:
+            self.blackboard.register_key(key=self.enabled_key, access=common.Access.READ)
         if self.navigation_target_key:
             self.blackboard.register_key(key=self.navigation_target_key, access=common.Access.WRITE)
         self.navigation_visualization_enabled = self._to_bool(
@@ -60,12 +63,12 @@ class HttpNavigateToPose(TimedMockAction):
         self.navigation_visualization_topic = str(
             params.get("navigation_visualization_topic", "/move_box/http_navigation_markers")
         ).strip()
-        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
         self.odom_transformer = get_odom_pose_transformer(
             self.ros_node,
             self.odom_topic,
             target_frame=MAP_FRAME,
-            base_frame="base_link",
+            base_frame=BASE_LINK_FRAME,
         )
         self.navigation_visualization_pub = None
         if self.navigation_visualization_enabled and self.navigation_visualization_topic:
@@ -82,6 +85,8 @@ class HttpNavigateToPose(TimedMockAction):
             params.get("navigation_timeout_sec", DEFAULT_NAVIGATION_TIMEOUT_SEC)
         )
         self.poll_interval_sec = float(params.get("poll_interval_sec", DEFAULT_POLL_INTERVAL_SEC))
+        # 关键步骤：普通导航默认使用 coarse 到点；需要精确到点的节点可在配置中显式关闭。
+        self.coarse = self._to_bool(params.get("coarse", True))
 
         self._phase = "IDLE"
         self._task_id = None
@@ -93,6 +98,9 @@ class HttpNavigateToPose(TimedMockAction):
 
     def initialise(self):
         super().initialise()
+        if not self._enabled():
+            self._phase = "SKIP"
+            return
         # 进入节点时只做“状态机复位”，不直接访问外部 HTTP。
         # 真正的网络调用留到 update() 中按 phase 分步推进。
         self._refresh_target_from_blackboard(allow_missing=True)
@@ -122,6 +130,13 @@ class HttpNavigateToPose(TimedMockAction):
             return status
 
         try:
+            if not self._enabled():
+                self.ros_node.clear_live_runtime()
+                self.ros_node.get_logger().info(
+                    f"[{self.config_label}] 跳过导航任务: enabled_key={self.enabled_key}"
+                )
+                return common.Status.SUCCESS
+
             now = time.monotonic()
             if now > self._deadline:
                 raise TimeoutError(
@@ -146,6 +161,7 @@ class HttpNavigateToPose(TimedMockAction):
                     self.x,
                     self.y,
                     self.yaw,
+                    coarse=self.coarse,
                 )
                 self._task_instance_id = extract_navigation_task_id(self._navigation_response)
                 self.ros_node.get_logger().info(
@@ -200,6 +216,14 @@ class HttpNavigateToPose(TimedMockAction):
             self.ros_node.clear_live_runtime()
             self.ros_node.get_logger().error(f"[{self.config_label}] navigation failed: {exc}")
             return common.Status.FAILURE
+
+    def _enabled(self):
+        """读取可选 enabled_key，缺省时默认执行导航。"""
+        if not self.enabled_key:
+            return True
+        return self.blackboard.exists(self.enabled_key) and self._to_bool(
+            self.blackboard.get(self.enabled_key)
+        )
 
     def _store_result(self):
         result = {
@@ -295,7 +319,9 @@ class HttpNavigateToPose(TimedMockAction):
             f"[{self.config_label}] HttpNavigateToPose start: "
             f"x={self.x:.3f}, y={self.y:.3f}, yaw={self.yaw:.3f}, "
             f"target_pose_key={self.target_pose_key or '<static>'}, "
-            f"navigation_target_key={self.navigation_target_key or '<disabled>'}"
+            f"enabled_key={self.enabled_key or '<none>'}, "
+            f"navigation_target_key={self.navigation_target_key or '<disabled>'}, "
+            f"coarse={self.coarse}"
         )
 
     def _publish_navigation_visualization(self):

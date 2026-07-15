@@ -1,19 +1,19 @@
-"""通过腰部采样计算右臂抓取目标和腰部辅助位姿。"""
+"""在当前腰部位姿下计算双手最优抓取目标。"""
 
 import py_trees
 from py_trees.common import Status
 
-from .right_grasp_target_utils import RightGraspTargetComputer
+from .grasp_target_utils import GraspTargetComputer
 from ..base import TimedMockAction
 
 
-class ComputeRightGraspTargetWithTorso(TimedMockAction):
-    """使用腰部采样选择可达右臂抓取目标，并写入腰部目标。"""
+class ComputeGraspTarget(TimedMockAction):
+    """只使用当前腰部位姿选择双手抓取目标，不做腰部采样。"""
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.blackboard = py_trees.blackboard.Client(name=name)
-        self.computer = RightGraspTargetComputer(
+        self.computer = GraspTargetComputer(
             config_label=config_label,
             ros_node=ros_node,
             blackboard=self.blackboard,
@@ -30,24 +30,23 @@ class ComputeRightGraspTargetWithTorso(TimedMockAction):
         try:
             self.ros_node.set_live_runtime(
                 self.config_label,
-                "TORSO_SAMPLE",
-                "Sampling torso-assisted right grasp targets",
+                "GRASP_COMPUTE",
+                "Computing dual-arm grasp target with current torso",
             )
-            selected = self.computer.compute_torso_sample_target()
+            selected = self.computer.compute_current_torso_target()
         except Exception as exc:
             self.feedback_message = str(exc)
             self.ros_node.clear_live_runtime()
             self.ros_node.get_logger().error(
-                f"[{self.config_label}] 腰部采样计算右臂抓取目标失败: {exc}"
+                f"[{self.config_label}] 当前腰部下计算双手抓取目标失败: {exc}"
             )
             return Status.FAILURE
 
         self.ros_node.clear_live_runtime()
         sample = selected["sample"]
         self.ros_node.get_logger().info(
-            f"[{self.config_label}] 已计算腰部辅助右臂抓取目标: "
-            f"torso={sample['label']}, grasp={selected['grasp_target']}, "
-            f"left_shift={selected['left_shift_target']}"
+            f"[{self.config_label}] 已计算当前腰部双手抓取目标: "
+            f"side={selected['arm_side']}, torso={sample['label']}, grasp={selected['grasp_target']}"
         )
         return Status.SUCCESS
 
@@ -57,6 +56,6 @@ class ComputeRightGraspTargetWithTorso(TimedMockAction):
 
     def describe_start(self):
         return (
-            f"[{self.config_label}] ComputeRightGraspTargetWithTorso start: "
+            f"[{self.config_label}] ComputeGraspTarget start: "
             f"base_grasp_poses_key={self.computer.base_grasp_poses_key}"
         )

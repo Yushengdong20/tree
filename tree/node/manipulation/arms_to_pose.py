@@ -48,6 +48,8 @@ class ArmsToPose(TimedMockAction):
     JSON 参数：
     - left_pose/right_pose: [x, y, z, yaw, pitch, roll]
     - left_pose_key/right_pose_key: blackboard 中的 eef 完整位姿 key
+    - side_key: blackboard 中的动态手臂侧别，存在时覆盖 side
+    - pose_key: 动态选中手臂共用的 eef 位姿 key
     - target_type: eef_pose / claw_point
     - left_point_key/right_point_key: blackboard 中的夹爪目标点 key
     - claw_ypr: claw_point 模式下夹取姿态 [yaw, pitch, roll]，单位 deg
@@ -68,6 +70,9 @@ class ArmsToPose(TimedMockAction):
         self.left_pose_key = str(params.get("left_pose_key", "")).strip()
         self.right_pose_key = str(params.get("right_pose_key", "")).strip()
         self.side = str(params.get("side", "both")).strip().lower()
+        self.side_key = str(params.get("side_key", "")).strip()
+        self.pose_key = str(params.get("pose_key", "")).strip()
+        self.current_side = self.side
         self.point_key = str(params.get("point_key", "")).strip()
         default_target_type = "claw_point" if self.point_key else "eef_pose"
         self.target_type = str(params.get("target_type", default_target_type)).strip().lower()
@@ -133,6 +138,8 @@ class ArmsToPose(TimedMockAction):
         for key in [
             self.left_pose_key,
             self.right_pose_key,
+            self.side_key,
+            self.pose_key,
             self.point_key,
             self.left_point_key,
             self.right_point_key,
@@ -169,6 +176,7 @@ class ArmsToPose(TimedMockAction):
         try:
             self.services = services
             self.arm_controller = services.arm_controller
+            self.current_side = self._resolve_side()
             resolved = self._resolve_targets(self.arm_controller)
             if resolved is None:
                 self.startup_error = RuntimeError("解析手臂目标失败")
@@ -177,7 +185,7 @@ class ArmsToPose(TimedMockAction):
             locked_arm_side = self.lock_arm_side or automatic_locked_arm_side
             self.ros_node.get_logger().info(
                 f"[{self.config_label}] 使用 common ArmController 启动手臂目标: "
-                f"side={self.side}, locked={locked_arm_side}, "
+                f"side={self.current_side}, locked={locked_arm_side}, "
                 f"source={target_source}, frame={self.pose_frame}, "
                 f"left={left_target}, right={right_target}"
             )
@@ -297,9 +305,9 @@ class ArmsToPose(TimedMockAction):
         super().terminate(new_status)
 
     def _resolve_targets(self, arm_controller):
-        if self.side not in ("both", "left", "right"):
+        if self.current_side not in ("both", "left", "right"):
             raise ValueError("side 仅支持 both、left 或 right")
-        if self.side != "both":
+        if self.current_side != "both":
             return self._resolve_single_arm_targets(arm_controller)
 
         if self.left_pose is not None and self.right_pose is not None:
@@ -395,7 +403,7 @@ class ArmsToPose(TimedMockAction):
 
     def _resolve_single_arm_targets(self, arm_controller):
         """解析单侧目标，并使用当前缓存目标填充将被锁住的另一侧。"""
-        moving_side = self.side
+        moving_side = self.current_side
         locked_arm_side = "right" if moving_side == "left" else "left"
         moving_target, target_source = self._resolve_single_moving_target(
             arm_controller,
@@ -453,7 +461,10 @@ class ArmsToPose(TimedMockAction):
         if direct_pose is not None:
             return list(direct_pose), f"json:{side}_pose"
 
-        pose_key = self.left_pose_key if side == "left" else self.right_pose_key
+        # 关键步骤：pose_key 与 side_key 配合，让同一个抓取目标可以动态下发给选中手臂。
+        pose_key = self.pose_key or (
+            self.left_pose_key if side == "left" else self.right_pose_key
+        )
         if pose_key:
             pose_value = self._get_blackboard_value(pose_key, f"{side}_pose_key")
             if pose_value is None:
@@ -478,6 +489,19 @@ class ArmsToPose(TimedMockAction):
             raise ValueError("pose_frame 仅支持 base_link 或 waist_yaw_link")
         return list(default_pose), f"default:{side}_initial_pose@{self.pose_frame}"
 
+    def _resolve_side(self):
+        """解析本次执行手臂；配置 side_key 时优先使用 blackboard 中的选手结果。"""
+        if not self.side_key:
+            return self.side
+        if not self.blackboard.exists(self.side_key):
+            raise RuntimeError(f"手臂侧别不存在: key={self.side_key}")
+        side = str(self.blackboard.get(self.side_key)).strip().lower()
+        if side not in ("left", "right"):
+            raise ValueError(
+                f"side_key 仅支持 left 或 right: key={self.side_key}, value={side!r}"
+            )
+        return side
+
     def describe_start(self):
         if self.left_pose is not None or self.right_pose is not None:
             left_desc = self.left_pose
@@ -486,10 +510,10 @@ class ArmsToPose(TimedMockAction):
             left_desc = f"blackboard:{self.left_pose_key}"
             right_desc = f"blackboard:{self.right_pose_key}"
         elif self.target_type == "claw_point":
-            if self.side == "left":
+            if self.current_side == "left":
                 left_desc = f"claw_point:{self.point_key or self.left_point_key}"
                 right_desc = "locked"
-            elif self.side == "right":
+            elif self.current_side == "right":
                 left_desc = "locked"
                 right_desc = f"claw_point:{self.point_key or self.right_point_key}"
             else:
@@ -501,6 +525,7 @@ class ArmsToPose(TimedMockAction):
         return (
             f"[{self.config_label}] ArmsToPose start: "
             f"target_type={self.target_type}, frame={self.pose_frame}, "
+            f"side_key={self.side_key or '<none>'}, pose_key={self.pose_key or '<none>'}, "
             f"lock_arm_side={self.lock_arm_side or 'none'}, "
             f"left={left_desc}, right={right_desc}"
         )

@@ -15,6 +15,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import (
     BASE_LINK_FRAME,
+    CHASSIS_FRAME,
     FINAL_POSE_KEY,
     FLOW_RESULT_KEY,
     MAP_FRAME,
@@ -97,7 +98,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.tf_target_frame = str(params.get("tf_target_frame", MAP_FRAME)).strip()
         self.tf_base_frame = str(params.get("tf_base_frame", BASE_LINK_FRAME)).strip()
         self.tf_timeout_sec = float(params.get("tf_timeout_sec", 0.2))
-        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
         self.odom_history_duration_sec = float(
             params.get("odom_history_duration_sec", 10.0)
         )

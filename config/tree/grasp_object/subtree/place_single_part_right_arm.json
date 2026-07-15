@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "右臂放置单个零件子流程",
+    "label": "选中手臂放置单个零件子流程",
     "params": {
       "memory": {
         "value": "True",
@@ -11,22 +11,22 @@
     "childs": [
       {
         "name": "ArmsToPose",
-        "label": "释放前右臂向前向下伸到放置位姿",
+        "label": "释放前选中手臂伸到镜像放置位姿",
         "params": {
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
           },
           "left_pose": {
-            "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+            "value": "[0.451, 0.2, 0.0, -137.78184071244635, 19.271783191119013, 43.138315669808705]",
             "source": "CUSTOM"
           },
           "right_pose": {
             "value": "[0.451, -0.2, 0.0, 137.78184071244635, 19.271783191119013, -43.138315669808705]",
             "source": "CUSTOM"
           },
-          "lock_arm_side": {
-            "value": "left",
+          "side_key": {
+            "value": "grasp_object_selected_arm_side",
             "source": "CUSTOM"
           }
         },
@@ -34,10 +34,10 @@
       },
       {
         "name": "OpenClaw",
-        "label": "张开右夹爪释放零件",
+        "label": "张开选中夹爪释放零件",
         "params": {
-          "side": {
-            "value": "right",
+          "side_key": {
+            "value": "grasp_object_selected_arm_side",
             "source": "CUSTOM"
           }
         },

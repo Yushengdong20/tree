@@ -23,7 +23,8 @@ from kuavo_humanoid_sdk.common.yolo_boxes import (
     yolo_box_stamp_key,
 )
 
-from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.geometry import lookup_target_from_source_via_chassis
 
 from ..base import TimedMockAction
 
@@ -115,7 +116,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         ).strip()
         self.debug_frame = str(params.get("debug_frame", "")).strip()
         # melon_odom 是底盘在 map 下的实时位姿；默认认为 melon_odom 与 base_link 重合。
-        self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()
+        self.chassis_frame = str(params.get("chassis_frame", CHASSIS_FRAME)).strip()
 
         # ROS 订阅只缓存最新消息，不在回调线程里做 TF 查询或真机控制。
         self.latest_msg = None
@@ -815,19 +816,23 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         - control_mode=latched_map_target 时，把锁定的 map 目标重投影到当前 camera 下控制头部。
         - RViz Marker 中，在 map 下画出目标点、camera 原点、camera x 轴和连线。
         """
-        target_to_chassis = self._lookup_transform_matrix(
-            head_controller,
-            target_frame=target_frame,
-            source_frame=self.chassis_frame,
-        )
-        base_to_head = self._lookup_transform_matrix(
-            head_controller,
-            target_frame=head_controller.base_frame,
-            source_frame=head_controller.head_frame,
-        )
-        if target_to_chassis is None or base_to_head is None:
+        try:
+            return lookup_target_from_source_via_chassis(
+                head_controller.tf_listener,
+                self.ros_node,
+                target_frame,
+                head_controller.head_frame,
+                base_frame=head_controller.base_frame,
+                chassis_frame=self.chassis_frame,
+                timeout=head_controller.tf_timeout,
+            )
+        except Exception as err:
+            self._log_throttled(
+                "failure",
+                f"[{self.config_label}] 分段查询 {head_controller.head_frame} -> "
+                f"{target_frame} 失败: {err}",
+            )
             return None
-        return tf_trans.concatenate_matrices(target_to_chassis, base_to_head)
 
     def _lookup_transform_matrix(self, head_controller, target_frame, source_frame):
         """查询 T_target_source 矩阵，将 source_frame 下的点转换到 target_frame。"""

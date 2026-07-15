@@ -12,7 +12,8 @@ from kuavo_humanoid_sdk.common.yolo_boxes import (
     yolo_box_center_point,
 )
 
-from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.geometry import lookup_target_from_source_via_chassis
 
 from ..base import TimedMockAction
 
@@ -32,7 +33,7 @@ class ComputeMoveBoxLockedYoloTarget(TimedMockAction):
         self.yolo_topic = str(params.get("yolo_topic", "/yolo/target_boxes3d_string")).strip()
         self.target_select_frame = str(params.get("target_select_frame", BASE_LINK_FRAME)).strip()
         self.control_frame = str(params.get("control_frame", MAP_FRAME)).strip()
-        self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()
+        self.chassis_frame = str(params.get("chassis_frame", CHASSIS_FRAME)).strip()
         self.target_point_key = str(
             params.get("target_point_key", "move_box_locked_yolo_head_target_point")
         ).strip()
@@ -136,23 +137,21 @@ class ComputeMoveBoxLockedYoloTarget(TimedMockAction):
         T_control_source = T_control_chassis * T_base_source
         其中默认认为 chassis_frame 与 base_frame 重合。
         """
-        control_to_chassis = self._lookup_transform_matrix(
-            head_controller,
-            target_frame=self.control_frame,
-            source_frame=self.chassis_frame,
-        )
-        base_to_source = self._lookup_transform_matrix(
-            head_controller,
-            target_frame=head_controller.base_frame,
-            source_frame=source_frame,
-        )
-        if control_to_chassis is None or base_to_source is None:
+        try:
+            control_to_source = lookup_target_from_source_via_chassis(
+                head_controller.tf_listener,
+                self.ros_node,
+                self.control_frame,
+                source_frame,
+                base_frame=head_controller.base_frame,
+                chassis_frame=self.chassis_frame,
+                timeout=head_controller.tf_timeout,
+            )
+        except Exception as err:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 无法分段查询 {source_frame} -> {self.control_frame}: {err}"
+            )
             return None
-
-        control_to_source = tf_trans.concatenate_matrices(
-            control_to_chassis,
-            base_to_source,
-        )
         return self._matrix_dot_point(control_to_source, point)
 
     def _lookup_transform_matrix(self, head_controller, target_frame, source_frame):

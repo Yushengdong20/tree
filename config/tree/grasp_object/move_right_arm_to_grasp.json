@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "右臂抓取",
+    "label": "双手最小移动抓取",
     "params": {
       "memory": {
         "value": "True",
@@ -28,10 +28,10 @@
       },
       {
         "name": "OpenClaw",
-        "label": "张开右夹爪松开物体",
+        "label": "张开选中夹爪松开物体",
         "params": {
-          "side": {
-            "value": "right",
+          "side_key": {
+            "value": "grasp_object_selected_arm_side",
             "source": "CUSTOM"
           }
         },

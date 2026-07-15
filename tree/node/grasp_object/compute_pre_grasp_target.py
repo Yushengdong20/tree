@@ -1,13 +1,13 @@
-"""在执行预抓取动作前计算右臂预抓取目标。"""
+"""在执行前复核选中手臂并计算预抓取目标。"""
 
 import py_trees
 from py_trees.common import Status
 
-from .right_grasp_target_utils import RightGraspTargetComputer
+from .grasp_target_utils import GraspTargetComputer
 from ..base import TimedMockAction
 
 
-class ComputeRightPreGraspTarget(TimedMockAction):
+class ComputePreGraspTarget(TimedMockAction):
     """基于最终抓取目标计算预抓取目标。"""
 
     def __init__(self, name, config_label, ros_node, params):
@@ -22,7 +22,7 @@ class ComputeRightPreGraspTarget(TimedMockAction):
             key=self.pregrasp_pose_key,
             access=py_trees.common.Access.WRITE,
         )
-        self.computer = RightGraspTargetComputer(
+        self.computer = GraspTargetComputer(
             config_label=config_label,
             ros_node=ros_node,
             blackboard=self.blackboard,
@@ -37,7 +37,15 @@ class ComputeRightPreGraspTarget(TimedMockAction):
             access=py_trees.common.Access.READ,
         )
         self.blackboard.register_key(
+            key=self.computer.selected_map_grasp_pose_key,
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
             key=self.computer.selected_rotate_z_180_key,
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key=self.computer.selected_arm_side_key,
             access=py_trees.common.Access.READ,
         )
 
@@ -52,7 +60,7 @@ class ComputeRightPreGraspTarget(TimedMockAction):
             self.ros_node.set_live_runtime(
                 self.config_label,
                 "PREGRASP_COMPUTE",
-                "Computing right pregrasp target from final grasp target",
+                "Computing selected-arm pregrasp target from final grasp target",
             )
             self.computer.refresh_selected_grasp_target()
             self.computer.compute_pregrasp_target(self.pregrasp_pose_key)
@@ -60,7 +68,7 @@ class ComputeRightPreGraspTarget(TimedMockAction):
             self.feedback_message = str(exc)
             self.ros_node.clear_live_runtime()
             self.ros_node.get_logger().error(
-                f"[{self.config_label}] 计算右臂预抓取目标失败: {exc}"
+                f"[{self.config_label}] 计算选中手臂预抓取目标失败: {exc}"
             )
             return Status.FAILURE
 
@@ -73,6 +81,6 @@ class ComputeRightPreGraspTarget(TimedMockAction):
 
     def describe_start(self):
         return (
-            f"[{self.config_label}] ComputeRightPreGraspTarget start: "
+            f"[{self.config_label}] ComputePreGraspTarget start: "
             f"pregrasp_pose_key={self.pregrasp_pose_key}"
         )

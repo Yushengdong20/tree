@@ -67,7 +67,7 @@
       },
       {
         "name": "Repeat",
-        "label": "循环执行四轮高效动态拆垛",
+        "label": "循环执行六轮高效动态拆垛",
         "params": {
           "num_success": {
             "value": "6",

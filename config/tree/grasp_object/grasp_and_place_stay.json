@@ -17,10 +17,10 @@
       },
       {
         "name": "OpenClaw",
-        "label": "启动时张开右夹爪",
+        "label": "启动时张开双夹爪",
         "params": {
           "side": {
-            "value": "right",
+            "value": "both",
             "source": "CUSTOM"
           }
         },
@@ -119,22 +119,22 @@
               },
               {
                 "name": "ArmsToPose",
-                "label": "抓取后右手向左移动5厘米",
+                "label": "抓取后选中手向身体中间移动5厘米",
                 "params": {
                   "pose_frame": {
                     "value": "waist_yaw_link",
                     "source": "CUSTOM"
                   },
                   "left_pose": {
-                    "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+                    "value": "[0.301, 0.25, 0.2, 0.0, -100.0, 0.0]",
                     "source": "CUSTOM"
                   },
                   "right_pose": {
                     "value": "[0.301, -0.25, 0.2, 0.0, -100.0, 0.0]",
                     "source": "CUSTOM"
                   },
-                  "lock_arm_side": {
-                    "value": "left",
+                  "side_key": {
+                    "value": "grasp_object_selected_arm_side",
                     "source": "CUSTOM"
                   }
                 },
@@ -142,10 +142,10 @@
               },
               {
                 "name": "OpenClaw",
-                "label": "张开右夹爪释放零件",
+                "label": "张开选中夹爪释放零件",
                 "params": {
-                  "side": {
-                    "value": "right",
+                  "side_key": {
+                    "value": "grasp_object_selected_arm_side",
                     "source": "CUSTOM"
                   }
                 },
@@ -153,7 +153,7 @@
               },
               {
                 "name": "ArmsToPose",
-                "label": "释放后右臂回到预备位姿",
+                "label": "释放后选中手臂回到预备位姿",
                 "params": {
                   "pose_frame": {
                     "value": "waist_yaw_link",
@@ -167,8 +167,8 @@
                     "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
                     "source": "CUSTOM"
                   },
-                  "lock_arm_side": {
-                    "value": "left",
+                  "side_key": {
+                    "value": "grasp_object_selected_arm_side",
                     "source": "CUSTOM"
                   }
                 },

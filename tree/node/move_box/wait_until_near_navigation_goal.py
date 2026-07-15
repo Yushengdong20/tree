@@ -8,6 +8,7 @@ import py_trees
 from py_trees.common import Status
 
 from ..base import TimedMockAction
+from tree.constants import CHASSIS_FRAME
 from tree.utils.geometry import get_odom_pose_transformer
 
 
@@ -16,7 +17,7 @@ class WaitUntilNearNavigationGoal(TimedMockAction):
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
         self.distance_threshold = float(params.get("distance_threshold", 0.6))
         self.target_key = str(params.get("target_key", "navigation_target")).strip()
         self.target_x = float(params.get("x", 0.0))

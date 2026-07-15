@@ -15,7 +15,10 @@ class OpenClaw(TimedMockAction):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.services_key = ROBOT_SERVICES_KEY
         self.side = str(params.get("side", "both")).strip().lower()
+        self.side_key = str(params.get("side_key", "")).strip()
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
+        if self.side_key:
+            self.blackboard.register_key(key=self.side_key, access=py_trees.common.Access.READ)
 
     def update(self):
         if self.should_use_mock_execution():
@@ -35,8 +38,27 @@ class OpenClaw(TimedMockAction):
                 f"[{self.config_label}] services 中没有 arm_controller: key={self.services_key}"
             )
             return Status.FAILURE
-        ok = services.arm_controller.open_claw(self.side)
+        try:
+            side = self._resolve_side()
+        except Exception as exc:
+            self.ros_node.get_logger().error(f"[{self.config_label}] 解析夹爪侧别失败: {exc}")
+            return Status.FAILURE
+        ok = services.arm_controller.open_claw(side)
         return Status.SUCCESS if ok else Status.FAILURE
 
+    def _resolve_side(self):
+        """读取动态夹爪侧别，side_key 存在时覆盖静态 side。"""
+        side = self.side
+        if self.side_key:
+            if not self.blackboard.exists(self.side_key):
+                raise RuntimeError(f"key={self.side_key} 不存在")
+            side = str(self.blackboard.get(self.side_key)).strip().lower()
+        if side not in ("left", "right", "both"):
+            raise ValueError(f"夹爪侧别非法: {side!r}")
+        return side
+
     def describe_start(self):
-        return f"[{self.config_label}] OpenClaw start: key={self.services_key}, side={self.side}"
+        return (
+            f"[{self.config_label}] OpenClaw start: key={self.services_key}, "
+            f"side={self.side}, side_key={self.side_key or '<none>'}"
+        )

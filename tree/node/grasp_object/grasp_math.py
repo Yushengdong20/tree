@@ -16,8 +16,8 @@ GRASP_POSE_TO_SDK_EEF_TRANSFORM = np.array(
 )
 
 
-def build_right_grasp_target(grasp_pose, target_from_source, offset_m, rotate_z_180=False):
-    """构造右臂抓取目标，返回 [x, y, z, yaw, pitch, roll] 和 4x4 位姿矩阵。"""
+def build_grasp_target(grasp_pose, target_from_source, offset_m, rotate_z_180=False):
+    """构造通用抓取目标，返回 [x, y, z, yaw, pitch, roll] 和 4x4 位姿矩阵。"""
     offset = np.eye(4)
     offset[2, 3] = -offset_m
     source_target = grasp_pose @ offset @ GRASP_POSE_TO_SDK_EEF_TRANSFORM

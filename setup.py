@@ -9,17 +9,40 @@
 from glob import glob
 import os
 
-from setuptools import find_packages, setup
+import numpy
+from setuptools import Extension, find_packages, setup
 
 
 package_name = "mercurytree"
 python_package_name = "tree"
 
 
+grasp_search_extension = Extension(
+    f"{python_package_name}.node.grasp_object._grasp_search_cpp",
+    sources=[
+        os.path.join(
+            python_package_name,
+            "node",
+            "grasp_object",
+            "cpp",
+            "grasp_search_cpp.cpp",
+        )
+    ],
+    include_dirs=[
+        numpy.get_include(),
+        "/usr/include/eigen3",
+    ],
+    language="c++",
+    extra_compile_args=["-std=c++17", "-O3", "-pthread"],
+    extra_link_args=["-pthread"],
+)
+
+
 setup(
     name=package_name,
     version="0.1.0",
     packages=find_packages(include=[python_package_name, f"{python_package_name}.*"]),
+    ext_modules=[grasp_search_extension],
     data_files=[
         # 这些资源会被安装到 share/ 下，运行时 get_package_share_directory() 就从这里找。
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
@@ -56,6 +79,10 @@ setup(
             f"share/{package_name}/config/tree/grasp_object",
             glob("config/tree/grasp_object/*.json"),
         ),
+        (
+            f"share/{package_name}/config/tree/grasp_object/subtree",
+            glob("config/tree/grasp_object/subtree/*.json"),
+        ),
         (f"share/{package_name}/launch", glob("launch/*.launch.py")),
         (
             f"share/{package_name}/visualization/web",
@@ -66,7 +93,7 @@ setup(
             ],
         ),
     ],
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "numpy"],
     zip_safe=True,
     maintainer="ysd",
     maintainer_email="ysd@example.com",

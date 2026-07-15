@@ -9,7 +9,14 @@ from geometry_msgs.msg import Point
 from py_trees.common import Status
 from visualization_msgs.msg import Marker, MarkerArray
 
-from tree.constants import FINAL_POSE_KEY, FLOW_RESULT_KEY, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.constants import (
+    BASE_LINK_FRAME,
+    CHASSIS_FRAME,
+    FINAL_POSE_KEY,
+    FLOW_RESULT_KEY,
+    MAP_FRAME,
+    ROBOT_SERVICES_KEY,
+)
 
 from ..base import TimedMockAction
 from tree.runtime.http.move_and_grab_flow import (
@@ -50,12 +57,12 @@ class MoveBoxFpApproachToBox(TimedMockAction):
             params.get("navigation_timeout_sec", DEFAULT_NAVIGATION_TIMEOUT_SEC)
         )
         self.poll_interval_sec = float(params.get("poll_interval_sec", DEFAULT_POLL_INTERVAL_SEC))
-        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
         self.odom_transformer = get_odom_pose_transformer(
             self.ros_node,
             self.odom_topic,
             target_frame=MAP_FRAME,
-            base_frame="base_link",
+            base_frame=BASE_LINK_FRAME,
         )
         self.navigation_target_key = str(
             params.get("navigation_target_key", "move_box_fp_navigation_target")

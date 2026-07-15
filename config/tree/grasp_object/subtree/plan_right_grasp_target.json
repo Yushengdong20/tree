@@ -1,0 +1,328 @@
+{
+  "tree": {
+    "name": "Selector",
+    "label": "选择双手最小移动抓取方案",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "ComputeGraspTarget",
+        "label": "当前腰部下计算双手抓取目标",
+        "params": {
+          "base_grasp_poses_key": {
+            "value": "grasp_object_base_grasp_poses",
+            "source": "CUSTOM"
+          },
+          "grasp_offset_m": {
+            "value": "0.06",
+            "source": "CUSTOM"
+          },
+          "tf_timeout_sec": {
+            "value": "2.0",
+            "source": "CUSTOM"
+          },
+          "pose_topic": {
+            "value": "/grasp_object/right_pregrasp_pose",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_hold_pose",
+            "source": "CUSTOM"
+          },
+          "grasp_pose_key": {
+            "value": "grasp_object_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "torso_pose_key": {
+            "value": "grasp_object_torso_pose",
+            "source": "CUSTOM"
+          },
+          "torso_enabled_key": {
+            "value": "grasp_object_use_torso",
+            "source": "CUSTOM"
+          },
+          "selected_grasp_pose_key": {
+            "value": "grasp_object_selected_grasp_pose",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "Sequence",
+        "label": "腰部辅助后重新计算抓取目标",
+        "params": {
+          "memory": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "ComputeGraspTargetWithTorso",
+            "label": "采样计算双手最小移动抓取目标",
+            "params": {
+              "base_grasp_poses_key": {
+                "value": "grasp_object_base_grasp_poses",
+                "source": "CUSTOM"
+              },
+              "grasp_offset_m": {
+                "value": "0.06",
+                "source": "CUSTOM"
+              },
+              "tf_timeout_sec": {
+                "value": "2.0",
+                "source": "CUSTOM"
+              },
+              "pose_topic": {
+                "value": "/grasp_object/right_pregrasp_pose",
+                "source": "CUSTOM"
+              },
+              "left_pose_key": {
+                "value": "grasp_object_left_hold_pose",
+                "source": "CUSTOM"
+              },
+              "grasp_pose_key": {
+                "value": "grasp_object_grasp_pose",
+                "source": "CUSTOM"
+              },
+              "torso_pose_key": {
+                "value": "grasp_object_torso_pose",
+                "source": "CUSTOM"
+              },
+              "torso_enabled_key": {
+                "value": "grasp_object_use_torso",
+                "source": "CUSTOM"
+              },
+              "selected_grasp_pose_key": {
+                "value": "grasp_object_selected_grasp_pose",
+                "source": "CUSTOM"
+              },
+              "torso_sample_x_min_m": {
+                "value": "0.0",
+                "source": "CUSTOM"
+              },
+              "torso_sample_x_max_m": {
+                "value": "0.3",
+                "source": "CUSTOM"
+              },
+              "torso_sample_z_min_m": {
+                "value": "0.65",
+                "source": "CUSTOM"
+              },
+              "torso_sample_z_max_m": {
+                "value": "0.95",
+                "source": "CUSTOM"
+              },
+              "torso_sample_step_m": {
+                "value": "0.05",
+                "source": "CUSTOM"
+              },
+              "torso_pitch_abs_max_rad": {
+                "value": "0.05",
+                "source": "CUSTOM"
+              },
+              "torso_sample_check_workers": {
+                "value": "8",
+                "source": "CUSTOM"
+              },
+              "chassis_lateral_sample_min_m": {
+                "value": "-0.2",
+                "source": "CUSTOM"
+              },
+              "chassis_lateral_sample_max_m": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              },
+              "chassis_lateral_sample_step_m": {
+                "value": "0.1",
+                "source": "CUSTOM"
+              },
+              "knee_origin_x": {
+                "value": "0.098",
+                "source": "CUSTOM"
+              },
+              "knee_origin_z": {
+                "value": "0.376",
+                "source": "CUSTOM"
+              },
+              "use_cpp_grasp_search": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "cpp_search_fallback_on_error": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "cpp_search_workers": {
+                "value": "4",
+                "source": "CUSTOM"
+              },
+              "cpp_search_batch_size": {
+                "value": "32",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "CalculateRelativePose",
+            "label": "计算底盘横向补偿导航目标",
+            "params": {
+              "odom_topic": {
+                "value": "melon_odom",
+                "source": "CUSTOM"
+              },
+              "output_key": {
+                "value": "grasp_object_chassis_lateral_navigation_target",
+                "source": "CUSTOM"
+              },
+              "dx": {
+                "value": "0.0",
+                "source": "CUSTOM"
+              },
+              "dy_key": {
+                "value": "grasp_object_chassis_lateral_offset",
+                "source": "CUSTOM"
+              },
+              "dyaw": {
+                "value": "0.0",
+                "source": "CUSTOM"
+              },
+              "relative_frame": {
+                "value": "base_link",
+                "source": "CUSTOM"
+              },
+              "enabled_key": {
+                "value": "grasp_object_use_chassis_lateral",
+                "source": "CUSTOM"
+              },
+              "timeout_sec": {
+                "value": "5.0",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "HttpNavigateToPose",
+            "label": "执行底盘横向补偿",
+            "params": {
+              "target_pose_key": {
+                "value": "grasp_object_chassis_lateral_navigation_target",
+                "source": "CUSTOM"
+              },
+              "enabled_key": {
+                "value": "grasp_object_use_chassis_lateral",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "120",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              },
+              "navigation_target_key": {
+                "value": "grasp_object_chassis_lateral_navigation_target",
+                "source": "CUSTOM"
+              },
+              "coarse": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "MoveTorsoPose",
+            "label": "腰部移动到采样抓取位姿",
+            "params": {
+              "pose_key": {
+                "value": "grasp_object_torso_pose",
+                "source": "CUSTOM"
+              },
+              "enabled_key": {
+                "value": "grasp_object_use_torso",
+                "source": "CUSTOM"
+              },
+              "wait_done": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "Selector",
+            "label": "腰部移动后优先复用原候选抓取位姿",
+            "params": {
+              "memory": {
+                "value": "False",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "ComputeGraspTarget",
+                "label": "移动后用真实TF重新计算双手抓取目标",
+                "params": {
+                  "base_grasp_poses_key": {
+                    "value": "grasp_object_base_grasp_poses",
+                    "source": "CUSTOM"
+                  },
+                  "grasp_offset_m": {
+                    "value": "0.06",
+                    "source": "CUSTOM"
+                  },
+                  "tf_timeout_sec": {
+                    "value": "2.0",
+                    "source": "CUSTOM"
+                  },
+                  "pose_topic": {
+                    "value": "/grasp_object/right_pregrasp_pose",
+                    "source": "CUSTOM"
+                  },
+                  "left_pose_key": {
+                    "value": "grasp_object_left_hold_pose",
+                    "source": "CUSTOM"
+                  },
+                  "grasp_pose_key": {
+                    "value": "grasp_object_grasp_pose",
+                    "source": "CUSTOM"
+                  },
+                  "torso_pose_key": {
+                    "value": "grasp_object_torso_pose",
+                    "source": "CUSTOM"
+                  },
+                  "torso_enabled_key": {
+                    "value": "grasp_object_use_torso",
+                    "source": "CUSTOM"
+                  },
+                  "selected_grasp_pose_key": {
+                    "value": "grasp_object_selected_grasp_pose",
+                    "source": "CUSTOM"
+                  },
+                  "preserve_motion_flags": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -17,10 +17,10 @@
       },
       {
         "name": "OpenClaw",
-        "label": "启动时张开右夹爪",
+        "label": "启动时张开双夹爪",
         "params": {
           "side": {
-            "value": "right",
+            "value": "both",
             "source": "CUSTOM"
           }
         },
@@ -165,6 +165,10 @@
                       },
                       "navigation_target_key": {
                         "value": "grasp_object_pick_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "coarse": {
+                        "value": "False",
                         "source": "CUSTOM"
                       }
                     },

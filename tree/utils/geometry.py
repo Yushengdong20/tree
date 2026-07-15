@@ -16,6 +16,8 @@ from geometry_msgs.msg import PointStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
 
+from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, MAP_FRAME
+
 
 _ODOM_POSE_TRANSFORMERS = {}
 
@@ -26,9 +28,9 @@ class OdomPoseTransformer:
     def __init__(
         self,
         ros_node,
-        odom_topic="melon_odom",
-        target_frame="map",
-        base_frame="base_link",
+        odom_topic=CHASSIS_FRAME,
+        target_frame=MAP_FRAME,
+        base_frame=BASE_LINK_FRAME,
         queue_size=10,
         history_duration_sec=10.0,
     ):
@@ -186,9 +188,9 @@ class OdomPoseTransformer:
 
 def get_odom_pose_transformer(
     ros_node,
-    odom_topic="melon_odom",
-    target_frame="map",
-    base_frame="base_link",
+    odom_topic=CHASSIS_FRAME,
+    target_frame=MAP_FRAME,
+    base_frame=BASE_LINK_FRAME,
     queue_size=10,
     history_duration_sec=10.0,
 ):
@@ -231,6 +233,8 @@ def transform_pose(tf_listener, pose_stamped, target_frame, timeout=0.5):
 
 def lookup_transform_matrix(tf_listener, ros_node, target_frame, source_frame, timeout=0.5):
     """等待 TF 并返回 target_frame <- source_frame 的 4x4 变换矩阵。"""
+    if target_frame == source_frame:
+        return tf_trans.identity_matrix()
     stamp = ros_node.zero_time()
     tf_listener.waitForTransform(
         target_frame,
@@ -247,6 +251,80 @@ def lookup_transform_matrix(tf_listener, ros_node, target_frame, source_frame, t
         tf_trans.translation_matrix(translation),
         tf_trans.quaternion_matrix(quaternion),
     )
+
+
+def lookup_target_from_source_via_chassis(
+    tf_listener,
+    ros_node,
+    target_frame,
+    source_frame,
+    base_frame=BASE_LINK_FRAME,
+    chassis_frame=CHASSIS_FRAME,
+    timeout=0.5,
+):
+    """通过 target<-chassis 与 base<-source 分段组合，返回 target_frame<-source_frame。"""
+    if target_frame == source_frame:
+        return tf_trans.identity_matrix()
+
+    target_from_chassis = lookup_transform_matrix(
+        tf_listener,
+        ros_node,
+        target_frame,
+        chassis_frame,
+        timeout=timeout,
+    )
+    if source_frame in (base_frame, chassis_frame):
+        return target_from_chassis
+
+    base_from_source = lookup_transform_matrix(
+        tf_listener,
+        ros_node,
+        base_frame,
+        source_frame,
+        timeout=timeout,
+    )
+    # 关键步骤：底盘世界位姿使用 target<-chassis，本体内部姿态使用 base<-source，避免直接查 target<-source 整链。
+    return tf_trans.concatenate_matrices(target_from_chassis, base_from_source)
+
+
+def lookup_map_from_source_via_chassis(
+    tf_listener,
+    ros_node,
+    source_frame,
+    map_frame=MAP_FRAME,
+    base_frame=BASE_LINK_FRAME,
+    chassis_frame=CHASSIS_FRAME,
+    timeout=0.5,
+):
+    """通过 map<-chassis 与 base<-source 分段组合，返回 map_frame<-source_frame。"""
+    return lookup_target_from_source_via_chassis(
+        tf_listener,
+        ros_node,
+        map_frame,
+        source_frame,
+        base_frame=base_frame,
+        chassis_frame=chassis_frame,
+        timeout=timeout,
+    )
+
+
+def lookup_base_from_map_via_chassis(
+    tf_listener,
+    ros_node,
+    map_frame=MAP_FRAME,
+    chassis_frame=CHASSIS_FRAME,
+    timeout=0.5,
+):
+    """通过 map<-chassis 推出 base_link<-map，项目约定 chassis_frame 与 base_link 重合。"""
+    map_from_chassis = lookup_transform_matrix(
+        tf_listener,
+        ros_node,
+        map_frame,
+        chassis_frame,
+        timeout=timeout,
+    )
+    # 关键步骤：chassis_frame 与 base_link 按项目约定重合，因此 base_link<-map 可由 map<-chassis 取逆得到。
+    return tf_trans.inverse_matrix(map_from_chassis)
 
 
 def transform_point(tf_listener, ros_node, point_xyz, source_frame, target_frame, timeout=0.2):
@@ -284,8 +362,8 @@ def transform_point(tf_listener, ros_node, point_xyz, source_frame, target_frame
 def transform_base_point_to_map_with_odom(
     odom_msg,
     base_position,
-    target_frame="map",
-    base_frame="base_link",
+    target_frame=MAP_FRAME,
+    base_frame=BASE_LINK_FRAME,
 ):
     """使用 odom 中的 base_link 位姿，将 base_link 三维点转换到 map/odom 坐标系。"""
     odom_frame = getattr(getattr(odom_msg, "header", None), "frame_id", "")
@@ -346,8 +424,8 @@ def transform_point_to_map_via_base_and_odom(
     odom_msg,
     point_xyz,
     source_frame,
-    base_frame="base_link",
-    target_frame="map",
+    base_frame=BASE_LINK_FRAME,
+    target_frame=MAP_FRAME,
     timeout=0.2,
 ):
     """先把 source_frame 点转到 base_frame，再用 odom 位姿转到 map/odom 坐标系。"""

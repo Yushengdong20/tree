@@ -9,7 +9,8 @@ from geometry_msgs.msg import Point, PointStamped
 from py_trees.common import Status
 from visualization_msgs.msg import Marker
 
-from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.constants import CHASSIS_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.geometry import lookup_target_from_source_via_chassis
 
 from ..base import TimedMockAction
 
@@ -40,7 +41,7 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         self.target_frame = str(params.get("target_frame", MAP_FRAME)).strip()
         self.target_point_key = str(params.get("target_point_key", "")).strip()
         self.target_point = self._parse_point(params.get("target_point", [2.0, 1.0, 1.0]))
-        self.chassis_frame = str(params.get("chassis_frame", "melon_odom")).strip()
+        self.chassis_frame = str(params.get("chassis_frame", CHASSIS_FRAME)).strip()
         # 不在节点内部限流，头部控制频率直接跟随行为树 tick。
         # tick_debug 日志仍可用于确认并行流程里本节点是否被持续 tick。
         self.failure_log_interval_sec = float(params.get("failure_log_interval_sec", 1.0))
@@ -409,46 +410,22 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         最终仍把目标点转到 head_frame，复用 HeadController.turn_to_head_frame_point()
         进行 yaw/pitch 解算和发布。
         """
-        base_frame = head_controller.base_frame
-        head_frame = head_controller.head_frame
-
-        # 1. 查询 T_target_chassis。
-        # 约定：T_A_B 表示“把 B 坐标系下的点转换到 A 坐标系”。
-        # 如果 target_frame=map、chassis_frame=melon_odom，这里得到的就是：
-        #   T_map_melon_odom
-        # 它代表底盘实时位姿在世界系下的位置和朝向。
-        target_to_chassis = self._lookup_transform_matrix(
-            head_controller,
-            target_frame=self.target_frame,
-            source_frame=self.chassis_frame,
-        )
-
-        # 2. 查询 T_base_head。
-        # 如果 base_frame=base_link、head_frame=camera，这里得到的就是：
-        #   T_base_link_camera
-        # 它只依赖机器人本体内部 TF，用来描述 camera 相对 base_link 的安装/头部姿态。
-        base_to_head = self._lookup_transform_matrix(
-            head_controller,
-            target_frame=base_frame,
-            source_frame=head_frame,
-        )
-        if target_to_chassis is None or base_to_head is None:
+        try:
+            target_to_head = lookup_target_from_source_via_chassis(
+                head_controller.tf_listener,
+                self.ros_node,
+                self.target_frame,
+                head_controller.head_frame,
+                base_frame=head_controller.base_frame,
+                chassis_frame=self.chassis_frame,
+                timeout=head_controller.tf_timeout,
+            )
+        except Exception as err:
+            self._log_failure(
+                f"[{self.config_label}] 分段查询 {head_controller.head_frame} -> "
+                f"{self.target_frame} 失败: {err}",
+            )
             return None, None
-
-        # 3. 组合 T_target_head。
-        # 当前方案 A 的关键假设是：chassis_frame 与 base_frame 重合。
-        # 也就是把 melon_odom 当作 base_link 使用，中间不再额外查询/发布
-        # melon_odom -> base_link。
-        #
-        # 因此：
-        #   T_target_head = T_target_chassis * T_base_head
-        #
-        # 对 target_frame=map 的典型配置来说就是：
-        #   T_map_camera = T_map_melon_odom * T_base_link_camera
-        #
-        # concatenate_matrices(A, B) 的含义与矩阵左乘一致：
-        #   point_in_target = A * B * point_in_head
-        target_to_head = tf_trans.concatenate_matrices(target_to_chassis, base_to_head)
 
         # 4. 控制解算需要“目标点在 camera/head_frame 下的位置”。
         # 现在手里有 T_target_head，它能把 camera 点转换到 map。

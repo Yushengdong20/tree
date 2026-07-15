@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "右臂抓取单个零件子流程",
+    "label": "双手自选抓取单个零件子流程",
     "params": {
       "memory": {
         "value": "True",
@@ -29,22 +29,27 @@
         "childs": []
       },
       {
-        "name": "WaitSeconds",
-        "label": "请求候选抓取位姿前等待1秒",
-        "params": {
-          "duration_sec": {
-            "value": "1.0",
-            "source": "CUSTOM"
-          }
-        },
-        "childs": []
-      },
-      {
         "name": "RequestGraspPoses",
         "label": "请求候选抓取位姿",
         "params": {
           "grasp_url": {
             "value": "http://192.168.26.12:13603/grasp",
+            "source": "CUSTOM"
+          },
+          "target_class_id": {
+            "value": "0",
+            "source": "CUSTOM"
+          },
+          "grasp_mode": {
+            "value": "multi",
+            "source": "CUSTOM"
+          },
+          "reuse_sorted_objects": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "distance_metric": {
+            "value": "horizontal",
             "source": "CUSTOM"
           },
           "max_attempts": {
@@ -59,6 +64,25 @@
             "value": "1.0",
             "source": "CUSTOM"
           },
+          "request_delay_sec": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "base_grasp_poses_key": {
+            "value": "grasp_object_base_grasp_poses",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SelectNextGraspObject",
+        "label": "按距离选择下一个抓取物体",
+        "params": {
+          "advance_cursor": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
           "base_grasp_poses_key": {
             "value": "grasp_object_base_grasp_poses",
             "source": "CUSTOM"
@@ -68,72 +92,17 @@
       },
       {
         "name": "Selector",
-        "label": "选择当前腰部或腰部辅助抓取方案",
+        "label": "规划抓取目标并计算预抓取，失败后刷新感知重试",
         "params": {
           "memory": {
-            "value": "True",
+            "value": "False",
             "source": "CUSTOM"
           }
         },
         "childs": [
           {
-            "name": "ComputeRightGraspTarget",
-            "label": "当前腰部下计算右臂抓取目标",
-            "params": {
-              "base_grasp_poses_key": {
-                "value": "grasp_object_base_grasp_poses",
-                "source": "CUSTOM"
-              },
-              "grasp_offset_m": {
-                "value": "0.06",
-                "source": "CUSTOM"
-              },
-              "tf_timeout_sec": {
-                "value": "2.0",
-                "source": "CUSTOM"
-              },
-              "pose_topic": {
-                "value": "/grasp_object/right_pregrasp_pose",
-                "source": "CUSTOM"
-              },
-              "left_pose_key": {
-                "value": "grasp_object_left_hold_pose",
-                "source": "CUSTOM"
-              },
-              "grasp_pose_key": {
-                "value": "grasp_object_grasp_pose",
-                "source": "CUSTOM"
-              },
-              "left_shift_pose_key": {
-                "value": "grasp_object_left_shift_pose",
-                "source": "CUSTOM"
-              },
-              "left_offset_m": {
-                "value": "0.0",
-                "source": "CUSTOM"
-              },
-              "left_shift_z_offset_m": {
-                "value": "0.03",
-                "source": "CUSTOM"
-              },
-              "torso_pose_key": {
-                "value": "grasp_object_torso_pose",
-                "source": "CUSTOM"
-              },
-              "torso_enabled_key": {
-                "value": "grasp_object_use_torso",
-                "source": "CUSTOM"
-              },
-              "selected_grasp_pose_key": {
-                "value": "grasp_object_selected_grasp_pose",
-                "source": "CUSTOM"
-              }
-            },
-            "childs": []
-          },
-          {
             "name": "Sequence",
-            "label": "腰部辅助后重新计算抓取目标",
+            "label": "使用缓存候选规划抓取目标并计算预抓取",
             "params": {
               "memory": {
                 "value": "True",
@@ -142,15 +111,34 @@
             },
             "childs": [
               {
-                "name": "ComputeRightGraspTargetWithTorso",
-                "label": "腰部采样计算右臂抓取目标",
+                "name": "SubTree",
+                "label": "选择当前腰部或腰部辅助抓取方案",
                 "params": {
-                  "base_grasp_poses_key": {
-                    "value": "grasp_object_base_grasp_poses",
+                  "file": {
+                    "value": "plan_right_grasp_target.json",
                     "source": "CUSTOM"
-                  },
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "ComputePreGraspTarget",
+                "label": "执行前复核选中手臂并计算预抓取位姿",
+                "params": {
                   "grasp_offset_m": {
                     "value": "0.06",
+                    "source": "CUSTOM"
+                  },
+                  "pregrasp_offset_min_m": {
+                    "value": "0.12",
+                    "source": "CUSTOM"
+                  },
+                  "pregrasp_offset_max_m": {
+                    "value": "0.18",
+                    "source": "CUSTOM"
+                  },
+                  "pregrasp_offset_samples": {
+                    "value": "5",
                     "source": "CUSTOM"
                   },
                   "tf_timeout_sec": {
@@ -161,306 +149,155 @@
                     "value": "/grasp_object/right_pregrasp_pose",
                     "source": "CUSTOM"
                   },
-                  "left_pose_key": {
-                    "value": "grasp_object_left_hold_pose",
-                    "source": "CUSTOM"
-                  },
-                  "grasp_pose_key": {
-                    "value": "grasp_object_grasp_pose",
-                    "source": "CUSTOM"
-                  },
-                  "left_shift_pose_key": {
-                    "value": "grasp_object_left_shift_pose",
-                    "source": "CUSTOM"
-                  },
-                  "left_offset_m": {
-                    "value": "0.0",
-                    "source": "CUSTOM"
-                  },
-                  "left_shift_z_offset_m": {
-                    "value": "0.10",
-                    "source": "CUSTOM"
-                  },
-                  "torso_pose_key": {
-                    "value": "grasp_object_torso_pose",
-                    "source": "CUSTOM"
-                  },
-                  "torso_enabled_key": {
-                    "value": "grasp_object_use_torso",
+                  "pregrasp_pose_key": {
+                    "value": "grasp_object_pregrasp_pose",
                     "source": "CUSTOM"
                   },
                   "selected_grasp_pose_key": {
                     "value": "grasp_object_selected_grasp_pose",
                     "source": "CUSTOM"
-                  },
-                  "torso_sample_x_min_m": {
-                    "value": "0.0",
-                    "source": "CUSTOM"
-                  },
-                  "torso_sample_x_max_m": {
-                    "value": "0.3",
-                    "source": "CUSTOM"
-                  },
-                  "torso_sample_z_min_m": {
-                    "value": "0.65",
-                    "source": "CUSTOM"
-                  },
-                  "torso_sample_z_max_m": {
-                    "value": "0.95",
-                    "source": "CUSTOM"
-                  },
-                  "torso_sample_step_m": {
-                    "value": "0.05",
-                    "source": "CUSTOM"
-                  },
-                  "torso_pitch_abs_max_rad": {
-                    "value": "0.05",
-                    "source": "CUSTOM"
-                  },
-                  "torso_sample_check_workers": {
-                    "value": "8",
-                    "source": "CUSTOM"
-                  },
-                  "knee_origin_x": {
-                    "value": "0.098",
-                    "source": "CUSTOM"
-                  },
-                  "knee_origin_z": {
-                    "value": "0.376",
-                    "source": "CUSTOM"
                   }
                 },
                 "childs": []
-              },
+              }
+            ]
+          },
+          {
+            "name": "Sequence",
+            "label": "刷新感知后重新规划抓取目标并计算预抓取",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
               {
-                "name": "MoveTorsoPose",
-                "label": "腰部移动到采样抓取位姿",
+                "name": "RequestGraspPoses",
+                "label": "刷新候选抓取位姿",
                 "params": {
-                  "pose_key": {
-                    "value": "grasp_object_torso_pose",
+                  "grasp_url": {
+                    "value": "http://192.168.26.12:13603/grasp",
                     "source": "CUSTOM"
                   },
-                  "enabled_key": {
-                    "value": "grasp_object_use_torso",
+                  "target_class_id": {
+                    "value": "0",
                     "source": "CUSTOM"
                   },
-                  "wait_done": {
-                    "value": "True",
+                  "grasp_mode": {
+                    "value": "multi",
                     "source": "CUSTOM"
-                  }
-                },
-                "childs": []
-              },
-              {
-                "name": "Selector",
-                "label": "腰部移动后优先复用原候选抓取位姿",
-                "params": {
-                  "memory": {
+                  },
+                  "reuse_sorted_objects": {
                     "value": "False",
                     "source": "CUSTOM"
+                  },
+                  "distance_metric": {
+                    "value": "horizontal",
+                    "source": "CUSTOM"
+                  },
+                  "max_attempts": {
+                    "value": "3",
+                    "source": "CUSTOM"
+                  },
+                  "http_timeout_sec": {
+                    "value": "30",
+                    "source": "CUSTOM"
+                  },
+                  "retry_interval_sec": {
+                    "value": "1.0",
+                    "source": "CUSTOM"
+                  },
+                  "base_grasp_poses_key": {
+                    "value": "grasp_object_base_grasp_poses",
+                    "source": "CUSTOM"
                   }
                 },
-                "childs": [
-                  {
-                    "name": "ComputeRightGraspTarget",
-                    "label": "腰部移动后用原候选位姿重新计算右臂抓取目标",
-                    "params": {
-                      "base_grasp_poses_key": {
-                        "value": "grasp_object_base_grasp_poses",
-                        "source": "CUSTOM"
-                      },
-                      "grasp_offset_m": {
-                        "value": "0.06",
-                        "source": "CUSTOM"
-                      },
-                      "tf_timeout_sec": {
-                        "value": "2.0",
-                        "source": "CUSTOM"
-                      },
-                      "pose_topic": {
-                        "value": "/grasp_object/right_pregrasp_pose",
-                        "source": "CUSTOM"
-                      },
-                      "left_pose_key": {
-                        "value": "grasp_object_left_hold_pose",
-                        "source": "CUSTOM"
-                      },
-                      "grasp_pose_key": {
-                        "value": "grasp_object_grasp_pose",
-                        "source": "CUSTOM"
-                      },
-                      "left_shift_pose_key": {
-                        "value": "grasp_object_left_shift_pose",
-                        "source": "CUSTOM"
-                      },
-                      "left_offset_m": {
-                        "value": "0.0",
-                        "source": "CUSTOM"
-                      },
-                      "left_shift_z_offset_m": {
-                        "value": "0.10",
-                        "source": "CUSTOM"
-                      },
-                      "torso_pose_key": {
-                        "value": "grasp_object_torso_pose",
-                        "source": "CUSTOM"
-                      },
-                      "torso_enabled_key": {
-                        "value": "grasp_object_use_torso",
-                        "source": "CUSTOM"
-                      },
-                      "selected_grasp_pose_key": {
-                        "value": "grasp_object_selected_grasp_pose",
-                        "source": "CUSTOM"
-                      }
-                    },
-                    "childs": []
+                "childs": []
+              },
+              {
+                "name": "SelectNextGraspObject",
+                "label": "刷新后按距离选择抓取物体",
+                "params": {
+                  "advance_cursor": {
+                    "value": "True",
+                    "source": "CUSTOM"
                   },
-                  {
-                    "name": "Sequence",
-                    "label": "原候选失败后重新请求并计算右臂抓取目标",
-                    "params": {
-                      "memory": {
-                        "value": "True",
-                        "source": "CUSTOM"
-                      }
-                    },
-                    "childs": [
-                      {
-                        "name": "WaitSeconds",
-                        "label": "重新请求候选抓取位姿前等待图像稳定",
-                        "params": {
-                          "duration_sec": {
-                            "value": "1.0",
-                            "source": "CUSTOM"
-                          }
-                        },
-                        "childs": []
-                      },
-                      {
-                        "name": "RequestGraspPoses",
-                        "label": "原候选失败后重新请求候选抓取位姿",
-                        "params": {
-                          "grasp_url": {
-                            "value": "http://192.168.26.12:13603/grasp",
-                            "source": "CUSTOM"
-                          },
-                          "max_attempts": {
-                            "value": "3",
-                            "source": "CUSTOM"
-                          },
-                          "http_timeout_sec": {
-                            "value": "30",
-                            "source": "CUSTOM"
-                          },
-                          "retry_interval_sec": {
-                            "value": "1.0",
-                            "source": "CUSTOM"
-                          },
-                          "base_grasp_poses_key": {
-                            "value": "grasp_object_base_grasp_poses",
-                            "source": "CUSTOM"
-                          }
-                        },
-                        "childs": []
-                      },
-                      {
-                        "name": "ComputeRightGraspTarget",
-                        "label": "重新请求后计算右臂抓取目标",
-                        "params": {
-                          "base_grasp_poses_key": {
-                            "value": "grasp_object_base_grasp_poses",
-                            "source": "CUSTOM"
-                          },
-                          "grasp_offset_m": {
-                            "value": "0.06",
-                            "source": "CUSTOM"
-                          },
-                          "tf_timeout_sec": {
-                            "value": "2.0",
-                            "source": "CUSTOM"
-                          },
-                          "pose_topic": {
-                            "value": "/grasp_object/right_pregrasp_pose",
-                            "source": "CUSTOM"
-                          },
-                          "left_pose_key": {
-                            "value": "grasp_object_left_hold_pose",
-                            "source": "CUSTOM"
-                          },
-                          "grasp_pose_key": {
-                            "value": "grasp_object_grasp_pose",
-                            "source": "CUSTOM"
-                          },
-                          "left_shift_pose_key": {
-                            "value": "grasp_object_left_shift_pose",
-                            "source": "CUSTOM"
-                          },
-                          "left_offset_m": {
-                            "value": "0.0",
-                            "source": "CUSTOM"
-                          },
-                          "left_shift_z_offset_m": {
-                            "value": "0.10",
-                            "source": "CUSTOM"
-                          },
-                          "torso_pose_key": {
-                            "value": "grasp_object_torso_pose",
-                            "source": "CUSTOM"
-                          },
-                          "torso_enabled_key": {
-                            "value": "grasp_object_use_torso",
-                            "source": "CUSTOM"
-                          },
-                          "selected_grasp_pose_key": {
-                            "value": "grasp_object_selected_grasp_pose",
-                            "source": "CUSTOM"
-                          }
-                        },
-                        "childs": []
-                      }
-                    ]
+                  "base_grasp_poses_key": {
+                    "value": "grasp_object_base_grasp_poses",
+                    "source": "CUSTOM"
                   }
-                ]
+                },
+                "childs": []
+              },
+              {
+                "name": "SubTree",
+                "label": "选择当前腰部或腰部辅助抓取方案",
+                "params": {
+                  "file": {
+                    "value": "plan_right_grasp_target.json",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "ComputePreGraspTarget",
+                "label": "执行前复核选中手臂并计算预抓取位姿",
+                "params": {
+                  "grasp_offset_m": {
+                    "value": "0.06",
+                    "source": "CUSTOM"
+                  },
+                  "pregrasp_offset_min_m": {
+                    "value": "0.12",
+                    "source": "CUSTOM"
+                  },
+                  "pregrasp_offset_max_m": {
+                    "value": "0.18",
+                    "source": "CUSTOM"
+                  },
+                  "pregrasp_offset_samples": {
+                    "value": "5",
+                    "source": "CUSTOM"
+                  },
+                  "tf_timeout_sec": {
+                    "value": "2.0",
+                    "source": "CUSTOM"
+                  },
+                  "pose_topic": {
+                    "value": "/grasp_object/right_pregrasp_pose",
+                    "source": "CUSTOM"
+                  },
+                  "pregrasp_pose_key": {
+                    "value": "grasp_object_pregrasp_pose",
+                    "source": "CUSTOM"
+                  },
+                  "selected_grasp_pose_key": {
+                    "value": "grasp_object_selected_grasp_pose",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
               }
             ]
           }
         ]
       },
       {
-        "name": "ComputeRightPreGraspTarget",
-        "label": "执行前计算右臂预抓取位姿",
+        "name": "ArmsToPose",
+        "label": "选中手臂移动到预抓取位姿",
         "params": {
-          "grasp_offset_m": {
-            "value": "0.06",
+          "pose_frame": {
+            "value": "waist_yaw_link",
             "source": "CUSTOM"
           },
-          "pregrasp_offset_min_m": {
-            "value": "0.12",
+          "side_key": {
+            "value": "grasp_object_selected_arm_side",
             "source": "CUSTOM"
           },
-          "pregrasp_offset_max_m": {
-            "value": "0.18",
-            "source": "CUSTOM"
-          },
-          "pregrasp_offset_samples": {
-            "value": "7",
-            "source": "CUSTOM"
-          },
-          "tf_timeout_sec": {
-            "value": "2.0",
-            "source": "CUSTOM"
-          },
-          "pose_topic": {
-            "value": "/grasp_object/right_pregrasp_pose",
-            "source": "CUSTOM"
-          },
-          "pregrasp_pose_key": {
+          "pose_key": {
             "value": "grasp_object_pregrasp_pose",
-            "source": "CUSTOM"
-          },
-          "selected_grasp_pose_key": {
-            "value": "grasp_object_selected_grasp_pose",
             "source": "CUSTOM"
           }
         },
@@ -468,45 +305,18 @@
       },
       {
         "name": "ArmsToPose",
-        "label": "右臂移动到预抓取位姿",
+        "label": "选中手臂移动到抓取位姿",
         "params": {
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
           },
-          "left_pose_key": {
-            "value": "grasp_object_left_hold_pose",
+          "side_key": {
+            "value": "grasp_object_selected_arm_side",
             "source": "CUSTOM"
           },
-          "right_pose_key": {
-            "value": "grasp_object_pregrasp_pose",
-            "source": "CUSTOM"
-          },
-          "lock_arm_side": {
-            "value": "left",
-            "source": "CUSTOM"
-          }
-        },
-        "childs": []
-      },
-      {
-        "name": "ArmsToPose",
-        "label": "右臂移动到抓取位姿",
-        "params": {
-          "pose_frame": {
-            "value": "waist_yaw_link",
-            "source": "CUSTOM"
-          },
-          "left_pose_key": {
-            "value": "grasp_object_left_hold_pose",
-            "source": "CUSTOM"
-          },
-          "right_pose_key": {
+          "pose_key": {
             "value": "grasp_object_grasp_pose",
-            "source": "CUSTOM"
-          },
-          "lock_arm_side": {
-            "value": "left",
             "source": "CUSTOM"
           }
         },
@@ -514,10 +324,37 @@
       },
       {
         "name": "CloseClaw",
-        "label": "闭合右夹爪夹取物体",
+        "label": "闭合选中夹爪夹取物体",
         "params": {
-          "side": {
-            "value": "right",
+          "side_key": {
+            "value": "grasp_object_selected_arm_side",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ComputeRelativeEndEffectorPose",
+        "label": "计算选中手臂抓取后上移10厘米位姿",
+        "params": {
+          "input_pose_key": {
+            "value": "grasp_object_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "output_pose_key": {
+            "value": "grasp_object_left_shift_pose",
+            "source": "CUSTOM"
+          },
+          "dx": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dy": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dz": {
+            "value": "0.10",
             "source": "CUSTOM"
           }
         },
@@ -525,22 +362,18 @@
       },
       {
         "name": "ArmsToPose",
-        "label": "右臂上移10厘米进入搬运姿态",
+        "label": "选中手臂上移10厘米进入搬运姿态",
         "params": {
           "pose_frame": {
             "value": "waist_yaw_link",
             "source": "CUSTOM"
           },
-          "left_pose_key": {
-            "value": "grasp_object_left_hold_pose",
+          "side_key": {
+            "value": "grasp_object_selected_arm_side",
             "source": "CUSTOM"
           },
-          "right_pose_key": {
+          "pose_key": {
             "value": "grasp_object_left_shift_pose",
-            "source": "CUSTOM"
-          },
-          "lock_arm_side": {
-            "value": "left",
             "source": "CUSTOM"
           }
         },
@@ -548,7 +381,7 @@
       },
       {
         "name": "CalculateRelativePose",
-        "label": "计算抓取后后退0.3米目标",
+        "label": "计算抓取后后退0.6米目标",
         "params": {
           "odom_topic": {
             "value": "melon_odom",
@@ -559,7 +392,7 @@
             "source": "CUSTOM"
           },
           "dx": {
-            "value": "-0.3",
+            "value": "-0.6",
             "source": "CUSTOM"
           },
           "dy": {
@@ -583,7 +416,7 @@
       },
       {
         "name": "Parallel",
-        "label": "抓取后并行后退和右臂回初始位姿",
+        "label": "抓取后并行后退和选中手臂回初始位姿",
         "params": {
           "policy": {
             "value": "SuccessOnAll",
@@ -592,35 +425,66 @@
         },
         "childs": [
           {
-            "name": "HttpNavigateToPose",
-            "label": "抓取后后退0.3米",
+            "name": "Parallel",
+            "label": "抓取后后退0.6米并在剩余0.3米时提前完成",
             "params": {
-              "target_pose_key": {
-                "value": "grasp_object_retreat_navigation_target",
-                "source": "CUSTOM"
-              },
-              "chassis_url": {
-                "value": "http://localhost:8081",
-                "source": "CUSTOM"
-              },
-              "navigation_timeout_sec": {
-                "value": "600",
-                "source": "CUSTOM"
-              },
-              "poll_interval_sec": {
-                "value": "0.2",
-                "source": "CUSTOM"
-              },
-              "navigation_target_key": {
-                "value": "grasp_object_retreat_navigation_target",
+              "policy": {
+                "value": "SuccessOnOne",
                 "source": "CUSTOM"
               }
             },
-            "childs": []
+            "childs": [
+              {
+                "name": "HttpNavigateToPose",
+                "label": "抓取后后退0.6米",
+                "params": {
+                  "target_pose_key": {
+                    "value": "grasp_object_retreat_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "grasp_object_retreat_navigation_target",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "WaitUntilNearNavigationGoal",
+                "label": "后退到离目标0.3米时提前完成",
+                "params": {
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "target_key": {
+                    "value": "grasp_object_retreat_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "distance_threshold": {
+                    "value": "0.3",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              }
+            ]
           },
           {
             "name": "ArmsToPose",
-            "label": "抓取后右臂回到初始位姿并保持夹爪闭合",
+            "label": "抓取后选中手臂回到初始位姿并保持夹爪闭合",
             "params": {
               "pose_frame": {
                 "value": "waist_yaw_link",
@@ -634,8 +498,8 @@
                 "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
                 "source": "CUSTOM"
               },
-              "lock_arm_side": {
-                "value": "left",
+              "side_key": {
+                "value": "grasp_object_selected_arm_side",
                 "source": "CUSTOM"
               }
             },
