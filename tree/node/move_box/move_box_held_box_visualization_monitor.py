@@ -13,7 +13,7 @@
 3. 使用 arm_controller 的 end_effector -> claw 外参，计算左右夹爪点。
 4. 通过共享 odom transformer 把 base_link 下夹爪点投到 map。
 5. 以左右夹爪中点作为默认箱心，并支持 box_center_offset_*_m 做调试补偿。
-6. 发布 MarkerArray：估计箱体、左右夹爪点、夹爪连线、箱心、文字说明。
+6. 发布 MarkerArray：估计箱体、左右夹爪点、夹爪连线、箱心、已计算动作点、文字说明。
 7. action=stop 时只停止 timer，默认保留最后一帧话题内容，方便 RViz 现场分析。
 
 注意：
@@ -68,10 +68,40 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         self.box_center_offset_y_m = float(params.get("box_center_offset_y_m", 0.0))
         self.box_center_offset_z_m = float(params.get("box_center_offset_z_m", 0.0))
         self.fallback_yaw_offset_deg = float(params.get("fallback_yaw_offset_deg", 0.0))
+        self.action_points_enabled = self._to_bool(params.get("action_points_enabled", True))
+        self.pre_place_left_claw_point_key = str(
+            params.get("pre_place_left_claw_point_key", "move_box_pallet_pre_place_left_claw_point")
+        ).strip()
+        self.pre_place_right_claw_point_key = str(
+            params.get("pre_place_right_claw_point_key", "move_box_pallet_pre_place_right_claw_point")
+        ).strip()
+        self.push_left_claw_point_key = str(
+            params.get("push_left_claw_point_key", "move_box_pallet_push_left_claw_point")
+        ).strip()
+        self.push_right_claw_point_key = str(
+            params.get("push_right_claw_point_key", "move_box_pallet_push_right_claw_point")
+        ).strip()
+        self.lift_left_claw_point_key = str(
+            params.get("lift_left_claw_point_key", "move_box_pallet_lift_left_claw_point")
+        ).strip()
+        self.lift_right_claw_point_key = str(
+            params.get("lift_right_claw_point_key", "move_box_pallet_lift_right_claw_point")
+        ).strip()
 
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.monitor_state_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.monitor_state_key, access=py_trees.common.Access.READ)
+        if self.action_points_enabled:
+            for key in (
+                self.pre_place_left_claw_point_key,
+                self.pre_place_right_claw_point_key,
+                self.push_left_claw_point_key,
+                self.push_right_claw_point_key,
+                self.lift_left_claw_point_key,
+                self.lift_right_claw_point_key,
+            ):
+                if key:
+                    self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
 
         self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
@@ -218,6 +248,14 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             color=(1.0, 1.0, 0.0, 0.95),
             width=0.025,
         )
+        marker_id = self._append_action_points(
+            marker_array,
+            marker_id,
+            robot_pose,
+            map_z_offset,
+            left_map,
+            right_map,
+        )
         self._append_text(marker_array, marker_id, center_map, yaw_deg, left_map, right_map)
 
         self.visualization_pub.publish(marker_array)
@@ -331,6 +369,122 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             Point(x=start["x"], y=start["y"], z=start["z"]),
             Point(x=end["x"], y=end["y"], z=end["z"]),
         ]
+        self._set_color(marker, *color)
+        marker_array.markers.append(marker)
+        return marker_id + 1
+
+    def _append_action_points(self, marker_array, marker_id, robot_pose, map_z_offset, current_left, current_right):
+        if not self.action_points_enabled:
+            return marker_id
+
+        action_points = self._read_action_points_map(robot_pose, map_z_offset)
+        if not action_points:
+            return marker_id
+
+        color_by_stage = {
+            "pre": (1.0, 0.95, 0.05, 1.0),
+            "push": (0.0, 1.0, 0.25, 1.0),
+            "lift": (0.7, 0.35, 1.0, 1.0),
+        }
+        scale_by_stage = {
+            "pre": 0.065,
+            "push": 0.075,
+            "lift": 0.065,
+        }
+
+        pairs = {}
+        for item in action_points:
+            stage = item["stage"]
+            side = item["side"]
+            point = item["point"]
+            marker_id = self._append_sphere(
+                marker_array,
+                marker_id,
+                f"action_point_{stage}_{side}",
+                point,
+                color=color_by_stage.get(stage, (1.0, 1.0, 1.0, 1.0)),
+                scale=scale_by_stage.get(stage, 0.06),
+            )
+            marker_id = self._append_action_point_text(
+                marker_array,
+                marker_id,
+                stage,
+                side,
+                point,
+                color=color_by_stage.get(stage, (1.0, 1.0, 1.0, 1.0)),
+            )
+            pairs.setdefault(stage, {})[side] = point
+
+            current = current_left if side == "left" else current_right
+            marker_id = self._append_line(
+                marker_array,
+                marker_id,
+                f"current_to_action_{stage}_{side}",
+                current,
+                point,
+                color=(0.8, 0.8, 0.8, 0.45),
+                width=0.012,
+            )
+
+        for stage, points in pairs.items():
+            if "left" in points and "right" in points:
+                marker_id = self._append_line(
+                    marker_array,
+                    marker_id,
+                    f"action_pair_{stage}",
+                    points["left"],
+                    points["right"],
+                    color=color_by_stage.get(stage, (1.0, 1.0, 1.0, 1.0)),
+                    width=0.018,
+                )
+        return marker_id
+
+    def _read_action_points_map(self, robot_pose, map_z_offset):
+        key_specs = [
+            ("pre", "left", self.pre_place_left_claw_point_key),
+            ("pre", "right", self.pre_place_right_claw_point_key),
+            ("push", "left", self.push_left_claw_point_key),
+            ("push", "right", self.push_right_claw_point_key),
+            ("lift", "left", self.lift_left_claw_point_key),
+            ("lift", "right", self.lift_right_claw_point_key),
+        ]
+        points = []
+        for stage, side, key in key_specs:
+            point_base = self._read_base_point(key)
+            if point_base is None:
+                continue
+            points.append(
+                {
+                    "stage": stage,
+                    "side": side,
+                    "key": key,
+                    "point": self._base_point_to_map(point_base, robot_pose, map_z_offset),
+                }
+            )
+        return points
+
+    def _read_base_point(self, key):
+        if not key or not self.blackboard.exists(key):
+            return None
+        raw = self.blackboard.get(key)
+        try:
+            if isinstance(raw, dict):
+                return np.array([float(raw["x"]), float(raw["y"]), float(raw["z"])], dtype=float)
+            if isinstance(raw, (list, tuple, np.ndarray)) and len(raw) >= 3:
+                return np.array([float(raw[0]), float(raw[1]), float(raw[2])], dtype=float)
+            if hasattr(raw, "x") and hasattr(raw, "y") and hasattr(raw, "z"):
+                return np.array([float(raw.x), float(raw.y), float(raw.z)], dtype=float)
+        except (KeyError, TypeError, ValueError):
+            return None
+        return None
+
+    def _append_action_point_text(self, marker_array, marker_id, stage, side, point, color):
+        marker = self._new_marker(marker_id, f"action_point_text_{stage}_{side}", Marker.TEXT_VIEW_FACING)
+        marker.pose.position.x = point["x"]
+        marker.pose.position.y = point["y"]
+        marker.pose.position.z = point["z"] + 0.08
+        marker.scale.z = 0.055
+        marker.text = f"{stage}_{side}"
         self._set_color(marker, *color)
         marker_array.markers.append(marker)
         return marker_id + 1

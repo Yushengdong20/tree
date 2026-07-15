@@ -10,147 +10,73 @@
     },
     "childs": [
       {
-        "name": "ComputeMoveBoxPalletPlaceStrategy",
-        "label": "到达垛盘后重算码垛放箱策略与动作点",
+        "name": "ComputeMoveBoxPalletPlaceActionPoints",
+        "label": "到达垛盘后只刷新放箱动作点",
         "params": {
-          "pallet_map_polygon": {
-            "value": [
-              [
-                -0.3,
-                1.0
-              ],
-              [
-                1.0,
-                1.0
-              ],
-              [
-                1.0,
-                0.1
-              ],
-              [
-                -0.3,
-                0.1
-              ]
-            ],
-            "source": "CUSTOM"
-          },
-          "slot_reference_points": {
-            "value": [
-              [
-                0.67,
-                0.77
-              ],
-              [
-                0.03,
-                0.77
-              ]
-            ],
-            "source": "CUSTOM"
-          },
-          "slot_yaw_deg": {
-            "value": "0.0",
-            "source": "CUSTOM"
-          },
-          "stack_count_key": {
-            "value": "move_box_pallet_stack_count",
-            "source": "CUSTOM"
-          },
-          "navigation_target_key": {
-            "value": "move_box_pallet_stack_navigation_target",
-            "source": "CUSTOM"
-          },
-          "slot_pose_key": {
-            "value": "move_box_pallet_stack_slot_pose",
-            "source": "CUSTOM"
-          },
-          "expected_box_pose_key": {
-            "value": "move_box_pallet_stack_expected_box_pose",
-            "source": "CUSTOM"
-          },
           "place_plane_height_key": {
             "value": "move_box_pallet_stack_place_plane_height",
-            "source": "CUSTOM"
-          },
-          "slot_rows": {
-            "value": "2",
-            "source": "CUSTOM"
-          },
-          "slot_cols": {
-            "value": "2",
-            "source": "CUSTOM"
-          },
-          "max_layers": {
-            "value": "1",
-            "source": "CUSTOM"
-          },
-          "box_size_x": {
-            "value": "0.60",
-            "source": "CUSTOM"
-          },
-          "box_size_y": {
-            "value": "0.40",
             "source": "CUSTOM"
           },
           "box_size_z": {
             "value": "0.34",
             "source": "CUSTOM"
           },
-          "slot_gap_x": {
-            "value": "0.04",
-            "source": "CUSTOM"
-          },
-          "slot_gap_y": {
-            "value": "0.04",
-            "source": "CUSTOM"
-          },
-          "pallet_surface_z": {
-            "value": "-1.07",
-            "source": "CUSTOM"
-          },
-          "place_clearance_z": {
-            "value": "0.02",
-            "source": "CUSTOM"
-          },
-          "approach_side": {
-            "value": "negative_y",
-            "source": "CUSTOM"
-          },
-          "place_box_forward_offset_m": {
-            "value": "1.0",
-            "source": "CUSTOM"
-          },
-          "pre_place_lateral_offset_m": {
-            "value": "0.10",
-            "source": "CUSTOM"
-          },
-          "push_distance_m": {
-            "value": "0.10",
-            "source": "CUSTOM"
-          },
           "claw_lift_clearance_m": {
             "value": "0.18",
             "source": "CUSTOM"
           },
-          "strategy_mode": {
-            "value": "auto",
+          "services_key": {
+            "value": "robot_services",
             "source": "CUSTOM"
           },
-          "visualization_enabled": {
-            "value": "True",
+          "odom_topic": {
+            "value": "melon_odom",
             "source": "CUSTOM"
           },
-          "visualization_topic": {
-            "value": "/move_box/pallet_place_dynamic_estimate_markers",
+          "strategy_key": {
+            "value": "move_box_pallet_place_strategy",
+            "source": "CUSTOM"
+          },
+          "final_box_pose_key": {
+            "value": "move_box_pallet_place_final_box_pose",
+            "source": "CUSTOM"
+          },
+          "pre_box_pose_key": {
+            "value": "move_box_pallet_place_pre_box_pose",
+            "source": "CUSTOM"
+          },
+          "pre_place_left_claw_point_key": {
+            "value": "move_box_pallet_pre_place_left_claw_point",
+            "source": "CUSTOM"
+          },
+          "pre_place_right_claw_point_key": {
+            "value": "move_box_pallet_pre_place_right_claw_point",
+            "source": "CUSTOM"
+          },
+          "push_left_claw_point_key": {
+            "value": "move_box_pallet_push_left_claw_point",
+            "source": "CUSTOM"
+          },
+          "push_right_claw_point_key": {
+            "value": "move_box_pallet_push_right_claw_point",
+            "source": "CUSTOM"
+          },
+          "lift_left_claw_point_key": {
+            "value": "move_box_pallet_lift_left_claw_point",
+            "source": "CUSTOM"
+          },
+          "lift_right_claw_point_key": {
+            "value": "move_box_pallet_lift_right_claw_point",
             "source": "CUSTOM"
           }
         }
       },
       {
         "name": "WaitForEnter",
-        "label": "码垛执行确认0：检查重算后的策略与动作点",
+        "label": "码垛执行确认0：检查刷新后的动作点",
         "params": {
           "message": {
-            "value": "已在垛盘站位重算码垛策略和夹爪动作点，请检查 /move_box/pallet_place_dynamic_estimate_markers 与日志，按 Enter 根据策略执行放箱...",
+            "value": "已在垛盘站位按当前夹爪刷新放箱动作点；策略不再重算。请检查 /move_box/held_box_estimate_markers、/move_box/pallet_place_dynamic_estimate_markers 与日志，按 Enter 根据已选策略执行放箱...",
             "source": "CUSTOM"
           }
         }
