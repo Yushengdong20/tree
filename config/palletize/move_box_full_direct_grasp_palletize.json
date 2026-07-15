@@ -185,6 +185,10 @@
                     ],
                     "source": "CUSTOM"
                   },
+                  "slot_yaw_deg": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  },
                   "slot_rows": {
                     "value": "2",
                     "source": "CUSTOM"
@@ -410,6 +414,16 @@
                 ]
               },
               {
+                "name": "WaitForEnter",
+                "label": "码垛放箱确认1：已到垛盘站位并完成躯干调整",
+                "params": {
+                  "message": {
+                    "value": "已到垛盘码垛站位并完成躯干调整，请检查 /move_box/pallet_stack_markers 与实机位置，按 Enter 继续计算双爪下降目标...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
                 "name": "ComputeMoveBoxPlaceTargets",
                 "label": "根据码垛层高计算双夹爪下降目标",
                 "params": {
@@ -425,6 +439,14 @@
                     "value": "melon_odom",
                     "source": "CUSTOM"
                   },
+                  "expected_box_pose_key": {
+                    "value": "move_box_pallet_stack_expected_box_pose",
+                    "source": "CUSTOM"
+                  },
+                  "align_xy_to_expected_box": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
                   "box_size_z": {
                     "value": "0.34",
                     "source": "CUSTOM"
@@ -435,6 +457,16 @@
                   },
                   "right_target_key": {
                     "value": "move_box_pallet_place_right_lower_claw_point",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "码垛放箱确认2：已计算双爪下降目标",
+                "params": {
+                  "message": {
+                    "value": "已计算双爪下降目标，请检查 /move_box/claw_point_diagnostics_markers 或日志中的目标点，按 Enter 执行双爪下降...",
                     "source": "CUSTOM"
                   }
                 }
@@ -466,11 +498,31 @@
                 }
               },
               {
+                "name": "WaitForEnter",
+                "label": "码垛放箱确认3：双爪已下降到码垛高度",
+                "params": {
+                  "message": {
+                    "value": "双爪下降动作已结束，请确认箱体是否到达预期码垛位置，按 Enter 张开夹爪释放...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
                 "name": "OpenClaw",
                 "label": "张开双夹爪释放到垛盘",
                 "params": {
                   "side": {
                     "value": "both",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "码垛放箱确认4：已张爪释放",
+                "params": {
+                  "message": {
+                    "value": "已张开夹爪释放箱体，请确认落点，再按 Enter 推进码垛计数并返回等待区...",
                     "source": "CUSTOM"
                   }
                 }

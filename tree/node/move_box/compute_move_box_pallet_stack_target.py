@@ -47,6 +47,9 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
         self.slot_reference_points = self._parse_polygon(params.get("slot_reference_points", []))
         # 可选：显式指定 row 增长方向；不填时由“参考点连线 -> 垛盘 polygon 中心”自动判断。
         self.slot_reference_row_axis = self._parse_vector(params.get("slot_reference_row_axis", []))
+        # 可选：显式指定码垛箱体 yaw。调换 slot_reference_points 顺序时，参考点连线 yaw
+        # 可能从 0deg 翻成 180deg；若只想改变放置顺序，不想改变箱体朝向，就配置本参数。
+        self.slot_yaw_deg = self._optional_float(params.get("slot_yaw_deg", None))
         self.rows = int(params.get("slot_rows", 2))
         self.cols = int(params.get("slot_cols", 2))
         self.max_layers = int(params.get("max_layers", 1))
@@ -135,6 +138,17 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
         self.blackboard.set(self.navigation_target_key, navigation_pose, overwrite=True)
 
         self._publish_visualization(geometry, row, col, layer, slot_pose, navigation_pose, expected_box_pose)
+        self._log_stack_target_detail(
+            geometry,
+            stack_count,
+            layer,
+            row,
+            col,
+            slot_pose,
+            navigation_pose,
+            place_plane_height,
+            expected_box_pose,
+        )
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算码垛目标: "
             f"stack_count={stack_count}, layer={layer}, row={row}, col={col}, "
@@ -144,6 +158,53 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
             f"keys nav={self.navigation_target_key}, plane={self.place_plane_height_key}"
         )
         return Status.SUCCESS
+
+    def _log_stack_target_detail(
+        self,
+        geometry,
+        stack_count,
+        layer,
+        row,
+        col,
+        slot_pose,
+        navigation_pose,
+        place_plane_height,
+        expected_box_pose,
+    ):
+        color_start = "\033[95m"
+        color_end = "\033[0m"
+        geometry_mode = geometry.get("mode", "polygon_centered")
+        reference_text = ""
+        if geometry_mode == "reference_points":
+            p0 = geometry.get("reference_origin", (0.0, 0.0))
+            p1 = geometry.get("reference_second", (0.0, 0.0))
+            reference_text = (
+                f", ref0=({p0[0]:.3f}, {p0[1]:.3f}), "
+                f"ref1=({p1[0]:.3f}, {p1[1]:.3f})"
+            )
+
+        self.ros_node.get_logger().info(
+            color_start
+            + (
+                f"[{self.config_label}] 🟣 PALLET_STACK_TARGET_DETAIL | "
+                f"mode={geometry_mode}{reference_text} | "
+                f"stack_count={stack_count}, layer={layer}, row={row}, col={col} | "
+                f"slot_surface_map=({slot_pose['x']:.3f}, {slot_pose['y']:.3f}, "
+                f"{slot_pose['z']:.3f}, yaw={slot_pose['yaw']:.2f}deg) | "
+                f"expected_box_center_map=({expected_box_pose['x']:.3f}, "
+                f"{expected_box_pose['y']:.3f}, {expected_box_pose['z']:.3f}, "
+                f"yaw={expected_box_pose['yaw']:.2f}deg) | "
+                f"navigation_target_map=({navigation_pose['x']:.3f}, "
+                f"{navigation_pose['y']:.3f}, yaw={navigation_pose['yaw']:.2f}deg) | "
+                f"place_plane_z_map={place_plane_height:.3f}, "
+                f"pallet_surface_z_map={self.pallet_surface_z:.3f}, "
+                f"place_clearance_z={self.place_clearance_z:.3f}, "
+                f"box_size=({self.box_size_x:.3f}, {self.box_size_y:.3f}, {self.box_size_z:.3f}), "
+                f"approach_side={self.approach_side}, "
+                f"place_box_forward_offset_m={self.place_box_forward_offset_m:.3f}"
+            )
+            + color_end
+        )
 
     def _get_stack_count(self):
         if not self.blackboard.exists(self.stack_count_key):
@@ -210,7 +271,7 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
             "extent_y": extent_y,
             "required_x": required_x,
             "required_y": required_y,
-            "yaw": math.degrees(math.atan2(x_axis[1], x_axis[0])),
+            "yaw": self._slot_yaw_or_axis_yaw(x_axis),
         }
 
     def _build_reference_points_geometry(self):
@@ -254,7 +315,7 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
             "extent_y": required_y,
             "required_x": required_x,
             "required_y": required_y,
-            "yaw": math.degrees(math.atan2(x_axis[1], x_axis[0])),
+            "yaw": self._slot_yaw_or_axis_yaw(x_axis),
         }
 
     def _reference_row_axis(self, x_axis, p0, p1):
@@ -507,11 +568,27 @@ class ComputeMoveBoxPalletStackTarget(TimedMockAction):
             return None
         return (x / norm, y / norm)
 
+    @staticmethod
+    def _optional_float(raw_value):
+        value = parse_param_value(raw_value)
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _slot_yaw_or_axis_yaw(self, x_axis):
+        if self.slot_yaw_deg is not None:
+            return float(self.slot_yaw_deg)
+        return math.degrees(math.atan2(x_axis[1], x_axis[0]))
+
     def describe_start(self):
         return (
             f"[{self.config_label}] ComputeMoveBoxPalletStackTarget start: "
             f"rows={self.rows}, cols={self.cols}, max_layers={self.max_layers}, "
             f"box=({self.box_size_x:.2f},{self.box_size_y:.2f},{self.box_size_z:.2f}), "
+            f"slot_yaw={self.slot_yaw_deg if self.slot_yaw_deg is not None else '<axis>'}, "
             f"stack_count_key={self.stack_count_key}, nav_key={self.navigation_target_key}, "
             f"plane_key={self.place_plane_height_key}"
         )
