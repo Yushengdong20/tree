@@ -1,0 +1,412 @@
+"""持续发布“手中箱子”估计可视化。
+
+这个节点用于实机调试码垛/搬运过程中的箱体落点问题。
+
+为什么需要它：
+- ArmsToPose 的 /move_box/claw_point_diagnostics_markers 只在动作节点结束时发布一次；
+- ComputeMoveBoxPalletPlaceStrategy 的蓝色 held_box_estimate 也只在策略计算时刷新；
+- 但实机排查时更需要“闭爪抓住箱子之后，箱子随当前夹爪实际位置持续刷新”的视角。
+
+运行方式：
+1. action=start 时创建一个 ROS timer，节点自身立即返回 SUCCESS，不阻塞行为树。
+2. timer 按 publish_interval_sec 周期读取当前左右 EEF 实际位姿。
+3. 使用 arm_controller 的 end_effector -> claw 外参，计算左右夹爪点。
+4. 通过共享 odom transformer 把 base_link 下夹爪点投到 map。
+5. 以左右夹爪中点作为默认箱心，并支持 box_center_offset_*_m 做调试补偿。
+6. 发布 MarkerArray：估计箱体、左右夹爪点、夹爪连线、箱心、文字说明。
+7. action=stop 时只停止 timer，默认保留最后一帧话题内容，方便 RViz 现场分析。
+
+注意：
+- 这个节点只做诊断可视化，不参与控制、不修改抓取/放置目标。
+- 默认估计箱心=左右夹爪中点。后续如果要更严谨，可以在闭爪瞬间记录
+  “FP 箱心 - 左右夹爪中点”的偏移，然后持续使用该偏移。
+"""
+
+import math
+import time
+
+import numpy as np
+import py_trees
+from geometry_msgs.msg import Point
+from py_trees.common import Status
+from visualization_msgs.msg import Marker, MarkerArray
+
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.runtime.http.move_and_grab_flow import Pose2D, transform_base_point_to_global
+from tree.utils.geometry import ypr_to_rotation_matrix
+
+from ..base import TimedMockAction
+
+
+class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
+    """启动/停止抓箱后的持续箱体估计可视化。"""
+
+    allow_manual_result_override = False
+
+    def __init__(self, name, config_label, ros_node, params):
+        super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
+        self.action = str(params.get("action", "start")).strip().lower()
+        self.services_key = str(params.get("services_key", ROBOT_SERVICES_KEY)).strip()
+        self.monitor_state_key = str(
+            params.get("monitor_state_key", "move_box_held_box_visualization_monitor")
+        ).strip()
+        self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
+        self.visualization_topic = str(
+            params.get("visualization_topic", "/move_box/held_box_estimate_markers")
+        ).strip()
+        self.publish_interval_sec = max(0.03, float(params.get("publish_interval_sec", 0.10)))
+        self.log_interval_sec = max(0.2, float(params.get("log_interval_sec", 2.0)))
+
+        # 箱体尺寸用于 RViz 显示。默认按当前实测箱体：左右长边 0.60m，前后短边 0.40m，高 0.34m。
+        self.box_size_x = float(params.get("box_size_x", 0.60))
+        self.box_size_y = float(params.get("box_size_y", 0.40))
+        self.box_size_z = float(params.get("box_size_z", 0.34))
+
+        # 以左右夹爪中点为基准，在估计箱体局部坐标系下附加偏移。
+        # x：沿左右夹爪连线/箱体长边；y：箱体短边方向；z：竖直方向。
+        self.box_center_offset_x_m = float(params.get("box_center_offset_x_m", 0.0))
+        self.box_center_offset_y_m = float(params.get("box_center_offset_y_m", 0.0))
+        self.box_center_offset_z_m = float(params.get("box_center_offset_z_m", 0.0))
+        self.fallback_yaw_offset_deg = float(params.get("fallback_yaw_offset_deg", 0.0))
+
+        self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key=self.monitor_state_key, access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key=self.monitor_state_key, access=py_trees.common.Access.READ)
+
+        self.odom_transformer = self.get_odom_pose_transformer(
+            self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame=BASE_LINK_FRAME,
+        )
+        self.visualization_pub = None
+        if self.visualization_topic:
+            self.visualization_pub = self.ros_node.create_publisher(
+                self.visualization_topic,
+                MarkerArray,
+                queue_size=1,
+                latch=True,
+            )
+        self._timer = None
+        self._last_log_at = 0.0
+        self._last_publish_error_at = 0.0
+
+    def update(self):
+        if self.action in ("stop", "clear", "disable"):
+            self._stop_existing_monitor()
+            if self.action == "clear" or self._to_bool(self.params.get("clear_on_stop", False)):
+                self._publish_clear()
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] 已停止手中箱体持续可视化: topic={self.visualization_topic}"
+            )
+            return Status.SUCCESS
+
+        if self.action not in ("start", "enable"):
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] unsupported action={self.action!r}, expected start/stop"
+            )
+            return Status.FAILURE
+
+        if self.visualization_pub is None:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] visualization_topic 为空，跳过手中箱体持续可视化"
+            )
+            return Status.SUCCESS
+
+        existing_state = self._get_monitor_state()
+        existing_timer = existing_state.get("timer") if existing_state else None
+        if existing_timer is not None and not existing_timer.is_canceled():
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] 手中箱体持续可视化已在运行: "
+                f"topic={existing_state.get('topic', self.visualization_topic)}"
+            )
+            return Status.SUCCESS
+
+        self._timer = self.ros_node.create_timer(self.publish_interval_sec, self._on_timer)
+        self.blackboard.set(
+            self.monitor_state_key,
+            {
+                "timer": self._timer,
+                "topic": self.visualization_topic,
+                "started_at": time.monotonic(),
+                "owner": self.config_label,
+            },
+            overwrite=True,
+        )
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已启动手中箱体持续可视化: "
+            f"topic={self.visualization_topic}, interval={self.publish_interval_sec:.2f}s, "
+            f"box=({self.box_size_x:.2f},{self.box_size_y:.2f},{self.box_size_z:.2f}), "
+            f"center_offset=({self.box_center_offset_x_m:.3f},"
+            f"{self.box_center_offset_y_m:.3f},{self.box_center_offset_z_m:.3f})"
+        )
+        return Status.SUCCESS
+
+    def _on_timer(self):
+        try:
+            self._publish_held_box_visualization()
+        except Exception as exc:  # noqa: BLE001 - timer 线程里必须兜住异常，不能打断行为树 tick。
+            now = time.monotonic()
+            if now - self._last_publish_error_at >= self.log_interval_sec:
+                self._last_publish_error_at = now
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 手中箱体持续可视化刷新失败: {exc}"
+                )
+
+    def _publish_held_box_visualization(self):
+        if self.visualization_pub is None:
+            return
+
+        claw_pair_base = self._get_current_claw_pair_base()
+        current_pose = self.odom_transformer.get_current_pose()
+        if claw_pair_base is None or current_pose is None:
+            self._log_throttled(
+                "等待手中箱体可视化输入: "
+                f"claw_pair={'ok' if claw_pair_base is not None else 'missing'}, "
+                f"odom={'ok' if current_pose is not None else 'missing'}"
+            )
+            return
+
+        left_base, right_base = claw_pair_base
+        robot_pose = Pose2D(
+            x=float(current_pose[0]),
+            y=float(current_pose[1]),
+            yaw=float(current_pose[3]),
+        )
+        map_z_offset = float(current_pose[2])
+
+        left_map = self._base_point_to_map(left_base, robot_pose, map_z_offset)
+        right_map = self._base_point_to_map(right_base, robot_pose, map_z_offset)
+        center_map, yaw_deg = self._estimate_box_pose(left_map, right_map, robot_pose)
+
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        marker_id = 1
+        marker_id = self._append_box(marker_array, marker_id, center_map, yaw_deg)
+        marker_id = self._append_sphere(
+            marker_array,
+            marker_id,
+            "left_claw_actual",
+            left_map,
+            color=(1.0, 0.0, 1.0, 1.0),
+            scale=0.075,
+        )
+        marker_id = self._append_sphere(
+            marker_array,
+            marker_id,
+            "right_claw_actual",
+            right_map,
+            color=(1.0, 0.55, 0.0, 1.0),
+            scale=0.075,
+        )
+        marker_id = self._append_sphere(
+            marker_array,
+            marker_id,
+            "held_box_center",
+            center_map,
+            color=(0.0, 1.0, 0.25, 1.0),
+            scale=0.08,
+        )
+        marker_id = self._append_line(
+            marker_array,
+            marker_id,
+            "claw_connection",
+            left_map,
+            right_map,
+            color=(1.0, 1.0, 0.0, 0.95),
+            width=0.025,
+        )
+        self._append_text(marker_array, marker_id, center_map, yaw_deg, left_map, right_map)
+
+        self.visualization_pub.publish(marker_array)
+
+    def _get_current_claw_pair_base(self):
+        services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
+        if services is None or not hasattr(services, "arm_controller"):
+            return None
+
+        left = self._current_claw_point_base(services.arm_controller, "left")
+        right = self._current_claw_point_base(services.arm_controller, "right")
+        if left is None or right is None:
+            return None
+        return left, right
+
+    def _current_claw_point_base(self, arm_controller, side):
+        if hasattr(arm_controller, "get_current_end_effector_pose"):
+            current_pose = arm_controller.get_current_end_effector_pose(side)
+        else:
+            current_pose = None
+
+        if current_pose is None:
+            current_pose = (
+                arm_controller.current_left_target
+                if side == "left"
+                else arm_controller.current_right_target
+            )
+        if current_pose is None or len(current_pose) != 6:
+            return None
+
+        transform = arm_controller.lookup_end_effector_to_claw_transform(side)
+        if transform is None:
+            return None
+
+        translation, _ = transform
+        rotation = ypr_to_rotation_matrix(current_pose[3:6])
+        end_effector_point = np.array(current_pose[:3], dtype=float)
+        return end_effector_point + rotation.dot(translation)
+
+    def _base_point_to_map(self, point_base, robot_pose, map_z_offset):
+        point_2d = transform_base_point_to_global(
+            robot_pose,
+            float(point_base[0]),
+            float(point_base[1]),
+        )
+        return {
+            "x": point_2d["x"],
+            "y": point_2d["y"],
+            "z": float(point_base[2]) + map_z_offset,
+        }
+
+    def _estimate_box_pose(self, left_map, right_map, robot_pose):
+        midpoint = {
+            "x": 0.5 * (left_map["x"] + right_map["x"]),
+            "y": 0.5 * (left_map["y"] + right_map["y"]),
+            "z": 0.5 * (left_map["z"] + right_map["z"]),
+        }
+
+        dx = right_map["x"] - left_map["x"]
+        dy = right_map["y"] - left_map["y"]
+        norm = math.hypot(dx, dy)
+        if math.isfinite(norm) and norm > 1e-6:
+            x_axis = (dx / norm, dy / norm)
+            yaw_deg = math.degrees(math.atan2(x_axis[1], x_axis[0]))
+        else:
+            yaw_deg = float(robot_pose.yaw) + self.fallback_yaw_offset_deg
+            yaw_rad = math.radians(yaw_deg)
+            x_axis = (math.cos(yaw_rad), math.sin(yaw_rad))
+
+        y_axis = (-x_axis[1], x_axis[0])
+        center = {
+            "x": midpoint["x"]
+            + self.box_center_offset_x_m * x_axis[0]
+            + self.box_center_offset_y_m * y_axis[0],
+            "y": midpoint["y"]
+            + self.box_center_offset_x_m * x_axis[1]
+            + self.box_center_offset_y_m * y_axis[1],
+            "z": midpoint["z"] + self.box_center_offset_z_m,
+        }
+        return center, yaw_deg
+
+    def _append_box(self, marker_array, marker_id, center_map, yaw_deg):
+        marker = self._new_marker(marker_id, "held_box_estimate", Marker.CUBE)
+        marker.pose.position.x = center_map["x"]
+        marker.pose.position.y = center_map["y"]
+        marker.pose.position.z = center_map["z"]
+        yaw_rad = math.radians(yaw_deg)
+        marker.pose.orientation.z = math.sin(yaw_rad * 0.5)
+        marker.pose.orientation.w = math.cos(yaw_rad * 0.5)
+        marker.scale.x = self.box_size_x
+        marker.scale.y = self.box_size_y
+        marker.scale.z = self.box_size_z
+        self._set_color(marker, 0.1, 0.85, 1.0, 0.35)
+        marker_array.markers.append(marker)
+        return marker_id + 1
+
+    def _append_sphere(self, marker_array, marker_id, namespace, point, color, scale):
+        marker = self._new_marker(marker_id, namespace, Marker.SPHERE)
+        marker.pose.position.x = point["x"]
+        marker.pose.position.y = point["y"]
+        marker.pose.position.z = point["z"]
+        marker.scale.x = marker.scale.y = marker.scale.z = float(scale)
+        self._set_color(marker, *color)
+        marker_array.markers.append(marker)
+        return marker_id + 1
+
+    def _append_line(self, marker_array, marker_id, namespace, start, end, color, width):
+        marker = self._new_marker(marker_id, namespace, Marker.LINE_LIST)
+        marker.scale.x = float(width)
+        marker.points = [
+            Point(x=start["x"], y=start["y"], z=start["z"]),
+            Point(x=end["x"], y=end["y"], z=end["z"]),
+        ]
+        self._set_color(marker, *color)
+        marker_array.markers.append(marker)
+        return marker_id + 1
+
+    def _append_text(self, marker_array, marker_id, center, yaw_deg, left, right):
+        distance = math.sqrt(
+            (right["x"] - left["x"]) ** 2
+            + (right["y"] - left["y"]) ** 2
+            + (right["z"] - left["z"]) ** 2
+        )
+        marker = self._new_marker(marker_id, "held_box_text", Marker.TEXT_VIEW_FACING)
+        marker.pose.position.x = center["x"]
+        marker.pose.position.y = center["y"]
+        marker.pose.position.z = center["z"] + 0.45
+        marker.scale.z = 0.10
+        marker.text = (
+            "HELD BOX ESTIMATE\n"
+            f"center=({center['x']:.2f},{center['y']:.2f},{center['z']:.2f}) yaw={yaw_deg:.1f}\n"
+            f"claw_dist={distance:.3f} box=({self.box_size_x:.2f},{self.box_size_y:.2f},{self.box_size_z:.2f})\n"
+            f"topic={self.visualization_topic}"
+        )
+        self._set_color(marker, 1.0, 1.0, 1.0, 1.0)
+        marker_array.markers.append(marker)
+
+    def _publish_clear(self):
+        if self.visualization_pub is None:
+            return
+        marker_array = MarkerArray()
+        clear_marker = Marker()
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+        self.visualization_pub.publish(marker_array)
+
+    def _stop_existing_monitor(self):
+        state = self._get_monitor_state()
+        timer = state.get("timer") if state else None
+        if timer is not None and not timer.is_canceled():
+            timer.cancel()
+        if self.monitor_state_key:
+            self.blackboard.set(self.monitor_state_key, {}, overwrite=True)
+
+    def _get_monitor_state(self):
+        if not self.monitor_state_key or not self.blackboard.exists(self.monitor_state_key):
+            return None
+        state = self.blackboard.get(self.monitor_state_key)
+        return state if isinstance(state, dict) else None
+
+    def _log_throttled(self, message):
+        now = time.monotonic()
+        if now - self._last_log_at < self.log_interval_sec:
+            return
+        self._last_log_at = now
+        self.ros_node.get_logger().warning(f"[{self.config_label}] {message}")
+
+    def _new_marker(self, marker_id, namespace, marker_type):
+        marker = Marker()
+        marker.header.frame_id = MAP_FRAME
+        marker.header.stamp = self.ros_node.now()
+        marker.ns = namespace
+        marker.id = marker_id
+        marker.type = marker_type
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        return marker
+
+    @staticmethod
+    def _set_color(marker, red, green, blue, alpha):
+        marker.color.r = float(red)
+        marker.color.g = float(green)
+        marker.color.b = float(blue)
+        marker.color.a = float(alpha)
+
+    def describe_start(self):
+        return (
+            f"[{self.config_label}] MoveBoxHeldBoxVisualizationMonitor start: "
+            f"action={self.action}, topic={self.visualization_topic}, "
+            f"interval={self.publish_interval_sec:.2f}s, services_key={self.services_key}, "
+            f"monitor_key={self.monitor_state_key}"
+        )

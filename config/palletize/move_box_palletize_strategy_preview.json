@@ -148,6 +148,56 @@
                 }
               },
               {
+                "name": "MoveBoxHeldBoxVisualizationMonitor",
+                "label": "启动抓箱后手中箱体持续可视化",
+                "params": {
+                  "action": {
+                    "value": "start",
+                    "source": "CUSTOM"
+                  },
+                  "services_key": {
+                    "value": "robot_services",
+                    "source": "CUSTOM"
+                  },
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "visualization_topic": {
+                    "value": "/move_box/held_box_estimate_markers",
+                    "source": "CUSTOM"
+                  },
+                  "publish_interval_sec": {
+                    "value": "0.10",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_x": {
+                    "value": "0.60",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_y": {
+                    "value": "0.40",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_z": {
+                    "value": "0.34",
+                    "source": "CUSTOM"
+                  },
+                  "box_center_offset_x_m": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  },
+                  "box_center_offset_y_m": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  },
+                  "box_center_offset_z_m": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
                 "name": "ComputeMoveBoxPalletPlaceStrategy",
                 "label": "计算码垛槽位、导航位与放箱策略",
                 "params": {
@@ -270,7 +320,7 @@
                     "source": "CUSTOM"
                   },
                   "strategy_mode": {
-                    "value": "auto",
+                    "value": "right_push_left_place",
                     "source": "CUSTOM"
                   },
                   "visualization_enabled": {
@@ -435,6 +485,28 @@
                 "params": {
                   "file": {
                     "value": "subtree/move_box_pallet_place_execute_strategy.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "MoveBoxHeldBoxVisualizationMonitor",
+                "label": "停止抓箱后手中箱体持续可视化",
+                "params": {
+                  "action": {
+                    "value": "stop",
+                    "source": "CUSTOM"
+                  },
+                  "services_key": {
+                    "value": "robot_services",
+                    "source": "CUSTOM"
+                  },
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "visualization_topic": {
+                    "value": "/move_box/held_box_estimate_markers",
                     "source": "CUSTOM"
                   }
                 }
