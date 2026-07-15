@@ -320,7 +320,7 @@
                     "source": "CUSTOM"
                   },
                   "strategy_mode": {
-                    "value": "right_push_left_place",
+                    "value": "auto",
                     "source": "CUSTOM"
                   },
                   "visualization_enabled": {
