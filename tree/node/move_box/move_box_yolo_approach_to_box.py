@@ -119,6 +119,14 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         )
         if self.valid_box_polygon_required and not self.valid_box_map_polygon:
             raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
+        self.excluded_box_map_polygon = parse_map_polygon(
+            params.get("excluded_box_map_polygon", [])
+        )
+        self.excluded_box_polygon_required = self._to_bool(
+            params.get("excluded_box_polygon_required", False)
+        )
+        if self.excluded_box_polygon_required and not self.excluded_box_map_polygon:
+            raise ValueError("excluded_box_polygon_required=True 时必须配置 excluded_box_map_polygon")
         self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
         self.navigation_visualization_enabled = self._to_bool(
             params.get("navigation_visualization_enabled", True)
@@ -500,11 +508,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
         self._log_info(
             "YOLO检测",
-            "是否更新=%s 原始数量=%d 区域过滤启用=%s 3D重叠阈值=%.3fm"
+            "是否更新=%s 原始数量=%d 区域过滤启用=%s 排除区域启用=%s 3D重叠阈值=%.3fm"
             % (
                 updated,
                 len(raw_detection),
                 bool(self.valid_box_map_polygon),
+                bool(self.excluded_box_map_polygon),
                 self.min_detected_box_3d_distance_m,
             ),
             "magenta",
@@ -561,6 +570,31 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 self._log_info(
                     "YOLO目标过滤",
                     "序号=%d/%d 过滤类型=指定区域外 base坐标=%s map坐标=%s"
+                    % (
+                        index + 1,
+                        len(target_candidates),
+                        self._format_position(base_position),
+                        self._format_position(map_position),
+                    ),
+                    "yellow",
+                )
+                continue
+            if self._is_map_position_excluded(map_position):
+                filtered_count += 1
+                filtered_target = {
+                    "id": "",
+                    "map_position": map_position,
+                    "box": dict(target.get("box") or {}),
+                    "geometry": target.get("geometry"),
+                    "_base_position": base_position,
+                    "filter_reason": "inside_excluded_box_map_polygon",
+                    "filter_text": "垛盘区域内",
+                }
+                self._filtered_box_targets.append(filtered_target)
+                self._visualization_box_targets.append(filtered_target)
+                self._log_info(
+                    "YOLO目标过滤",
+                    "序号=%d/%d 过滤类型=垛盘排除区域内 base坐标=%s map坐标=%s"
                     % (
                         index + 1,
                         len(target_candidates),
@@ -1386,11 +1420,18 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         """判断目标是否落在配置的有效 map 区域内。"""
         if target is None:
             return False
-        return self._is_map_position_allowed(target.get("map_position"))
+        map_position = target.get("map_position")
+        return self._is_map_position_allowed(map_position) and not self._is_map_position_excluded(map_position)
 
     def _is_map_position_allowed(self, map_position):
         """判断 map 坐标是否允许参与 YOLO 选择和记忆。"""
         return is_map_position_in_polygon(map_position, self.valid_box_map_polygon)
+
+    def _is_map_position_excluded(self, map_position):
+        """判断 map 坐标是否落在显式排除区域内；未配置排除区时不排除。"""
+        if not self.excluded_box_map_polygon:
+            return False
+        return is_map_position_in_polygon(map_position, self.excluded_box_map_polygon)
 
     def _find_overlapped_detected_target(self, target):
         """在本轮已保留目标中查找 3D 距离过近的重复检测。"""

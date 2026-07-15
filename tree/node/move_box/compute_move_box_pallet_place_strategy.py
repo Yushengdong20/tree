@@ -271,7 +271,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 "left",
                 "right",
                 "配置强制右爪向左推",
-                tuple(-value for value in x_axis),
+                x_axis,
             )
         if self.strategy_mode in ("left_push_right", "left_push_right_place"):
             return self._strategy(
@@ -279,7 +279,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 "right",
                 "left",
                 "配置强制左爪向右推",
-                x_axis,
+                tuple(-value for value in x_axis),
             )
 
         # 自动策略第一版基于 stack_count/slot 推断已有码垛箱：
@@ -295,7 +295,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 "left",
                 "right",
                 "左侧已有槽位，先右偏预落位，再由右爪向左推",
-                tuple(-value for value in x_axis),
+                x_axis,
             )
         if right_neighbor_placed:
             return self._strategy(
@@ -303,7 +303,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 "right",
                 "left",
                 "右侧已有槽位，先左偏预落位，再由左爪向右推",
-                x_axis,
+                tuple(-value for value in x_axis),
             )
         return self._strategy("direct_place", "both", "none", "当前槽位无同排邻箱，直接放箱", (0.0, 0.0))
 
