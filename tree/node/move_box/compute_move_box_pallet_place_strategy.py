@@ -1,18 +1,19 @@
-"""计算 move_box 码垛放箱策略与动态预估箱体。
+"""计算 move_box 码垛目标、导航站位、放箱策略与动作参考点。
 
-本节点位于 ComputeMoveBoxPalletStackTarget 之后：
+本节点是码垛策略版流程里的唯一“码垛规划节点”：
 
-1. 读取上游已经确定的最终码垛 slot / expected_box_pose / 放置高度。
-2. 根据 stack_count 与 slot 行列推断相邻已放箱，选择放置策略：
+1. 根据固定垛盘 polygon / slot_reference_points / stack_count 选择本轮槽位。
+2. 输出最终放置箱心、垛盘外导航目标和放置平面高度。
+3. 根据 stack_count 与 slot 行列推断相邻已放箱，选择放置策略：
    - direct_place：无明显邻箱，直接放。
    - right_push_left_place：先放在目标右侧，再由右爪向左推到最终位。
    - left_push_right_place：先放在目标左侧，再由左爪向右推到最终位。
-3. 根据当前双爪实际点近似估计“手里箱子”的当前姿态。
-4. 输出策略、预落位箱体、最终箱体、推送方向、释放爪侧等 blackboard key。
-5. 发布独立 RViz 诊断话题，供实机调试和方案确认。
+4. 根据当前双爪实际点近似估计“手里箱子”的当前姿态。
+5. 输出策略、预落位箱体、最终箱体、推送方向、释放爪侧、动作夹爪点等 blackboard key。
+6. 发布独立 RViz 诊断话题，供实机调试和方案确认。
 
-注意：第一版只负责“策略计算 + 可视化 + blackboard 输出”，不直接控制手臂。
-实际放箱动作仍由后续 ArmsToPose / OpenClaw 等节点执行。
+注意：本节点只负责“规划 + 可视化 + blackboard 输出”，不直接控制手臂。
+实际放箱动作由后续 ArmsToPose / OpenClaw 等节点执行。
 """
 
 import math
@@ -30,6 +31,7 @@ from tree.runtime.http.move_and_grab_flow import (
     transform_global_point_to_base,
 )
 from tree.utils.geometry import get_odom_pose_transformer, ypr_to_rotation_matrix
+from tree.utils.params import parse_param_value
 
 from ..base import TimedMockAction
 
@@ -43,6 +45,32 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
         self.services_key = str(params.get("services_key", ROBOT_SERVICES_KEY)).strip()
         self.stack_count_key = str(params.get("stack_count_key", "move_box_pallet_stack_count")).strip()
+
+        self.pallet_map_polygon = self._parse_polygon(
+            params.get(
+                "pallet_map_polygon",
+                [[-0.3, 1.0], [1.0, 1.0], [1.0, 0.1], [-0.3, 0.1]],
+            )
+        )
+        self.slot_reference_points = self._parse_polygon(params.get("slot_reference_points", []))
+        self.slot_reference_row_axis = self._parse_vector(params.get("slot_reference_row_axis", []))
+        self.slot_yaw_deg = self._optional_float(params.get("slot_yaw_deg", None))
+        self.rows = int(params.get("slot_rows", 2))
+        self.cols = int(params.get("slot_cols", 2))
+        self.max_layers = int(params.get("max_layers", 1))
+        self.box_size_x = float(params.get("box_size_x", 0.60))
+        self.box_size_y = float(params.get("box_size_y", 0.40))
+        self.box_size_z = float(params.get("box_size_z", 0.34))
+        self.slot_gap_x = float(params.get("slot_gap_x", 0.04))
+        self.slot_gap_y = float(params.get("slot_gap_y", 0.04))
+        self.pallet_surface_z = float(params.get("pallet_surface_z", 0.0))
+        self.place_clearance_z = float(params.get("place_clearance_z", 0.0))
+        self.place_box_forward_offset_m = float(params.get("place_box_forward_offset_m", 0.90))
+        self.approach_side = str(params.get("approach_side", "positive_y")).strip().lower()
+
+        self.navigation_target_key = str(
+            params.get("navigation_target_key", "move_box_pallet_stack_navigation_target")
+        ).strip()
         self.slot_pose_key = str(params.get("slot_pose_key", "move_box_pallet_stack_slot_pose")).strip()
         self.expected_box_pose_key = str(
             params.get("expected_box_pose_key", "move_box_pallet_stack_expected_box_pose")
@@ -87,11 +115,6 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             params.get("lift_right_claw_point_key", "move_box_pallet_lift_right_claw_point")
         ).strip()
 
-        self.rows = int(params.get("slot_rows", 2))
-        self.cols = int(params.get("slot_cols", 2))
-        self.box_size_x = float(params.get("box_size_x", 0.60))
-        self.box_size_y = float(params.get("box_size_y", 0.40))
-        self.box_size_z = float(params.get("box_size_z", 0.34))
         self.pre_place_lateral_offset_m = float(params.get("pre_place_lateral_offset_m", 0.10))
         self.push_distance_m = float(params.get("push_distance_m", self.pre_place_lateral_offset_m))
         self.claw_lift_clearance_m = float(params.get("claw_lift_clearance_m", 0.18))
@@ -103,16 +126,14 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             params.get("visualization_topic", "/move_box/pallet_place_dynamic_estimate_markers")
         ).strip()
 
-        for key in (
-            self.services_key,
-            self.stack_count_key,
-            self.slot_pose_key,
-            self.expected_box_pose_key,
-            self.place_plane_height_key,
-        ):
+        for key in (self.services_key, self.stack_count_key):
             self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
 
         for key in (
+            self.navigation_target_key,
+            self.slot_pose_key,
+            self.expected_box_pose_key,
+            self.place_plane_height_key,
             self.strategy_key,
             self.final_box_pose_key,
             self.pre_box_pose_key,
@@ -145,14 +166,38 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             )
 
     def update(self):
-        expected_box_pose = self._read_pose(self.expected_box_pose_key, required=True)
-        slot_pose = self._read_pose(self.slot_pose_key, required=True)
-        if expected_box_pose is None or slot_pose is None:
+        if self.rows <= 0 or self.cols <= 0:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] rows/cols 必须为正数: rows={self.rows}, cols={self.cols}"
+            )
+            return Status.FAILURE
+
+        geometry = self._build_pallet_geometry()
+        if geometry is None:
             return Status.FAILURE
 
         stack_count = self._read_stack_count()
-        row = int(slot_pose.get("row", (stack_count % max(1, self.rows * self.cols)) // max(1, self.cols)))
-        col = int(slot_pose.get("col", stack_count % max(1, self.cols)))
+        slots_per_layer = self.rows * self.cols
+        layer = stack_count // slots_per_layer
+        if self.max_layers > 0 and layer >= self.max_layers:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 码垛层数已超限: "
+                f"stack_count={stack_count}, layer={layer}, max_layers={self.max_layers}"
+            )
+            return Status.FAILURE
+
+        slot_index = stack_count % slots_per_layer
+        row = slot_index // self.cols
+        col = slot_index % self.cols
+        slot_pose = self._compute_slot_pose(geometry, row, col, layer)
+        navigation_pose = self._compute_navigation_pose(geometry, slot_pose)
+        place_plane_height = (
+            self.pallet_surface_z
+            + layer * self.box_size_z
+            + self.place_clearance_z
+        )
+        expected_box_pose = dict(slot_pose)
+        expected_box_pose["z"] = place_plane_height + self.box_size_z * 0.5
 
         x_axis, y_axis = self._slot_axes(expected_box_pose)
         strategy_info = self._select_strategy(row=row, col=col, x_axis=x_axis, stack_count=stack_count)
@@ -165,6 +210,10 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             pre_box_pose=pre_box_pose,
         )
 
+        self.blackboard.set(self.navigation_target_key, navigation_pose, overwrite=True)
+        self.blackboard.set(self.slot_pose_key, slot_pose, overwrite=True)
+        self.blackboard.set(self.expected_box_pose_key, expected_box_pose, overwrite=True)
+        self.blackboard.set(self.place_plane_height_key, float(place_plane_height), overwrite=True)
         self.blackboard.set(self.strategy_key, strategy_info["strategy"], overwrite=True)
         self.blackboard.set(self.final_box_pose_key, final_box_pose, overwrite=True)
         self.blackboard.set(self.pre_box_pose_key, pre_box_pose, overwrite=True)
@@ -181,7 +230,12 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             self.blackboard.set(self.lift_right_claw_point_key, action_points["lift_right"], overwrite=True)
 
         self._publish_visualization(
+            geometry=geometry,
+            selected_row=row,
+            selected_col=col,
+            layer=layer,
             slot_pose=slot_pose,
+            navigation_pose=navigation_pose,
             final_box_pose=final_box_pose,
             pre_box_pose=pre_box_pose,
             held_box_pose=held_box_pose,
@@ -193,7 +247,10 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算码垛放箱策略: "
             f"strategy={strategy_info['strategy']}, reason={strategy_info['reason']}, "
-            f"row={row}, col={col}, stack_count={stack_count}, "
+            f"stack_count={stack_count}, layer={layer}, row={row}, col={col}, "
+            f"slot=({slot_pose['x']:.3f}, {slot_pose['y']:.3f}, {slot_pose['yaw']:.2f}deg), "
+            f"nav=({navigation_pose['x']:.3f}, {navigation_pose['y']:.3f}, "
+            f"{navigation_pose['yaw']:.2f}deg), place_plane_z={place_plane_height:.3f}, "
             f"final_box=({final_box_pose['x']:.3f}, {final_box_pose['y']:.3f}, "
             f"{final_box_pose.get('z', 0.0):.3f}, yaw={final_box_pose.get('yaw', 0.0):.2f}), "
             f"pre_box=({pre_box_pose['x']:.3f}, {pre_box_pose['y']:.3f}, "
@@ -259,6 +316,185 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             "reason": reason,
             "push_axis": tuple(float(value) for value in push_axis),
         }
+
+    def _build_pallet_geometry(self):
+        if len(self.slot_reference_points) >= 2:
+            return self._build_reference_points_geometry()
+
+        if len(self.pallet_map_polygon) < 3:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] pallet_map_polygon 至少需要 3 个点"
+            )
+            return None
+
+        cx = sum(point[0] for point in self.pallet_map_polygon) / len(self.pallet_map_polygon)
+        cy = sum(point[1] for point in self.pallet_map_polygon) / len(self.pallet_map_polygon)
+        center = (cx, cy)
+
+        longest = None
+        longest_len = -1.0
+        for index, start in enumerate(self.pallet_map_polygon):
+            end = self.pallet_map_polygon[(index + 1) % len(self.pallet_map_polygon)]
+            dx = end[0] - start[0]
+            dy = end[1] - start[1]
+            length = math.hypot(dx, dy)
+            if length > longest_len:
+                longest = (dx, dy)
+                longest_len = length
+
+        if longest is None or longest_len <= 1e-6:
+            self.ros_node.get_logger().error(f"[{self.config_label}] 无法从垛盘 polygon 提取方向")
+            return None
+
+        x_axis = (longest[0] / longest_len, longest[1] / longest_len)
+        y_axis = (-x_axis[1], x_axis[0])
+        projections_x = [self._dot((p[0] - cx, p[1] - cy), x_axis) for p in self.pallet_map_polygon]
+        projections_y = [self._dot((p[0] - cx, p[1] - cy), y_axis) for p in self.pallet_map_polygon]
+        extent_x = max(projections_x) - min(projections_x)
+        extent_y = max(projections_y) - min(projections_y)
+
+        required_x = self.cols * self.box_size_x + max(0, self.cols - 1) * self.slot_gap_x
+        required_y = self.rows * self.box_size_y + max(0, self.rows - 1) * self.slot_gap_y
+        if required_x > extent_x + 1e-6 or required_y > extent_y + 1e-6:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 码垛网格尺寸可能超出垛盘: "
+                f"required=({required_x:.3f}, {required_y:.3f}), "
+                f"pallet_extent=({extent_x:.3f}, {extent_y:.3f})"
+            )
+
+        return {
+            "mode": "polygon_centered",
+            "center": center,
+            "x_axis": x_axis,
+            "y_axis": y_axis,
+            "extent_x": extent_x,
+            "extent_y": extent_y,
+            "required_x": required_x,
+            "required_y": required_y,
+            "yaw": self._slot_yaw_or_axis_yaw(x_axis),
+        }
+
+    def _build_reference_points_geometry(self):
+        p0 = self.slot_reference_points[0]
+        p1 = self.slot_reference_points[1]
+        dx = p1[0] - p0[0]
+        dy = p1[1] - p0[1]
+        slot_step_x = math.hypot(dx, dy)
+        if slot_step_x <= 1e-6:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] slot_reference_points 两点重合，无法定义码垛方向: "
+                f"{self.slot_reference_points}"
+            )
+            return None
+
+        x_axis = (dx / slot_step_x, dy / slot_step_x)
+        y_axis = self._reference_row_axis(x_axis, p0, p1)
+        required_x = self.cols * self.box_size_x + max(0, self.cols - 1) * self.slot_gap_x
+        required_y = self.rows * self.box_size_y + max(0, self.rows - 1) * self.slot_gap_y
+        expected_step_x = self.box_size_x + self.slot_gap_x
+        if self.cols > 1 and abs(slot_step_x - expected_step_x) > 0.08:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 两参考点间距与箱长+间隙差异较大: "
+                f"reference_step={slot_step_x:.3f}, expected={expected_step_x:.3f}"
+            )
+
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 使用码垛参考点生成槽位: "
+            f"p0=({p0[0]:.3f},{p0[1]:.3f}), p1=({p1[0]:.3f},{p1[1]:.3f}), "
+            f"x_axis=({x_axis[0]:.3f},{x_axis[1]:.3f}), "
+            f"row_axis=({y_axis[0]:.3f},{y_axis[1]:.3f})"
+        )
+        return {
+            "mode": "reference_points",
+            "reference_origin": p0,
+            "reference_second": p1,
+            "slot_step_x": slot_step_x,
+            "center": ((p0[0] + p1[0]) * 0.5, (p0[1] + p1[1]) * 0.5),
+            "x_axis": x_axis,
+            "y_axis": y_axis,
+            "extent_x": required_x,
+            "extent_y": required_y,
+            "required_x": required_x,
+            "required_y": required_y,
+            "yaw": self._slot_yaw_or_axis_yaw(x_axis),
+        }
+
+    def _reference_row_axis(self, x_axis, p0, p1):
+        explicit_axis = self.slot_reference_row_axis
+        if explicit_axis is not None:
+            return explicit_axis
+
+        candidate = (-x_axis[1], x_axis[0])
+        if len(self.pallet_map_polygon) >= 3:
+            cx = sum(point[0] for point in self.pallet_map_polygon) / len(self.pallet_map_polygon)
+            cy = sum(point[1] for point in self.pallet_map_polygon) / len(self.pallet_map_polygon)
+            mid = ((p0[0] + p1[0]) * 0.5, (p0[1] + p1[1]) * 0.5)
+            to_center = (cx - mid[0], cy - mid[1])
+            if self._dot(to_center, candidate) < 0.0:
+                candidate = (-candidate[0], -candidate[1])
+        return candidate
+
+    def _compute_slot_pose(self, geometry, row, col, layer):
+        del layer
+        if geometry.get("mode") == "reference_points":
+            origin = geometry["reference_origin"]
+            x_axis = geometry["x_axis"]
+            y_axis = geometry["y_axis"]
+            offset_x = col * geometry["slot_step_x"]
+            offset_y = row * (self.box_size_y + self.slot_gap_y)
+            x = origin[0] + offset_x * x_axis[0] + offset_y * y_axis[0]
+            y = origin[1] + offset_x * x_axis[1] + offset_y * y_axis[1]
+            return {
+                "x": float(x),
+                "y": float(y),
+                "z": float(self.pallet_surface_z),
+                "yaw": float(geometry["yaw"]),
+                "row": int(row),
+                "col": int(col),
+            }
+
+        start_x = -0.5 * geometry["required_x"] + 0.5 * self.box_size_x
+        start_y = -0.5 * geometry["required_y"] + 0.5 * self.box_size_y
+        offset_x = start_x + col * (self.box_size_x + self.slot_gap_x)
+        offset_y = start_y + row * (self.box_size_y + self.slot_gap_y)
+        center = geometry["center"]
+        x_axis = geometry["x_axis"]
+        y_axis = geometry["y_axis"]
+        x = center[0] + offset_x * x_axis[0] + offset_y * y_axis[0]
+        y = center[1] + offset_x * x_axis[1] + offset_y * y_axis[1]
+        return {
+            "x": float(x),
+            "y": float(y),
+            "z": float(self.pallet_surface_z),
+            "yaw": float(geometry["yaw"]),
+            "row": int(row),
+            "col": int(col),
+        }
+
+    def _compute_navigation_pose(self, geometry, slot_pose):
+        approach_axis = self._approach_axis(geometry)
+        nav_x = slot_pose["x"] + approach_axis[0] * self.place_box_forward_offset_m
+        nav_y = slot_pose["y"] + approach_axis[1] * self.place_box_forward_offset_m
+        yaw = math.degrees(math.atan2(slot_pose["y"] - nav_y, slot_pose["x"] - nav_x))
+        return {
+            "x": float(nav_x),
+            "y": float(nav_y),
+            "yaw": float(yaw),
+            "slot_x": float(slot_pose["x"]),
+            "slot_y": float(slot_pose["y"]),
+            "place_box_forward_offset_m": float(self.place_box_forward_offset_m),
+        }
+
+    def _approach_axis(self, geometry):
+        x_axis = geometry["x_axis"]
+        y_axis = geometry["y_axis"]
+        if self.approach_side == "negative_y":
+            return (-y_axis[0], -y_axis[1])
+        if self.approach_side == "positive_x":
+            return x_axis
+        if self.approach_side == "negative_x":
+            return (-x_axis[0], -x_axis[1])
+        return y_axis
 
     def _compute_pre_box_pose(self, final_box_pose, strategy_info):
         pre_pose = dict(final_box_pose)
@@ -467,7 +703,12 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
 
     def _publish_visualization(
         self,
+        geometry,
+        selected_row,
+        selected_col,
+        layer,
         slot_pose,
+        navigation_pose,
         final_box_pose,
         pre_box_pose,
         held_box_pose,
@@ -485,6 +726,23 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         marker_array.markers.append(clear_marker)
 
         marker_id = 1
+        marker_id = self._append_pallet_polygon(marker_array, marker_id)
+        if geometry.get("mode") == "reference_points":
+            marker_id = self._append_reference_points(marker_array, marker_id, geometry)
+        marker_id = self._append_all_slots(
+            marker_array,
+            marker_id,
+            geometry,
+            selected_row,
+            selected_col,
+            layer,
+        )
+        marker_id = self._append_navigation_marker(
+            marker_array,
+            marker_id,
+            navigation_pose,
+            final_box_pose,
+        )
         marker_id = self._append_box(
             marker_array,
             marker_id,
@@ -546,6 +804,8 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             "PALLET PLACE STRATEGY\n"
             f"strategy={strategy_info['strategy']}\n"
             f"reason={strategy_info['reason']}\n"
+            f"slot=({slot_pose['x']:.2f},{slot_pose['y']:.2f}) "
+            f"nav=({navigation_pose['x']:.2f},{navigation_pose['y']:.2f})\n"
             f"held=({held_box_pose['x']:.2f},{held_box_pose['y']:.2f}) source={held_box_pose.get('source', '')}\n"
             f"pre=({pre_box_pose['x']:.2f},{pre_box_pose['y']:.2f}) "
             f"final=({final_box_pose['x']:.2f},{final_box_pose['y']:.2f})\n"
@@ -555,6 +815,91 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         marker_array.markers.append(text)
 
         self.visualization_pub.publish(marker_array)
+
+    def _append_pallet_polygon(self, marker_array, marker_id):
+        if len(self.pallet_map_polygon) < 3:
+            return marker_id
+        polygon = self._new_marker(marker_id, "pallet_polygon", Marker.LINE_STRIP)
+        polygon.scale.x = 0.035
+        polygon.points = [
+            Point(x=float(p[0]), y=float(p[1]), z=self.pallet_surface_z + 0.02)
+            for p in self.pallet_map_polygon
+        ]
+        polygon.points.append(polygon.points[0])
+        self._set_color(polygon, 1.0, 0.45, 0.0, 1.0)
+        marker_array.markers.append(polygon)
+        return marker_id + 1
+
+    def _append_reference_points(self, marker_array, marker_id, geometry):
+        for ref_index, ref_point in enumerate((geometry["reference_origin"], geometry["reference_second"])):
+            ref_marker = self._new_marker(marker_id, "pallet_slot_reference_points", Marker.SPHERE)
+            marker_id += 1
+            ref_marker.pose.position.x = float(ref_point[0])
+            ref_marker.pose.position.y = float(ref_point[1])
+            ref_marker.pose.position.z = self.pallet_surface_z + 0.08
+            ref_marker.scale.x = ref_marker.scale.y = ref_marker.scale.z = 0.12
+            self._set_color(ref_marker, 1.0, 0.0, 1.0, 1.0)
+            marker_array.markers.append(ref_marker)
+
+            ref_text = self._new_marker(marker_id, "pallet_slot_reference_text", Marker.TEXT_VIEW_FACING)
+            marker_id += 1
+            ref_text.pose.position.x = float(ref_point[0])
+            ref_text.pose.position.y = float(ref_point[1])
+            ref_text.pose.position.z = self.pallet_surface_z + 0.22
+            ref_text.scale.z = 0.09
+            ref_text.text = f"STACK REF{ref_index}\n({ref_point[0]:.2f},{ref_point[1]:.2f})"
+            self._set_color(ref_text, 1.0, 0.0, 1.0, 1.0)
+            marker_array.markers.append(ref_text)
+        return marker_id
+
+    def _append_all_slots(self, marker_array, marker_id, geometry, selected_row, selected_col, layer):
+        for row in range(self.rows):
+            for col in range(self.cols):
+                pose = self._compute_slot_pose(geometry, row, col, layer)
+                selected = row == selected_row and col == selected_col
+                marker = self._new_marker(marker_id, "pallet_slots", Marker.CUBE)
+                marker_id += 1
+                marker.pose.position.x = pose["x"]
+                marker.pose.position.y = pose["y"]
+                marker.pose.position.z = self.pallet_surface_z + layer * self.box_size_z + self.box_size_z * 0.5
+                yaw_rad = math.radians(pose["yaw"])
+                marker.pose.orientation.z = math.sin(yaw_rad * 0.5)
+                marker.pose.orientation.w = math.cos(yaw_rad * 0.5)
+                marker.scale.x = self.box_size_x
+                marker.scale.y = self.box_size_y
+                marker.scale.z = self.box_size_z
+                if selected:
+                    self._set_color(marker, 0.0, 1.0, 0.25, 0.30)
+                else:
+                    self._set_color(marker, 0.55, 0.55, 0.55, 0.18)
+                marker_array.markers.append(marker)
+        return marker_id
+
+    def _append_navigation_marker(self, marker_array, marker_id, navigation_pose, final_box_pose):
+        nav_arrow = self._new_marker(marker_id, "pallet_stack_navigation", Marker.ARROW)
+        marker_id += 1
+        nav_arrow.pose.position.x = navigation_pose["x"]
+        nav_arrow.pose.position.y = navigation_pose["y"]
+        nav_arrow.pose.position.z = self.pallet_surface_z + 0.12
+        yaw_rad = math.radians(navigation_pose["yaw"])
+        nav_arrow.pose.orientation.z = math.sin(yaw_rad * 0.5)
+        nav_arrow.pose.orientation.w = math.cos(yaw_rad * 0.5)
+        nav_arrow.scale.x = 0.7
+        nav_arrow.scale.y = 0.12
+        nav_arrow.scale.z = 0.12
+        self._set_color(nav_arrow, 0.2, 0.9, 1.0, 1.0)
+        marker_array.markers.append(nav_arrow)
+
+        line = self._new_marker(marker_id, "pallet_stack_relation", Marker.LINE_LIST)
+        marker_id += 1
+        line.scale.x = 0.025
+        line.points = [
+            Point(x=navigation_pose["x"], y=navigation_pose["y"], z=self.pallet_surface_z + 0.08),
+            Point(x=final_box_pose["x"], y=final_box_pose["y"], z=final_box_pose.get("z", 0.0)),
+        ]
+        self._set_color(line, 0.2, 0.9, 1.0, 0.95)
+        marker_array.markers.append(line)
+        return marker_id
 
     def _append_box(self, marker_array, marker_id, namespace, pose, color):
         marker = self._new_marker(marker_id, namespace, Marker.CUBE)
@@ -612,10 +957,58 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         marker.color.b = float(blue)
         marker.color.a = float(alpha)
 
+    @staticmethod
+    def _dot(a, b):
+        return a[0] * b[0] + a[1] * b[1]
+
+    @staticmethod
+    def _parse_polygon(raw_polygon):
+        polygon = parse_param_value(raw_polygon)
+        if not isinstance(polygon, (list, tuple)):
+            return []
+        parsed = []
+        for point in polygon:
+            if not isinstance(point, (list, tuple)) or len(point) < 2:
+                continue
+            parsed.append((float(point[0]), float(point[1])))
+        return parsed
+
+    @staticmethod
+    def _parse_vector(raw_vector):
+        vector = parse_param_value(raw_vector)
+        if not isinstance(vector, (list, tuple)) or len(vector) < 2:
+            return None
+        try:
+            x = float(vector[0])
+            y = float(vector[1])
+        except (TypeError, ValueError):
+            return None
+        norm = math.hypot(x, y)
+        if not math.isfinite(norm) or norm <= 1e-6:
+            return None
+        return (x / norm, y / norm)
+
+    @staticmethod
+    def _optional_float(raw_value):
+        value = parse_param_value(raw_value)
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _slot_yaw_or_axis_yaw(self, x_axis):
+        if self.slot_yaw_deg is not None:
+            return float(self.slot_yaw_deg)
+        return math.degrees(math.atan2(x_axis[1], x_axis[0]))
+
     def describe_start(self):
         return (
             f"[{self.config_label}] ComputeMoveBoxPalletPlaceStrategy start: "
-            f"mode={self.strategy_mode}, stack_count_key={self.stack_count_key}, "
+            f"mode={self.strategy_mode}, rows={self.rows}, cols={self.cols}, "
+            f"max_layers={self.max_layers}, stack_count_key={self.stack_count_key}, "
+            f"nav_key={self.navigation_target_key}, plane_key={self.place_plane_height_key}, "
             f"slot_key={self.slot_pose_key}, expected_box_key={self.expected_box_pose_key}, "
             f"pre_offset={self.pre_place_lateral_offset_m:.3f}, push_distance={self.push_distance_m:.3f}, "
             f"topic={self.visualization_topic or '<disabled>'}"

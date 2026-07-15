@@ -148,8 +148,8 @@
                 }
               },
               {
-                "name": "ComputeMoveBoxPalletStackTarget",
-                "label": "计算当前码垛槽位与垛盘外导航位",
+                "name": "ComputeMoveBoxPalletPlaceStrategy",
+                "label": "计算码垛槽位、导航位与放箱策略",
                 "params": {
                   "pallet_map_polygon": {
                     "value": [
@@ -257,22 +257,28 @@
                     "value": "move_box_pallet_stack_expected_box_pose",
                     "source": "CUSTOM"
                   },
+                  "pre_place_lateral_offset_m": {
+                    "value": "0.10",
+                    "source": "CUSTOM"
+                  },
+                  "push_distance_m": {
+                    "value": "0.10",
+                    "source": "CUSTOM"
+                  },
+                  "claw_lift_clearance_m": {
+                    "value": "0.18",
+                    "source": "CUSTOM"
+                  },
+                  "strategy_mode": {
+                    "value": "auto",
+                    "source": "CUSTOM"
+                  },
                   "visualization_enabled": {
                     "value": "True",
                     "source": "CUSTOM"
                   },
                   "visualization_topic": {
-                    "value": "/move_box/pallet_stack_markers",
-                    "source": "CUSTOM"
-                  }
-                }
-              },
-              {
-                "name": "SubTree",
-                "label": "计算码垛放箱策略并预览动态箱体",
-                "params": {
-                  "file": {
-                    "value": "subtree/move_box_pallet_place_strategy_preview.json",
+                    "value": "/move_box/pallet_place_dynamic_estimate_markers",
                     "source": "CUSTOM"
                   }
                 }
