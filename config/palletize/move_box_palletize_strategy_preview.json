@@ -570,6 +570,48 @@
                 }
               },
               {
+                "name": "RefreshFpAndReportPalletPlaceError",
+                "label": "放箱后刷新FP并报告码垛偏差",
+                "params": {
+                  "expected_box_pose_key": {
+                    "value": "move_box_pallet_place_final_box_pose",
+                    "source": "CUSTOM"
+                  },
+                  "result_key": {
+                    "value": "move_box_pallet_place_error_result",
+                    "source": "CUSTOM"
+                  },
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "wait_timeout_sec": {
+                    "value": "3.0",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "clear_detection_cache_before_wait": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "fail_on_timeout": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  },
+                  "visualization_enabled": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "visualization_topic": {
+                    "value": "/move_box/pallet_place_error_markers",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
                 "name": "MoveBoxHeldBoxVisualizationMonitor",
                 "label": "停止抓箱后手中箱体持续可视化",
                 "params": {
