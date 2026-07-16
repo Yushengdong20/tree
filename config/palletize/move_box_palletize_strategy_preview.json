@@ -283,6 +283,10 @@
                     "value": "negative_y",
                     "source": "CUSTOM"
                   },
+                  "navigation_approach_mode": {
+                    "value": "two_sided_feasible",
+                    "source": "CUSTOM"
+                  },
                   "place_box_forward_offset_m": {
                     "value": "1.0",
                     "source": "CUSTOM"
@@ -329,6 +333,14 @@
                   },
                   "visualization_topic": {
                     "value": "/move_box/pallet_place_dynamic_estimate_markers",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_pallet_clearance_m": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_yaw_cost_weight": {
+                    "value": "0.01",
                     "source": "CUSTOM"
                   }
                 }

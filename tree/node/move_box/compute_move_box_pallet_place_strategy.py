@@ -30,6 +30,7 @@ from tree.runtime.http.move_and_grab_flow import (
     transform_base_point_to_global,
     transform_global_point_to_base,
 )
+from tree.utils.box_map_polygon import is_map_position_in_polygon
 from tree.utils.geometry import ypr_to_rotation_matrix
 from tree.utils.params import parse_param_value
 
@@ -67,6 +68,18 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         self.place_clearance_z = float(params.get("place_clearance_z", 0.0))
         self.place_box_forward_offset_m = float(params.get("place_box_forward_offset_m", 0.90))
         self.approach_side = str(params.get("approach_side", "positive_y")).strip().lower()
+        # fixed：沿 approach_side 固定一侧站位。
+        # row_outside：按 slot row 选择垛盘外侧站位；前排用 -row_axis，后排用 +row_axis。
+        # two_sided_feasible：参考 SelectAndPublishHighestYoloBox，围绕目标箱长边生成
+        # 两个面对箱子的候选导航点，过滤垛盘内/clearance 不足的点，再按代价选择。
+        self.navigation_approach_mode = str(
+            params.get("navigation_approach_mode", "fixed")
+        ).strip().lower()
+        self.navigation_pallet_clearance_m = max(
+            0.0,
+            float(params.get("navigation_pallet_clearance_m", 0.0)),
+        )
+        self.navigation_yaw_cost_weight = float(params.get("navigation_yaw_cost_weight", 0.01))
 
         self.navigation_target_key = str(
             params.get("navigation_target_key", "move_box_pallet_stack_navigation_target")
@@ -249,7 +262,11 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             f"stack_count={stack_count}, layer={layer}, row={row}, col={col}, "
             f"slot=({slot_pose['x']:.3f}, {slot_pose['y']:.3f}, {slot_pose['yaw']:.2f}deg), "
             f"nav=({navigation_pose['x']:.3f}, {navigation_pose['y']:.3f}, "
-            f"{navigation_pose['yaw']:.2f}deg), place_plane_z={place_plane_height:.3f}, "
+            f"{navigation_pose['yaw']:.2f}deg), "
+            f"nav_source={navigation_pose.get('approach_source', '<unknown>')}, "
+            f"nav_axis=({navigation_pose.get('approach_axis_x', 0.0):.3f},"
+            f"{navigation_pose.get('approach_axis_y', 0.0):.3f}), "
+            f"place_plane_z={place_plane_height:.3f}, "
             f"final_box=({final_box_pose['x']:.3f}, {final_box_pose['y']:.3f}, "
             f"{final_box_pose.get('z', 0.0):.3f}, yaw={final_box_pose.get('yaw', 0.0):.2f}), "
             f"pre_box=({pre_box_pose['x']:.3f}, {pre_box_pose['y']:.3f}, "
@@ -471,10 +488,33 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         }
 
     def _compute_navigation_pose(self, geometry, slot_pose):
-        approach_axis = self._approach_axis(geometry)
-        nav_x = slot_pose["x"] + approach_axis[0] * self.place_box_forward_offset_m
-        nav_y = slot_pose["y"] + approach_axis[1] * self.place_box_forward_offset_m
+        selected_candidate, evaluations = self._select_navigation_candidate(geometry, slot_pose)
+        approach_axis = selected_candidate["axis"]
+        approach_source = selected_candidate["source"]
+        nav_x = selected_candidate["x"]
+        nav_y = selected_candidate["y"]
+
+        # 安全兜底：如果算出来的导航点落在垛盘 polygon 内，而反方向在外面，就翻转站位。
+        # 这可以防止第二排 slot 仍使用第一排站位方向，导致目标点钻进垛盘区域。
+        if self._is_in_pallet_polygon(nav_x, nav_y):
+            opposite_axis = (-approach_axis[0], -approach_axis[1])
+            opposite_nav_x = slot_pose["x"] + opposite_axis[0] * self.place_box_forward_offset_m
+            opposite_nav_y = slot_pose["y"] + opposite_axis[1] * self.place_box_forward_offset_m
+            if not self._is_in_pallet_polygon(opposite_nav_x, opposite_nav_y):
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 码垛导航点落入垛盘区域，已切换到反向外侧站位: "
+                    f"slot=({slot_pose['x']:.3f},{slot_pose['y']:.3f}), "
+                    f"old_nav=({nav_x:.3f},{nav_y:.3f}), "
+                    f"new_nav=({opposite_nav_x:.3f},{opposite_nav_y:.3f}), "
+                    f"source={approach_source}"
+                )
+                approach_axis = opposite_axis
+                approach_source = f"{approach_source}:flipped_outside_pallet"
+                nav_x = opposite_nav_x
+                nav_y = opposite_nav_y
+
         yaw = math.degrees(math.atan2(slot_pose["y"] - nav_y, slot_pose["x"] - nav_x))
+        self._log_navigation_candidate_result(slot_pose, selected_candidate, evaluations, yaw)
         return {
             "x": float(nav_x),
             "y": float(nav_y),
@@ -482,7 +522,150 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             "slot_x": float(slot_pose["x"]),
             "slot_y": float(slot_pose["y"]),
             "place_box_forward_offset_m": float(self.place_box_forward_offset_m),
+            "approach_source": approach_source,
+            "approach_axis_x": float(approach_axis[0]),
+            "approach_axis_y": float(approach_axis[1]),
         }
+
+    def _select_navigation_candidate(self, geometry, slot_pose):
+        if self.navigation_approach_mode in (
+            "two_sided",
+            "two_sided_feasible",
+            "long_edge",
+            "long_edge_feasible",
+        ):
+            candidates = self._build_two_sided_navigation_candidates(geometry, slot_pose)
+            feasible = [candidate for candidate in candidates if candidate["feasible"]]
+            if feasible:
+                return min(
+                    feasible,
+                    key=lambda item: (
+                        item.get("outside_distance", 0.0),
+                        item["cost"],
+                    ),
+                ), candidates
+            if candidates:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 两侧码垛导航候选均不可行，回退到代价最低候选: "
+                    + "; ".join(
+                        f"{item['side']} reason={item['reason']} nav=({item['x']:.3f},{item['y']:.3f})"
+                        for item in candidates
+                    )
+                )
+                return min(candidates, key=lambda item: item["cost"]), candidates
+
+        approach_axis, approach_source = self._navigation_approach_axis(geometry, slot_pose)
+        nav_x = slot_pose["x"] + approach_axis[0] * self.place_box_forward_offset_m
+        nav_y = slot_pose["y"] + approach_axis[1] * self.place_box_forward_offset_m
+        feasible, reason = self._evaluate_navigation_geometry(nav_x, nav_y)
+        candidate = {
+            "x": float(nav_x),
+            "y": float(nav_y),
+            "axis": approach_axis,
+            "side": approach_source,
+            "source": approach_source,
+            "feasible": feasible,
+            "reason": reason,
+            "travel": 0.0,
+            "yaw_error": 0.0,
+            "cost": 0.0,
+        }
+        return candidate, [candidate]
+
+    def _build_two_sided_navigation_candidates(self, geometry, slot_pose):
+        # slot_pose 的 yaw 表示箱体长边方向；两侧候选取长边法向 +/- normal。
+        yaw_rad = math.radians(float(slot_pose.get("yaw", geometry.get("yaw", 0.0))))
+        long_axis = (math.cos(yaw_rad), math.sin(yaw_rad))
+        normal = (-long_axis[1], long_axis[0])
+        robot_pose = self.odom_transformer.get_current_pose()
+        robot_x = float(robot_pose[0]) if robot_pose is not None else float(slot_pose["x"])
+        robot_y = float(robot_pose[1]) if robot_pose is not None else float(slot_pose["y"])
+        robot_yaw = float(robot_pose[3]) if robot_pose is not None else 0.0
+
+        candidates = []
+        for side_sign, side_name in ((1.0, "positive_long_edge_normal"), (-1.0, "negative_long_edge_normal")):
+            axis = (side_sign * normal[0], side_sign * normal[1])
+            nav_x = float(slot_pose["x"]) + axis[0] * self.place_box_forward_offset_m
+            nav_y = float(slot_pose["y"]) + axis[1] * self.place_box_forward_offset_m
+            yaw = math.degrees(math.atan2(float(slot_pose["y"]) - nav_y, float(slot_pose["x"]) - nav_x))
+            feasible, reason = self._evaluate_navigation_geometry(nav_x, nav_y)
+            outside_distance = self._outside_distance_along_axis(
+                (float(slot_pose["x"]), float(slot_pose["y"])),
+                axis,
+                max_distance=self.place_box_forward_offset_m,
+            )
+            travel = math.hypot(nav_x - robot_x, nav_y - robot_y)
+            yaw_error = abs(self._normalize_angle_deg(yaw - robot_yaw))
+            candidates.append({
+                "x": float(nav_x),
+                "y": float(nav_y),
+                "yaw": float(yaw),
+                "axis": axis,
+                "side": side_name,
+                "source": f"two_sided_feasible:{side_name}",
+                "feasible": feasible,
+                "reason": reason,
+                "outside_distance": outside_distance,
+                "travel": travel,
+                "yaw_error": yaw_error,
+                "cost": travel + self.navigation_yaw_cost_weight * yaw_error,
+            })
+        return candidates
+
+    def _evaluate_navigation_geometry(self, x, y):
+        point = (float(x), float(y))
+        if self._is_in_pallet_polygon(point[0], point[1]):
+            return False, "inside_pallet_polygon"
+        if len(self.pallet_map_polygon) >= 3 and self.navigation_pallet_clearance_m > 0.0:
+            clearance = self._point_to_polygon_boundary_distance(point, self.pallet_map_polygon)
+            if clearance < self.navigation_pallet_clearance_m:
+                return (
+                    False,
+                    "pallet_clearance_too_small({:.2f}m<{:.2f}m)".format(
+                        clearance,
+                        self.navigation_pallet_clearance_m,
+                    ),
+                )
+        return True, "geometry_feasible"
+
+    def _log_navigation_candidate_result(self, slot_pose, selected_candidate, evaluations, yaw):
+        if not evaluations:
+            return
+        details = "; ".join(
+            f"{item['side']}: nav=({item['x']:.3f},{item['y']:.3f}), "
+            f"yaw={item.get('yaw', yaw):.1f}, feasible={item['feasible']}, "
+            f"reason={item['reason']}, outside_distance={item.get('outside_distance', 0.0):.3f}, "
+            f"cost={item['cost']:.3f}"
+            for item in evaluations
+        )
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 码垛导航候选评估: "
+            f"slot=({slot_pose['x']:.3f},{slot_pose['y']:.3f}), "
+            f"selected={selected_candidate['side']}, "
+            f"selected_nav=({selected_candidate['x']:.3f},{selected_candidate['y']:.3f},{yaw:.1f}deg), "
+            f"mode={self.navigation_approach_mode}, candidates=[{details}]"
+        )
+
+    def _navigation_approach_axis(self, geometry, slot_pose):
+        if self.navigation_approach_mode in (
+            "row_outside",
+            "by_row_outside",
+            "auto_row_outside",
+        ):
+            return self._row_outside_approach_axis(geometry, slot_pose)
+        return self._approach_axis(geometry), f"fixed:{self.approach_side}"
+
+    def _row_outside_approach_axis(self, geometry, slot_pose):
+        y_axis = geometry["y_axis"]
+        row = int(slot_pose.get("row", 0))
+        split = (max(1, self.rows) - 1) * 0.5
+        if row < split:
+            return (-y_axis[0], -y_axis[1]), f"row_outside:row{row}:negative_row_axis"
+        if row > split:
+            return y_axis, f"row_outside:row{row}:positive_row_axis"
+
+        # 奇数行中间排没有天然外侧，回退到配置方向。
+        return self._approach_axis(geometry), f"row_outside:row{row}:fallback:{self.approach_side}"
 
     def _approach_axis(self, geometry):
         x_axis = geometry["x_axis"]
@@ -494,6 +677,96 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         if self.approach_side == "negative_x":
             return (-x_axis[0], -x_axis[1])
         return y_axis
+
+    def _is_in_pallet_polygon(self, x, y):
+        if len(self.pallet_map_polygon) < 3:
+            return False
+        return is_map_position_in_polygon(
+            {"x": float(x), "y": float(y)},
+            [{"x": px, "y": py} for px, py in self.pallet_map_polygon],
+        )
+
+    def _outside_distance_along_axis(self, start, axis, max_distance):
+        """估算从 slot 沿候选方向离开 pallet polygon 的距离，越小表示越靠近这一侧外边。"""
+        if len(self.pallet_map_polygon) < 3:
+            return 0.0
+        axis_norm = math.hypot(axis[0], axis[1])
+        if axis_norm <= 1e-9:
+            return 0.0
+        ux = axis[0] / axis_norm
+        uy = axis[1] / axis_norm
+        if not self._is_in_pallet_polygon(start[0], start[1]):
+            return 0.0
+
+        # 先用垛盘边线精确求 ray 的第一个交点；失败时再用小步长兜底。
+        intersections = []
+        for edge_start, edge_end in zip(self.pallet_map_polygon, self.pallet_map_polygon[1:] + self.pallet_map_polygon[:1]):
+            distance = self._ray_segment_intersection_distance(start, (ux, uy), edge_start, edge_end)
+            if distance is not None and distance >= -1e-6:
+                intersections.append(max(0.0, distance))
+        positive = [value for value in intersections if value > 1e-5]
+        if positive:
+            return min(min(positive), float(max_distance))
+
+        step = 0.02
+        distance = 0.0
+        while distance <= max_distance:
+            x = start[0] + ux * distance
+            y = start[1] + uy * distance
+            if not self._is_in_pallet_polygon(x, y):
+                return distance
+            distance += step
+        return float(max_distance)
+
+    @staticmethod
+    def _ray_segment_intersection_distance(origin, direction, start, end):
+        ox, oy = origin
+        dx, dy = direction
+        sx, sy = start
+        ex, ey = end
+        vx = ex - sx
+        vy = ey - sy
+        # origin + t * direction = start + u * segment
+        denom = dx * (-vy) - dy * (-vx)
+        if abs(denom) <= 1e-9:
+            return None
+        bx = sx - ox
+        by = sy - oy
+        t = (bx * (-vy) - by * (-vx)) / denom
+        u = (dx * by - dy * bx) / denom
+        if t < -1e-6 or u < -1e-6 or u > 1.0 + 1e-6:
+            return None
+        return float(t)
+
+    @classmethod
+    def _point_to_polygon_boundary_distance(cls, point, polygon):
+        if len(polygon) < 2:
+            return float("inf")
+        edges = list(zip(polygon, polygon[1:] + polygon[:1]))
+        return min(cls._point_segment_distance(point, start, end) for start, end in edges)
+
+    @staticmethod
+    def _point_segment_distance(point, start, end):
+        px, py = point
+        sx, sy = start
+        ex, ey = end
+        dx = ex - sx
+        dy = ey - sy
+        length_sq = dx * dx + dy * dy
+        if length_sq <= 1e-12:
+            return math.hypot(px - sx, py - sy)
+        t = max(0.0, min(1.0, ((px - sx) * dx + (py - sy) * dy) / length_sq))
+        closest_x = sx + t * dx
+        closest_y = sy + t * dy
+        return math.hypot(px - closest_x, py - closest_y)
+
+    @staticmethod
+    def _normalize_angle_deg(angle_deg):
+        while angle_deg >= 180.0:
+            angle_deg -= 360.0
+        while angle_deg < -180.0:
+            angle_deg += 360.0
+        return angle_deg
 
     def _compute_pre_box_pose(self, final_box_pose, strategy_info):
         pre_pose = dict(final_box_pose)
