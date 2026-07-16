@@ -212,7 +212,13 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         expected_box_pose["z"] = place_plane_height + self.box_size_z * 0.5
 
         x_axis, y_axis = self._slot_axes(expected_box_pose)
-        strategy_info = self._select_strategy(row=row, col=col, x_axis=x_axis, stack_count=stack_count)
+        strategy_info = self._select_strategy(
+            row=row,
+            col=col,
+            x_axis=x_axis,
+            stack_count=stack_count,
+            navigation_pose=navigation_pose,
+        )
         final_box_pose = dict(expected_box_pose)
         pre_box_pose = self._compute_pre_box_pose(final_box_pose, strategy_info)
         held_box_pose = self._estimate_held_box_pose(final_box_pose)
@@ -279,7 +285,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         )
         return Status.SUCCESS
 
-    def _select_strategy(self, row, col, x_axis, stack_count):
+    def _select_strategy(self, row, col, x_axis, stack_count, navigation_pose):
         if self.strategy_mode in ("direct", "direct_place"):
             return self._strategy("direct_place", "none", "none", "配置强制直接放箱", (0.0, 0.0))
         if self.strategy_mode in ("right_push_left", "right_push_left_place"):
@@ -299,30 +305,93 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 tuple(-value for value in x_axis),
             )
 
-        # 自动策略第一版基于 stack_count/slot 推断已有码垛箱：
-        # 同一 row 中，如果左/右相邻 col 已经在本轮之前出现过，就用推箱策略贴靠邻箱。
+        # 自动策略基于 stack_count/slot 推断已有码垛箱：
+        # 同一 row 中，如果相邻 col 已经在本轮之前出现过，就用推箱策略贴靠邻箱。
+        #
+        # 左/右不是 map 固定左右，也不是 col-1/col+1 的名字，而是“机器人站在
+        # navigation_pose 面向目标 slot 时”的左右。这样第一排和第二排由于导航朝向相反，
+        # 同一个 map 侧的邻箱会自动得到相反的左/右关系。
         slot_index = row * max(1, self.cols) + col
         left_neighbor_index = row * max(1, self.cols) + col - 1
         right_neighbor_index = row * max(1, self.cols) + col + 1
         left_neighbor_placed = col > 0 and left_neighbor_index < stack_count
         right_neighbor_placed = col < self.cols - 1 and right_neighbor_index < stack_count
         if left_neighbor_placed:
+            return self._strategy_for_neighbor_axis(
+                neighbor_axis=(-x_axis[0], -x_axis[1]),
+                navigation_pose=navigation_pose,
+                reason_prefix=f"col-1 邻箱已放(index={left_neighbor_index})",
+            )
+        if right_neighbor_placed:
+            return self._strategy_for_neighbor_axis(
+                neighbor_axis=x_axis,
+                navigation_pose=navigation_pose,
+                reason_prefix=f"col+1 邻箱已放(index={right_neighbor_index})",
+            )
+        return self._strategy("direct_place", "both", "none", "当前槽位无同排邻箱，直接放箱", (0.0, 0.0))
+
+    def _strategy_for_neighbor_axis(self, neighbor_axis, navigation_pose, reason_prefix):
+        """根据相邻箱在机器人视角中的左右侧选择推箱方向。
+
+        neighbor_axis 是从目标 slot 指向已放邻箱的 map 水平单位方向。
+        push_axis 也使用这个方向：预落位在远离邻箱一侧，最终推向邻箱。
+        """
+        axis_norm = math.hypot(float(neighbor_axis[0]), float(neighbor_axis[1]))
+        if axis_norm <= 1e-9:
+            return self._strategy("direct_place", "both", "none", f"{reason_prefix}，邻箱方向无效，回退直接放箱", (0.0, 0.0))
+
+        push_axis = (
+            float(neighbor_axis[0]) / axis_norm,
+            float(neighbor_axis[1]) / axis_norm,
+        )
+        # push_axis 表示“预落位 -> 最终位”的推箱方向。策略名也按这个方向命名：
+        # - push_axis 在机器人左侧：右爪从右侧向左推，right_push_left_place。
+        # - push_axis 在机器人右侧：左爪从左侧向右推，left_push_right_place。
+        #
+        # 这里优先使用 navigation_pose 中的 approach_axis：它表示从目标 slot 指向
+        # 机器人导航站位的方向。机器人站在该点面向 slot 时，机器人左侧方向为
+        # (approach_y, -approach_x)。这样不依赖底盘 yaw 的正负约定，避免第二/第四格
+        # 由于导航朝向相反而策略翻转错误。
+        approach_axis = (
+            float(navigation_pose.get("approach_axis_x", 0.0)),
+            float(navigation_pose.get("approach_axis_y", 0.0)),
+        )
+        approach_norm = math.hypot(approach_axis[0], approach_axis[1])
+        if approach_norm > 1e-9:
+            approach_axis = (
+                approach_axis[0] / approach_norm,
+                approach_axis[1] / approach_norm,
+            )
+            robot_left_axis = (approach_axis[1], -approach_axis[0])
+            left_axis_source = "approach_axis"
+        else:
+            yaw_rad = math.radians(float(navigation_pose.get("yaw", 0.0)))
+            robot_left_axis = (-math.sin(yaw_rad), math.cos(yaw_rad))
+            left_axis_source = "yaw"
+
+        push_left_score = self._dot(push_axis, robot_left_axis)
+
+        if push_left_score > 0.0:
             return self._strategy(
                 "right_push_left_place",
                 "left",
                 "right",
-                "左侧已有槽位，先右偏预落位，再由右爪向左推",
-                x_axis,
+                f"{reason_prefix}，推箱方向在机器人左侧(score={push_left_score:.3f}, source={left_axis_source})，"
+                "先右偏预落位，再由右爪向左推",
+                push_axis,
             )
-        if right_neighbor_placed:
+
+        if push_left_score < 0.0:
             return self._strategy(
                 "left_push_right_place",
                 "right",
                 "left",
-                "右侧已有槽位，先左偏预落位，再由左爪向右推",
-                tuple(-value for value in x_axis),
+                f"{reason_prefix}，推箱方向在机器人右侧(score={push_left_score:.3f}, source={left_axis_source})，"
+                "先左偏预落位，再由左爪向右推",
+                push_axis,
             )
-        return self._strategy("direct_place", "both", "none", "当前槽位无同排邻箱，直接放箱", (0.0, 0.0))
+
+        return self._strategy("direct_place", "both", "none", f"{reason_prefix}，邻箱正对机器人中心，直接放箱", (0.0, 0.0))
 
     def _strategy(self, strategy, release_first_side, push_side, reason, push_axis):
         return {
