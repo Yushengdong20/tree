@@ -212,10 +212,16 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         expected_box_pose["z"] = place_plane_height + self.box_size_z * 0.5
 
         x_axis, y_axis = self._slot_axes(expected_box_pose)
+        # 码垛策略判断相邻 slot 时必须使用“槽位 col 方向”，而不是箱体 yaw 方向。
+        # 例如当前配置 slot_reference_points 为 (0.67,0.77)->(0.03,0.77)，
+        # col 增加方向是 map -x；若误用 slot_yaw_deg=0 得到的 map +x，
+        # 第二/第四个箱子的左推/右推策略会整体反向。
+        slot_col_axis = geometry.get("x_axis", x_axis)
         strategy_info = self._select_strategy(
             row=row,
             col=col,
-            x_axis=x_axis,
+            slot_col_axis=slot_col_axis,
+            box_x_axis=x_axis,
             stack_count=stack_count,
             navigation_pose=navigation_pose,
         )
@@ -272,6 +278,8 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             f"nav_source={navigation_pose.get('approach_source', '<unknown>')}, "
             f"nav_axis=({navigation_pose.get('approach_axis_x', 0.0):.3f},"
             f"{navigation_pose.get('approach_axis_y', 0.0):.3f}), "
+            f"slot_col_axis=({slot_col_axis[0]:.3f},{slot_col_axis[1]:.3f}), "
+            f"box_x_axis=({x_axis[0]:.3f},{x_axis[1]:.3f}), "
             f"place_plane_z={place_plane_height:.3f}, "
             f"final_box=({final_box_pose['x']:.3f}, {final_box_pose['y']:.3f}, "
             f"{final_box_pose.get('z', 0.0):.3f}, yaw={final_box_pose.get('yaw', 0.0):.2f}), "
@@ -285,7 +293,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         )
         return Status.SUCCESS
 
-    def _select_strategy(self, row, col, x_axis, stack_count, navigation_pose):
+    def _select_strategy(self, row, col, slot_col_axis, box_x_axis, stack_count, navigation_pose):
         if self.strategy_mode in ("direct", "direct_place"):
             return self._strategy("direct_place", "none", "none", "配置强制直接放箱", (0.0, 0.0))
         if self.strategy_mode in ("right_push_left", "right_push_left_place"):
@@ -294,7 +302,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 "left",
                 "right",
                 "配置强制右爪向左推",
-                x_axis,
+                box_x_axis,
             )
         if self.strategy_mode in ("left_push_right", "left_push_right_place"):
             return self._strategy(
@@ -302,7 +310,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 "right",
                 "left",
                 "配置强制左爪向右推",
-                tuple(-value for value in x_axis),
+                tuple(-value for value in box_x_axis),
             )
 
         # 自动策略基于 stack_count/slot 推断已有码垛箱：
@@ -318,13 +326,13 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         right_neighbor_placed = col < self.cols - 1 and right_neighbor_index < stack_count
         if left_neighbor_placed:
             return self._strategy_for_neighbor_axis(
-                neighbor_axis=(-x_axis[0], -x_axis[1]),
+                neighbor_axis=(-slot_col_axis[0], -slot_col_axis[1]),
                 navigation_pose=navigation_pose,
                 reason_prefix=f"col-1 邻箱已放(index={left_neighbor_index})",
             )
         if right_neighbor_placed:
             return self._strategy_for_neighbor_axis(
-                neighbor_axis=x_axis,
+                neighbor_axis=slot_col_axis,
                 navigation_pose=navigation_pose,
                 reason_prefix=f"col+1 邻箱已放(index={right_neighbor_index})",
             )

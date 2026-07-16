@@ -93,6 +93,15 @@ class ArmsToPose(TimedMockAction):
                 "/move_box/claw_point_diagnostics_markers",
             )
         ).strip()
+        self.claw_point_diagnostics_color_log_enabled = self._to_bool(
+            params.get("claw_point_diagnostics_color_log_enabled", True)
+        )
+        self.claw_point_diagnostics_warn_distance_m = float(
+            params.get("claw_point_diagnostics_warn_distance_m", 0.03)
+        )
+        self.claw_point_diagnostics_error_distance_m = float(
+            params.get("claw_point_diagnostics_error_distance_m", 0.08)
+        )
         self.claw_wireframe_visualization_enabled = self._to_bool(
             params.get("claw_wireframe_visualization_enabled", True)
         )
@@ -571,16 +580,12 @@ class ArmsToPose(TimedMockAction):
         if actual_eef is not None:
             eef_delta = self._pose_delta(actual_eef, [*target_eef, *target_ypr])
             diagnostic_item["eef_delta"] = eef_delta
-            self.ros_node.get_logger().info(
-                f"[{self.config_label}] {side} EEF目标-实际偏差(base_link): "
-                f"target=({target_eef[0]:.3f}, {target_eef[1]:.3f}, {target_eef[2]:.3f}, "
-                f"yaw={target_ypr[0]:.2f}, pitch={target_ypr[1]:.2f}, roll={target_ypr[2]:.2f}), "
-                f"actual=({actual_eef[0]:.3f}, {actual_eef[1]:.3f}, {actual_eef[2]:.3f}, "
-                f"yaw={actual_eef[3]:.2f}, pitch={actual_eef[4]:.2f}, roll={actual_eef[5]:.2f}), "
-                f"delta_xyz=({eef_delta['dx']:.3f}, {eef_delta['dy']:.3f}, {eef_delta['dz']:.3f}), "
-                f"dist={eef_delta['dist']:.3f}m, "
-                f"delta_ypr=({eef_delta['dyaw']:.2f}, {eef_delta['dpitch']:.2f}, "
-                f"{eef_delta['droll']:.2f})deg"
+            self._log_colored_pose_delta(
+                side=side,
+                target_name="EEF",
+                target_pose=[*target_eef, *target_ypr],
+                actual_pose=actual_eef,
+                delta=eef_delta,
             )
         else:
             self.ros_node.get_logger().warning(
@@ -590,22 +595,49 @@ class ArmsToPose(TimedMockAction):
         if actual_claw is not None:
             claw_delta = self._pose_delta(actual_claw, [*target_claw, *target_ypr])
             diagnostic_item["claw_delta"] = claw_delta
-            self.ros_node.get_logger().info(
-                f"[{self.config_label}] {side} claw目标-实际偏差(base_link): "
-                f"target=({target_claw[0]:.3f}, {target_claw[1]:.3f}, {target_claw[2]:.3f}, "
-                f"yaw={target_ypr[0]:.2f}, pitch={target_ypr[1]:.2f}, roll={target_ypr[2]:.2f}), "
-                f"actual=({actual_claw[0]:.3f}, {actual_claw[1]:.3f}, {actual_claw[2]:.3f}, "
-                f"yaw={actual_claw[3]:.2f}, pitch={actual_claw[4]:.2f}, roll={actual_claw[5]:.2f}), "
-                f"delta_xyz=({claw_delta['dx']:.3f}, {claw_delta['dy']:.3f}, {claw_delta['dz']:.3f}), "
-                f"dist={claw_delta['dist']:.3f}m, "
-                f"delta_ypr=({claw_delta['dyaw']:.2f}, {claw_delta['dpitch']:.2f}, "
-                f"{claw_delta['droll']:.2f})deg"
+            self._log_colored_pose_delta(
+                side=side,
+                target_name="claw",
+                target_pose=[*target_claw, *target_ypr],
+                actual_pose=actual_claw,
+                delta=claw_delta,
             )
         else:
             self.ros_node.get_logger().warning(
                 f"[{self.config_label}] {side} claw目标-实际偏差无法计算: 当前claw TF不可用"
             )
         return diagnostic_item
+
+    def _log_colored_pose_delta(self, side, target_name, target_pose, actual_pose, delta):
+        """打印夹爪/末端目标与实际执行偏差；终端支持 ANSI 时按误差距离着色。"""
+        severity, color = self._diagnostic_log_style(delta["dist"])
+        reset = "\033[0m" if self.claw_point_diagnostics_color_log_enabled else ""
+        prefix = color if self.claw_point_diagnostics_color_log_enabled else ""
+        message = (
+            f"{prefix}★★★ [{self.config_label}] {side} {target_name}目标-实际偏差(base_link) "
+            f"[{severity}] ★★★ "
+            f"target=({target_pose[0]:.3f}, {target_pose[1]:.3f}, {target_pose[2]:.3f}, "
+            f"yaw={target_pose[3]:.2f}, pitch={target_pose[4]:.2f}, roll={target_pose[5]:.2f}), "
+            f"actual=({actual_pose[0]:.3f}, {actual_pose[1]:.3f}, {actual_pose[2]:.3f}, "
+            f"yaw={actual_pose[3]:.2f}, pitch={actual_pose[4]:.2f}, roll={actual_pose[5]:.2f}), "
+            f"delta_xyz=({delta['dx']:.3f}, {delta['dy']:.3f}, {delta['dz']:.3f}), "
+            f"dist={delta['dist']:.3f}m, "
+            f"delta_ypr=({delta['dyaw']:.2f}, {delta['dpitch']:.2f}, {delta['droll']:.2f})deg"
+            f"{reset}"
+        )
+        if delta["dist"] >= self.claw_point_diagnostics_error_distance_m:
+            self.ros_node.get_logger().error(message)
+        elif delta["dist"] >= self.claw_point_diagnostics_warn_distance_m:
+            self.ros_node.get_logger().warning(message)
+        else:
+            self.ros_node.get_logger().info(message)
+
+    def _diagnostic_log_style(self, distance_m):
+        if distance_m >= self.claw_point_diagnostics_error_distance_m:
+            return "ERROR", "\033[1;31m"
+        if distance_m >= self.claw_point_diagnostics_warn_distance_m:
+            return "WARN", "\033[1;33m"
+        return "OK", "\033[1;36m"
 
     def _lookup_current_claw_pose(self, side):
         """查询当前 left_claw/right_claw 在 base_link 下的实际位姿。"""
