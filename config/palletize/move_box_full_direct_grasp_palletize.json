@@ -414,6 +414,74 @@
                 ]
               },
               {
+                "name": "Sequence",
+                "label": "并行结束后最终调整躯干到码垛高度",
+                "params": {
+                  "memory": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                    "label": "最终计算码垛躯干目标",
+                    "params": {
+                      "place_plane_height_key": {
+                        "value": "move_box_pallet_stack_place_plane_height",
+                        "source": "CUSTOM"
+                      },
+                      "place_plane_frame": {
+                        "value": "map",
+                        "source": "CUSTOM"
+                      },
+                      "odom_topic": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      },
+                      "place_torso_height_offset": {
+                        "value": "0.4",
+                        "source": "CUSTOM"
+                      },
+                      "place_torso_min_height": {
+                        "value": "0.6",
+                        "source": "CUSTOM"
+                      },
+                      "place_torso_max_height": {
+                        "value": "1.4",
+                        "source": "CUSTOM"
+                      },
+                      "place_torso_x": {
+                        "value": "0.5",
+                        "source": "CUSTOM"
+                      },
+                      "target_pose_key": {
+                        "value": "move_box_pallet_place_torso_pose",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "MoveTorsoPose",
+                    "label": "最终调整躯干到码垛高度",
+                    "params": {
+                      "pose_key": {
+                        "value": "move_box_pallet_place_torso_pose",
+                        "source": "CUSTOM"
+                      },
+                      "wait_done": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "skip_torso_motion": {
+                        "value": "False",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
                 "name": "WaitForEnter",
                 "label": "码垛放箱确认1：已到垛盘站位并完成躯干调整",
                 "params": {
