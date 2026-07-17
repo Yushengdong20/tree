@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>pytrees_ros2 Viewer</title>
+    <title>MercuryTree Viewer</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="page">
       <header class="hero">
         <div>
-          <p class="eyebrow">ROS 2 Jazzy</p>
-          <h1>pytrees_ros2 Viewer</h1>
+          <p class="eyebrow">Behaviour Tree Runtime</p>
+          <h1>MercuryTree Viewer</h1>
           <p class="subtle">JSON-configured mock tree with MoveHead, MoveToTarget and MoveClaw.</p>
         </div>
         <div class="meta">
@@ -22,13 +22,7 @@
           <div class="meta-card"><span>Last Tick Interval</span><strong id="tick-interval">-</strong></div>
         </div>
       </header>
-      <section class="panel live-panel">
-        <div class="panel-head">
-          <h2>Live Step</h2>
-        </div>
-        <div id="live-runtime" class="live-runtime empty">No blocking runtime step is active.</div>
-      </section>
-      <section class="panel">
+      <section class="panel tree-panel">
         <div class="panel-head">
           <h2>Tree</h2>
           <button id="refresh-btn" type="button">Refresh</button>

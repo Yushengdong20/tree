@@ -205,15 +205,15 @@
                     "source": "CUSTOM"
                   },
                   "torso_sample_x_max_m": {
-                    "value": "0.4",
+                    "value": "0.2",
                     "source": "CUSTOM"
                   },
                   "torso_sample_z_min_m": {
-                    "value": "0.75",
+                    "value": "0.55",
                     "source": "CUSTOM"
                   },
                   "torso_sample_z_max_m": {
-                    "value": "1.15",
+                    "value": "0.95",
                     "source": "CUSTOM"
                   },
                   "torso_sample_step_m": {
