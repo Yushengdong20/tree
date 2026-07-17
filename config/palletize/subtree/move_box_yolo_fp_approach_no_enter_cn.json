@@ -223,6 +223,14 @@
                   "detection_reset_timeout_sec": {
                     "value": "5.0",
                     "source": "CUSTOM"
+                  },
+                  "fp_settle_before_refresh_enabled": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "fp_settle_before_refresh_sec": {
+                    "value": "1.0",
+                    "source": "CUSTOM"
                   }
                 }
               }

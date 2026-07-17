@@ -1,0 +1,198 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "原地抓箱测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 视觉与控制实例",
+        "params": {
+          "initial_torso_height": {
+            "value": "1.1",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认导航到选定接近点后方1米预备位",
+        "params": {
+          "message": {
+            "value": "已生成并选定接近位姿及其后方1米预备导航点。确认底盘路径安全后，按 Enter 导航到该预备坐标...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxDetectionReady",
+        "label": "提前重启并等待FoundationPose检测有效",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "detect_timeout_sec": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "restart_before_wait": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "restart_on_timeout": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "detection_reset_timeout_sec": {
+            "value": "5.0",
+            "source": "CUSTOM"
+          },
+          "fp_settle_before_refresh_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "fp_settle_before_refresh_sec": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "置位抓取请求",
+        "params": {
+          "key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "true",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxTorsoToBoxCenterPose",
+        "label": "根据FP到点后箱体中心计算躯干目标",
+        "params": {
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "preferred_box_center_key": {
+            "value": "move_box_fp_arrival_box_center",
+            "source": "CUSTOM"
+          },
+          "target_pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "knee_origin_z": {
+            "value": "0.1055",
+            "source": "CUSTOM"
+          },
+          "ik_angle_step_deg": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "根据箱体中心调整躯干（通用腰部节点）",
+        "params": {
+          "pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "直接抓取箱体到闭爪",
+        "params": {
+          "file": {
+            "value": "subtree/move_box_direct_grasp_before_lift_no_enter_memory_cn.json",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxHeldBoxVisualizationMonitor",
+        "label": "启动抓箱后手中箱体持续可视化",
+        "params": {
+          "action": {
+            "value": "start",
+            "source": "CUSTOM"
+          },
+          "services_key": {
+            "value": "robot_services",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "visualization_topic": {
+            "value": "/move_box/held_box_estimate_markers",
+            "source": "CUSTOM"
+          },
+          "publish_interval_sec": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "box_size_x": {
+            "value": "0.60",
+            "source": "CUSTOM"
+          },
+          "box_size_y": {
+            "value": "0.40",
+            "source": "CUSTOM"
+          },
+          "box_size_z": {
+            "value": "0.34",
+            "source": "CUSTOM"
+          },
+          "box_center_offset_x_m": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "box_center_offset_y_m": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "box_center_offset_z_m": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

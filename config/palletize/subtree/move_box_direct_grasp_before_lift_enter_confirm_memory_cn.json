@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "直接抓取到闭爪流程（通用节点版）",
+    "label": "直接抓取到闭爪流程（通用节点版，逐步确认）",
     "params": {
       "memory": {
         "value": "True",
@@ -10,11 +10,41 @@
     },
     "childs": [
       {
+        "name": "WaitForEnter",
+        "label": "确认0-前：准备检查抓取请求",
+        "params": {
+          "message": {
+            "value": "准备检查抓取请求 move_box_grasp_requested，按 Enter 继续...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
         "name": "CheckMoveBoxRequestFlag",
         "label": "检查抓取请求",
         "params": {
           "request_key": {
             "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认0-后：抓取请求检查完成",
+        "params": {
+          "message": {
+            "value": "抓取请求检查完成，按 Enter 进入 FoundationPose 检测确认...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认1-前：准备确认视觉检测有效",
+        "params": {
+          "message": {
+            "value": "准备等待/刷新 FoundationPose 检测，并写入抓取数据，按 Enter 继续...",
             "source": "CUSTOM"
           }
         }
@@ -66,6 +96,26 @@
         }
       },
       {
+        "name": "WaitForEnter",
+        "label": "确认1-后：视觉检测确认完成",
+        "params": {
+          "message": {
+            "value": "视觉检测确认完成。请检查 /move_box/fp_grasp_markers，按 Enter 检查抓取数据...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认2-前：准备检查抓取数据有效",
+        "params": {
+          "message": {
+            "value": "准备检查 grasp_pair / box_axes / box_center 是否有效，按 Enter 继续...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
         "name": "CheckMoveBoxGraspDataReady",
         "label": "检查抓取数据有效",
         "params": {
@@ -83,6 +133,26 @@
           },
           "skip_torso_motion": {
             "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认2-后：抓取数据检查完成",
+        "params": {
+          "message": {
+            "value": "抓取数据检查完成，按 Enter 计算直接抓取目标...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认3-前：准备计算直接抓取目标",
+        "params": {
+          "message": {
+            "value": "准备根据 FP 抓取数据计算直接抓取上方/下方/上提目标，按 Enter 继续...",
             "source": "CUSTOM"
           }
         }
@@ -114,6 +184,26 @@
         }
       },
       {
+        "name": "WaitForEnter",
+        "label": "确认3-后：直接抓取目标计算完成",
+        "params": {
+          "message": {
+            "value": "直接抓取目标计算完成。请检查抓取点可视化，按 Enter 移动到左右边缘上方...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认4-前：准备移动到左右边缘上方",
+        "params": {
+          "message": {
+            "value": "即将双夹爪同步移动到左右边缘上方，按 Enter 执行动作...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
         "name": "ArmsToPose",
         "label": "双夹爪同步移动到左右边缘上方（通用手臂节点）",
         "params": {
@@ -135,6 +225,26 @@
           },
           "claw_ypr": {
             "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认4-后：已移动到左右边缘上方",
+        "params": {
+          "message": {
+            "value": "双夹爪已移动到左右边缘上方。请检查 /move_box/claw_point_diagnostics_markers，按 Enter 准备下降...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认5-前：准备下降到左右边缘下方",
+        "params": {
+          "message": {
+            "value": "即将双夹爪同步下降到左右边缘下方，按 Enter 执行动作...",
             "source": "CUSTOM"
           }
         }
@@ -166,11 +276,41 @@
         }
       },
       {
+        "name": "WaitForEnter",
+        "label": "确认5-后：已下降到左右边缘下方",
+        "params": {
+          "message": {
+            "value": "双夹爪已下降到左右边缘下方。请确认夹爪位置，按 Enter 准备闭爪...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认6-前：准备同时闭合左右夹爪",
+        "params": {
+          "message": {
+            "value": "即将同时闭合左右夹爪抓取箱体，按 Enter 执行动作...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
         "name": "CloseClaw",
         "label": "同时闭合左右夹爪",
         "params": {
           "side": {
             "value": "both",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认6-后：闭爪完成",
+        "params": {
+          "message": {
+            "value": "闭爪完成。请检查夹爪/箱体状态，按 Enter 结束该抓取子树...",
             "source": "CUSTOM"
           }
         }
