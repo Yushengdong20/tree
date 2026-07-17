@@ -24,7 +24,7 @@ from geometry_msgs.msg import Point
 from py_trees.common import Status
 from visualization_msgs.msg import Marker, MarkerArray
 
-from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
 from tree.runtime.http.move_and_grab_flow import (
     Pose2D,
     transform_base_point_to_global,
@@ -138,6 +138,9 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         self.visualization_topic = str(
             params.get("visualization_topic", "/move_box/pallet_place_dynamic_estimate_markers")
         ).strip()
+        self.base_link_visualization_enabled = self._to_bool(
+            params.get("base_link_visualization_enabled", True)
+        )
 
         for key in (self.services_key, self.stack_count_key):
             self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
@@ -1050,6 +1053,42 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         y_axis = (-math.sin(yaw_rad), math.cos(yaw_rad))
         return x_axis, y_axis
 
+    def _map_point_to_base(self, x, y, z, current_pose):
+        current_pose_2d = Pose2D(
+            x=float(current_pose[0]),
+            y=float(current_pose[1]),
+            yaw=float(current_pose[3]),
+        )
+        point_base = transform_global_point_to_base(
+            current_pose_2d,
+            float(x),
+            float(y),
+        )
+        return {
+            "x": float(point_base["x"]),
+            "y": float(point_base["y"]),
+            "z": float(z) - float(current_pose[2]),
+        }
+
+    def _map_pose_to_base(self, pose, current_pose):
+        if pose is None:
+            return None
+        try:
+            point_base = self._map_point_to_base(
+                pose["x"],
+                pose["y"],
+                pose.get("z", 0.0),
+                current_pose,
+            )
+            point_base["yaw"] = self._normalize_angle_deg(
+                float(pose.get("yaw", 0.0)) - float(current_pose[3])
+            )
+            if "source" in pose:
+                point_base["source"] = pose["source"]
+            return point_base
+        except (KeyError, TypeError, ValueError):
+            return None
+
     def _publish_visualization(
         self,
         geometry,
@@ -1162,8 +1201,185 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         )
         self._set_color(text, 1.0, 1.0, 1.0, 1.0)
         marker_array.markers.append(text)
+        marker_id += 1
+
+        if self.base_link_visualization_enabled:
+            marker_id = self._append_base_link_visualization(
+                marker_array=marker_array,
+                marker_id=marker_id,
+                geometry=geometry,
+                selected_row=selected_row,
+                selected_col=selected_col,
+                layer=layer,
+                slot_pose=slot_pose,
+                navigation_pose=navigation_pose,
+                final_box_pose=final_box_pose,
+                pre_box_pose=pre_box_pose,
+                held_box_pose=held_box_pose,
+                push_direction=push_direction,
+                strategy_info=strategy_info,
+            )
 
         self.visualization_pub.publish(marker_array)
+
+    def _append_base_link_visualization(
+        self,
+        marker_array,
+        marker_id,
+        geometry,
+        selected_row,
+        selected_col,
+        layer,
+        slot_pose,
+        navigation_pose,
+        final_box_pose,
+        pre_box_pose,
+        held_box_pose,
+        push_direction,
+        strategy_info,
+    ):
+        """在同一话题中追加 base_link 下的码垛策略可视化。"""
+        current_pose = self.odom_transformer.get_current_pose()
+        if current_pose is None:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 码垛策略base_link可视化跳过: 尚未获得底盘位姿"
+            )
+            return marker_id
+
+        marker_id = self._append_pallet_polygon_base(marker_array, marker_id, current_pose)
+        if geometry.get("mode") == "reference_points":
+            marker_id = self._append_reference_points_base(marker_array, marker_id, geometry, current_pose)
+        marker_id = self._append_all_slots_base(
+            marker_array,
+            marker_id,
+            geometry,
+            selected_row,
+            selected_col,
+            layer,
+            current_pose,
+        )
+
+        navigation_pose_map = dict(navigation_pose)
+        navigation_pose_map["z"] = self.pallet_surface_z + 0.12
+        navigation_pose_base = self._map_pose_to_base(navigation_pose_map, current_pose)
+        final_box_pose_base = self._map_pose_to_base(final_box_pose, current_pose)
+        pre_box_pose_base = self._map_pose_to_base(pre_box_pose, current_pose)
+        held_box_pose_base = self._map_pose_to_base(held_box_pose, current_pose)
+        slot_pose_base = self._map_pose_to_base(
+            {
+                "x": slot_pose["x"],
+                "y": slot_pose["y"],
+                "z": final_box_pose.get("z", 0.0),
+                "yaw": final_box_pose.get("yaw", 0.0),
+            },
+            current_pose,
+        )
+        if (
+            navigation_pose_base is None
+            or final_box_pose_base is None
+            or pre_box_pose_base is None
+            or held_box_pose_base is None
+            or slot_pose_base is None
+        ):
+            return marker_id
+
+        marker_id = self._append_navigation_marker(
+            marker_array,
+            marker_id,
+            navigation_pose_base,
+            final_box_pose_base,
+            frame_id=BASE_LINK_FRAME,
+            namespace_prefix="base_link/",
+        )
+        marker_id = self._append_box(
+            marker_array,
+            marker_id,
+            "base_link/held_box_estimate",
+            held_box_pose_base,
+            color=(0.2, 0.8, 1.0, 0.22),
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id = self._append_box(
+            marker_array,
+            marker_id,
+            "base_link/pre_place_box",
+            pre_box_pose_base,
+            color=(1.0, 0.75, 0.05, 0.25),
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id = self._append_box(
+            marker_array,
+            marker_id,
+            "base_link/final_place_box",
+            final_box_pose_base,
+            color=(0.0, 1.0, 0.25, 0.30),
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id = self._append_sphere(
+            marker_array,
+            marker_id,
+            "base_link/slot_center",
+            slot_pose_base["x"],
+            slot_pose_base["y"],
+            slot_pose_base.get("z", 0.0),
+            color=(0.0, 1.0, 0.25, 0.75),
+            scale=0.07,
+            frame_id=BASE_LINK_FRAME,
+        )
+
+        if push_direction["distance"] > 1e-6:
+            start = pre_box_pose_base
+            # push_direction 是 map 平面方向，转换为 base 平面方向后再画箭头。
+            end_map = {
+                "x": pre_box_pose["x"] + push_direction["x"] * push_direction["distance"],
+                "y": pre_box_pose["y"] + push_direction["y"] * push_direction["distance"],
+                "z": pre_box_pose.get("z", 0.0) + 0.25,
+                "yaw": pre_box_pose.get("yaw", 0.0),
+            }
+            end = self._map_pose_to_base(end_map, current_pose)
+            start_arrow_map = dict(pre_box_pose)
+            start_arrow_map["z"] = pre_box_pose.get("z", 0.0) + 0.25
+            start = self._map_pose_to_base(start_arrow_map, current_pose)
+            if start is not None and end is not None:
+                marker_id = self._append_arrow(
+                    marker_array,
+                    marker_id,
+                    "base_link/push_direction",
+                    start["x"],
+                    start["y"],
+                    start.get("z", 0.0),
+                    end["x"],
+                    end["y"],
+                    end.get("z", 0.0),
+                    color=(1.0, 0.25, 0.0, 0.75),
+                    frame_id=BASE_LINK_FRAME,
+                )
+
+        text = self._new_marker(
+            marker_id,
+            "base_link/pallet_place_strategy_text",
+            Marker.TEXT_VIEW_FACING,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id += 1
+        text.pose.position.x = final_box_pose_base["x"]
+        text.pose.position.y = final_box_pose_base["y"]
+        text.pose.position.z = final_box_pose_base.get("z", 0.0) + 0.48
+        text.pose.orientation.w = 1.0
+        text.scale.z = 0.08
+        text.text = (
+            "PALLET PLACE STRATEGY base_link\n"
+            f"strategy={strategy_info['strategy']}\n"
+            f"slot=({slot_pose_base['x']:.2f},{slot_pose_base['y']:.2f}) "
+            f"nav=({navigation_pose_base['x']:.2f},{navigation_pose_base['y']:.2f})\n"
+            f"held=({held_box_pose_base['x']:.2f},{held_box_pose_base['y']:.2f})\n"
+            f"pre=({pre_box_pose_base['x']:.2f},{pre_box_pose_base['y']:.2f}) "
+            f"final=({final_box_pose_base['x']:.2f},{final_box_pose_base['y']:.2f})\n"
+            f"release={strategy_info['release_first_side']} push={strategy_info['push_side']}"
+        )
+        self._set_color(text, 0.75, 0.95, 1.0, 0.9)
+        marker_array.markers.append(text)
+        return marker_id
 
     def _append_pallet_polygon(self, marker_array, marker_id):
         if len(self.pallet_map_polygon) < 3:
@@ -1176,6 +1392,31 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         ]
         polygon.points.append(polygon.points[0])
         self._set_color(polygon, 1.0, 0.45, 0.0, 1.0)
+        marker_array.markers.append(polygon)
+        return marker_id + 1
+
+    def _append_pallet_polygon_base(self, marker_array, marker_id, current_pose):
+        if len(self.pallet_map_polygon) < 3:
+            return marker_id
+        polygon = self._new_marker(
+            marker_id,
+            "base_link/pallet_polygon",
+            Marker.LINE_STRIP,
+            frame_id=BASE_LINK_FRAME,
+        )
+        polygon.scale.x = 0.024
+        for point in self.pallet_map_polygon:
+            base_point = self._map_point_to_base(
+                point[0],
+                point[1],
+                self.pallet_surface_z + 0.02,
+                current_pose,
+            )
+            if base_point is not None:
+                polygon.points.append(Point(**base_point))
+        if polygon.points:
+            polygon.points.append(polygon.points[0])
+        self._set_color(polygon, 1.0, 0.45, 0.0, 0.65)
         marker_array.markers.append(polygon)
         return marker_id + 1
 
@@ -1198,6 +1439,48 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             ref_text.scale.z = 0.09
             ref_text.text = f"STACK REF{ref_index}\n({ref_point[0]:.2f},{ref_point[1]:.2f})"
             self._set_color(ref_text, 1.0, 0.0, 1.0, 1.0)
+            marker_array.markers.append(ref_text)
+        return marker_id
+
+    def _append_reference_points_base(self, marker_array, marker_id, geometry, current_pose):
+        for ref_index, ref_point in enumerate((geometry["reference_origin"], geometry["reference_second"])):
+            base_point = self._map_point_to_base(
+                ref_point[0],
+                ref_point[1],
+                self.pallet_surface_z + 0.08,
+                current_pose,
+            )
+            if base_point is None:
+                continue
+            ref_marker = self._new_marker(
+                marker_id,
+                "base_link/pallet_slot_reference_points",
+                Marker.SPHERE,
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id += 1
+            ref_marker.pose.position = Point(
+                x=base_point["x"],
+                y=base_point["y"],
+                z=base_point["z"],
+            )
+            ref_marker.scale.x = ref_marker.scale.y = ref_marker.scale.z = 0.09
+            self._set_color(ref_marker, 1.0, 0.0, 1.0, 0.75)
+            marker_array.markers.append(ref_marker)
+
+            ref_text = self._new_marker(
+                marker_id,
+                "base_link/pallet_slot_reference_text",
+                Marker.TEXT_VIEW_FACING,
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id += 1
+            ref_text.pose.position.x = base_point["x"]
+            ref_text.pose.position.y = base_point["y"]
+            ref_text.pose.position.z = base_point["z"] + 0.14
+            ref_text.scale.z = 0.065
+            ref_text.text = f"STACK REF{ref_index} base\n({base_point['x']:.2f},{base_point['y']:.2f})"
+            self._set_color(ref_text, 1.0, 0.0, 1.0, 0.75)
             marker_array.markers.append(ref_text)
         return marker_id
 
@@ -1224,12 +1507,57 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 marker_array.markers.append(marker)
         return marker_id
 
-    def _append_navigation_marker(self, marker_array, marker_id, navigation_pose, final_box_pose):
-        nav_arrow = self._new_marker(marker_id, "pallet_stack_navigation", Marker.ARROW)
+    def _append_all_slots_base(self, marker_array, marker_id, geometry, selected_row, selected_col, layer, current_pose):
+        for row in range(self.rows):
+            for col in range(self.cols):
+                pose = self._compute_slot_pose(geometry, row, col, layer)
+                pose["z"] = self.pallet_surface_z + layer * self.box_size_z + self.box_size_z * 0.5
+                pose_base = self._map_pose_to_base(pose, current_pose)
+                if pose_base is None:
+                    continue
+                selected = row == selected_row and col == selected_col
+                marker = self._new_marker(
+                    marker_id,
+                    "base_link/pallet_slots",
+                    Marker.CUBE,
+                    frame_id=BASE_LINK_FRAME,
+                )
+                marker_id += 1
+                marker.pose.position.x = pose_base["x"]
+                marker.pose.position.y = pose_base["y"]
+                marker.pose.position.z = pose_base["z"]
+                yaw_rad = math.radians(pose_base["yaw"])
+                marker.pose.orientation.z = math.sin(yaw_rad * 0.5)
+                marker.pose.orientation.w = math.cos(yaw_rad * 0.5)
+                marker.scale.x = self.box_size_x
+                marker.scale.y = self.box_size_y
+                marker.scale.z = self.box_size_z
+                if selected:
+                    self._set_color(marker, 0.0, 1.0, 0.25, 0.20)
+                else:
+                    self._set_color(marker, 0.55, 0.55, 0.55, 0.12)
+                marker_array.markers.append(marker)
+        return marker_id
+
+    def _append_navigation_marker(
+        self,
+        marker_array,
+        marker_id,
+        navigation_pose,
+        final_box_pose,
+        frame_id=MAP_FRAME,
+        namespace_prefix="",
+    ):
+        nav_arrow = self._new_marker(
+            marker_id,
+            f"{namespace_prefix}pallet_stack_navigation",
+            Marker.ARROW,
+            frame_id=frame_id,
+        )
         marker_id += 1
         nav_arrow.pose.position.x = navigation_pose["x"]
         nav_arrow.pose.position.y = navigation_pose["y"]
-        nav_arrow.pose.position.z = self.pallet_surface_z + 0.12
+        nav_arrow.pose.position.z = navigation_pose.get("z", self.pallet_surface_z + 0.12)
         yaw_rad = math.radians(navigation_pose["yaw"])
         nav_arrow.pose.orientation.z = math.sin(yaw_rad * 0.5)
         nav_arrow.pose.orientation.w = math.cos(yaw_rad * 0.5)
@@ -1239,19 +1567,28 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         self._set_color(nav_arrow, 0.2, 0.9, 1.0, 1.0)
         marker_array.markers.append(nav_arrow)
 
-        line = self._new_marker(marker_id, "pallet_stack_relation", Marker.LINE_LIST)
+        line = self._new_marker(
+            marker_id,
+            f"{namespace_prefix}pallet_stack_relation",
+            Marker.LINE_LIST,
+            frame_id=frame_id,
+        )
         marker_id += 1
         line.scale.x = 0.025
         line.points = [
-            Point(x=navigation_pose["x"], y=navigation_pose["y"], z=self.pallet_surface_z + 0.08),
+            Point(
+                x=navigation_pose["x"],
+                y=navigation_pose["y"],
+                z=navigation_pose.get("z", self.pallet_surface_z + 0.08),
+            ),
             Point(x=final_box_pose["x"], y=final_box_pose["y"], z=final_box_pose.get("z", 0.0)),
         ]
         self._set_color(line, 0.2, 0.9, 1.0, 0.95)
         marker_array.markers.append(line)
         return marker_id
 
-    def _append_box(self, marker_array, marker_id, namespace, pose, color):
-        marker = self._new_marker(marker_id, namespace, Marker.CUBE)
+    def _append_box(self, marker_array, marker_id, namespace, pose, color, frame_id=MAP_FRAME):
+        marker = self._new_marker(marker_id, namespace, Marker.CUBE, frame_id=frame_id)
         marker.pose.position.x = float(pose["x"])
         marker.pose.position.y = float(pose["y"])
         marker.pose.position.z = float(pose.get("z", 0.0))
@@ -1265,8 +1602,19 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         marker_array.markers.append(marker)
         return marker_id + 1
 
-    def _append_sphere(self, marker_array, marker_id, namespace, x, y, z, color, scale):
-        marker = self._new_marker(marker_id, namespace, Marker.SPHERE)
+    def _append_sphere(
+        self,
+        marker_array,
+        marker_id,
+        namespace,
+        x,
+        y,
+        z,
+        color,
+        scale,
+        frame_id=MAP_FRAME,
+    ):
+        marker = self._new_marker(marker_id, namespace, Marker.SPHERE, frame_id=frame_id)
         marker.pose.position.x = float(x)
         marker.pose.position.y = float(y)
         marker.pose.position.z = float(z)
@@ -1275,8 +1623,21 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         marker_array.markers.append(marker)
         return marker_id + 1
 
-    def _append_arrow(self, marker_array, marker_id, namespace, sx, sy, sz, ex, ey, ez, color):
-        marker = self._new_marker(marker_id, namespace, Marker.ARROW)
+    def _append_arrow(
+        self,
+        marker_array,
+        marker_id,
+        namespace,
+        sx,
+        sy,
+        sz,
+        ex,
+        ey,
+        ez,
+        color,
+        frame_id=MAP_FRAME,
+    ):
+        marker = self._new_marker(marker_id, namespace, Marker.ARROW, frame_id=frame_id)
         marker.scale.x = 0.035
         marker.scale.y = 0.09
         marker.scale.z = 0.09
@@ -1288,9 +1649,9 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         marker_array.markers.append(marker)
         return marker_id + 1
 
-    def _new_marker(self, marker_id, namespace, marker_type):
+    def _new_marker(self, marker_id, namespace, marker_type, frame_id=MAP_FRAME):
         marker = Marker()
-        marker.header.frame_id = MAP_FRAME
+        marker.header.frame_id = frame_id
         marker.header.stamp = self.ros_node.now()
         marker.ns = namespace
         marker.id = marker_id

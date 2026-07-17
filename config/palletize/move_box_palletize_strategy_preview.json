@@ -83,16 +83,7 @@
           }
         }
       },
-      {
-        "name": "WaitForEnter",
-        "label": "初始化完成后暂停（按 Enter）",
-        "params": {
-          "message": {
-            "value": "码垛流程已初始化并到达等待区，按 Enter 开始抓箱码垛...",
-            "source": "CUSTOM"
-          }
-        }
-      },
+
       {
         "name": "Repeat",
         "label": "循环执行四格码垛",
@@ -113,6 +104,16 @@
               }
             },
             "childs": [
+              {
+                "name": "WaitForEnter",
+                "label": "初始化完成后暂停（按 Enter）",
+                "params": {
+                  "message": {
+                    "value": "码垛流程已初始化并到达等待区，按 Enter 开始抓箱码垛...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
               {
                 "name": "SubTree",
                 "label": "抓箱前导航与底盘对齐",
@@ -142,7 +143,7 @@
                 "label": "直接抓取箱体到闭爪",
                 "params": {
                   "file": {
-                    "value": "subtree/move_box_direct_grasp_before_lift_no_enter_memory_cn.json",
+                    "value": "subtree/move_box_direct_grasp_before_lift_enter_confirm_memory_cn.json",
                     "source": "CUSTOM"
                   }
                 }
