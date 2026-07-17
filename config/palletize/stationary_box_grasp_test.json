@@ -138,7 +138,7 @@
         "label": "直接抓取箱体到闭爪",
         "params": {
           "file": {
-            "value": "subtree/move_box_direct_grasp_before_lift_no_enter_memory_cn.json",
+            "value": "subtree/move_box_direct_grasp_before_lift_enter_confirm_memory_cn.json",
             "source": "CUSTOM"
           }
         }
