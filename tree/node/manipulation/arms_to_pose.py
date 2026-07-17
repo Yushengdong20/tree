@@ -93,6 +93,9 @@ class ArmsToPose(TimedMockAction):
                 "/move_box/claw_point_diagnostics_markers",
             )
         ).strip()
+        self.claw_point_diagnostics_base_link_visualization_enabled = self._to_bool(
+            params.get("claw_point_diagnostics_base_link_visualization_enabled", True)
+        )
         self.claw_point_diagnostics_color_log_enabled = self._to_bool(
             params.get("claw_point_diagnostics_color_log_enabled", True)
         )
@@ -790,11 +793,136 @@ class ArmsToPose(TimedMockAction):
             text.text = self._format_diagnostic_text(side, claw_delta, eef_delta)
             marker_array.markers.append(text)
 
+        if self.claw_point_diagnostics_base_link_visualization_enabled:
+            marker_id = self._append_single_claw_point_base_link_markers(
+                marker_array,
+                marker_id,
+                item,
+            )
+
         return marker_id
 
-    def _append_claw_wireframe_marker(self, marker_array, marker_id, side, claw_pose_map, actual):
-        """在 map 下画一个跟随 left_claw/right_claw 位姿的简化 U 型夹爪线框。"""
-        if not self.claw_wireframe_visualization_enabled or claw_pose_map is None:
+    def _append_single_claw_point_base_link_markers(self, marker_array, marker_id, item):
+        """额外发布 base_link 下的同源夹爪诊断，便于和 TF/IK 输入直接对齐。"""
+        side = item["side"]
+        target_claw = item.get("target_claw")
+        actual_claw = item.get("actual_claw")
+        target_eef = item.get("target_eef")
+        actual_eef = item.get("actual_eef")
+
+        if target_claw is not None:
+            marker = self._new_diagnostic_marker(
+                marker_id,
+                f"base_link/{side}_target_claw",
+                Marker.SPHERE,
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id += 1
+            marker.pose.position = self._point_message(*target_claw[:3])
+            marker.scale.x = marker.scale.y = marker.scale.z = 0.045
+            self._set_marker_color(marker, 0.05, 1.0, 0.15, 0.65)
+            marker_array.markers.append(marker)
+
+        if actual_claw is not None:
+            marker = self._new_diagnostic_marker(
+                marker_id,
+                f"base_link/{side}_actual_claw",
+                Marker.SPHERE,
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id += 1
+            marker.pose.position = self._point_message(*actual_claw[:3])
+            marker.scale.x = marker.scale.y = marker.scale.z = 0.055
+            self._set_marker_color(marker, 1.0, 0.15, 0.05, 0.75)
+            marker_array.markers.append(marker)
+            marker_id = self._append_claw_wireframe_marker(
+                marker_array,
+                marker_id,
+                side,
+                actual_claw,
+                actual=True,
+                frame_id=BASE_LINK_FRAME,
+                namespace_prefix="base_link/",
+            )
+
+        if target_eef is not None:
+            marker = self._new_diagnostic_marker(
+                marker_id,
+                f"base_link/{side}_target_eef",
+                Marker.SPHERE,
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id += 1
+            marker.pose.position = self._point_message(*target_eef[:3])
+            marker.scale.x = marker.scale.y = marker.scale.z = 0.035
+            self._set_marker_color(marker, 0.15, 0.75, 1.0, 0.6)
+            marker_array.markers.append(marker)
+
+        if actual_eef is not None:
+            marker = self._new_diagnostic_marker(
+                marker_id,
+                f"base_link/{side}_actual_eef",
+                Marker.SPHERE,
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id += 1
+            marker.pose.position = self._point_message(*actual_eef[:3])
+            marker.scale.x = marker.scale.y = marker.scale.z = 0.04
+            self._set_marker_color(marker, 1.0, 0.55, 0.05, 0.65)
+            marker_array.markers.append(marker)
+
+        if target_claw is not None and actual_claw is not None:
+            marker = self._new_diagnostic_marker(
+                marker_id,
+                f"base_link/{side}_claw_error_line",
+                Marker.LINE_LIST,
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id += 1
+            marker.scale.x = 0.014
+            marker.points = [
+                self._point_message(*target_claw[:3]),
+                self._point_message(*actual_claw[:3]),
+            ]
+            self._set_marker_color(marker, 1.0, 0.9, 0.05, 0.75)
+            marker_array.markers.append(marker)
+
+        text_pose = actual_claw or target_claw or actual_eef or target_eef
+        if text_pose is not None:
+            text = self._new_diagnostic_marker(
+                marker_id,
+                f"base_link/{side}_diagnostic_text",
+                Marker.TEXT_VIEW_FACING,
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id += 1
+            text.pose.position.x = float(text_pose[0])
+            text.pose.position.y = float(text_pose[1])
+            text.pose.position.z = float(text_pose[2] + 0.14)
+            text.pose.orientation.w = 1.0
+            text.scale.z = 0.06
+            self._set_marker_color(text, 0.75, 0.95, 1.0, 0.9)
+            text.text = "BASE_LINK\n" + self._format_diagnostic_text(
+                side,
+                item.get("claw_delta"),
+                item.get("eef_delta"),
+            )
+            marker_array.markers.append(text)
+
+        return marker_id
+
+    def _append_claw_wireframe_marker(
+        self,
+        marker_array,
+        marker_id,
+        side,
+        claw_pose,
+        actual,
+        frame_id=MAP_FRAME,
+        namespace_prefix="",
+    ):
+        """画一个跟随 left_claw/right_claw 位姿的简化 U 型夹爪线框。"""
+        if not self.claw_wireframe_visualization_enabled or claw_pose is None:
             return marker_id
 
         half_width = max(self.claw_wireframe_opening_width * 0.5, 0.005)
@@ -811,8 +939,9 @@ class ArmsToPose(TimedMockAction):
 
         marker = self._new_diagnostic_marker(
             marker_id,
-            f"{side}_{'actual' if actual else 'target'}_claw_u_wireframe",
+            f"{namespace_prefix}{side}_{'actual' if actual else 'target'}_claw_u_wireframe",
             Marker.LINE_LIST,
+            frame_id=frame_id,
         )
         marker_id += 1
         marker.scale.x = 0.012
@@ -822,26 +951,27 @@ class ArmsToPose(TimedMockAction):
             self._set_marker_color(marker, 1.0, 0.45, 0.05, 1.0)
         for start_local, end_local in local_segments:
             marker.points.append(
-                self._point_from_vector(
-                    self._transform_local_point_by_pose(claw_pose_map, start_local)
+                    self._point_from_vector(
+                    self._transform_local_point_by_pose(claw_pose, start_local)
                 )
             )
             marker.points.append(
                 self._point_from_vector(
-                    self._transform_local_point_by_pose(claw_pose_map, end_local)
+                    self._transform_local_point_by_pose(claw_pose, end_local)
                 )
             )
         marker_array.markers.append(marker)
 
         text = self._new_diagnostic_marker(
             marker_id,
-            f"{side}_{'actual' if actual else 'target'}_claw_u_text",
+            f"{namespace_prefix}{side}_{'actual' if actual else 'target'}_claw_u_text",
             Marker.TEXT_VIEW_FACING,
+            frame_id=frame_id,
         )
         marker_id += 1
-        text.pose.position.x = float(claw_pose_map[0])
-        text.pose.position.y = float(claw_pose_map[1])
-        text.pose.position.z = float(claw_pose_map[2] + 0.08)
+        text.pose.position.x = float(claw_pose[0])
+        text.pose.position.y = float(claw_pose[1])
+        text.pose.position.z = float(claw_pose[2] + 0.08)
         text.scale.z = 0.055
         self._set_marker_color(text, marker.color.r, marker.color.g, marker.color.b, 1.0)
         text.text = f"{side} claw U"
@@ -919,6 +1049,81 @@ class ArmsToPose(TimedMockAction):
             "FP BOX\n"
             f"center=({center[0]:.2f},{center[1]:.2f},{center[2]:.2f})\n"
             f"size=({box_size[0]:.2f},{box_size[1]:.2f},{box_size[2]:.2f})"
+        )
+        marker_array.markers.append(text)
+
+        if self.claw_point_diagnostics_base_link_visualization_enabled:
+            marker_id = self._append_fp_box_base_link_diagnostic_markers(
+                marker_array,
+                marker_id,
+                center_base,
+                left_axis_base,
+                front_axis_base,
+                up_axis_base,
+                box_size,
+            )
+        return marker_id
+
+    def _append_fp_box_base_link_diagnostic_markers(
+        self,
+        marker_array,
+        marker_id,
+        center_base,
+        left_axis_base,
+        front_axis_base,
+        up_axis_base,
+        box_size,
+    ):
+        """在同一诊断话题里额外叠加 base_link 下的 FP 箱体。"""
+        center = np.array(center_base[:3], dtype=float)
+        corners = self._fp_box_corners(
+            center,
+            left_axis_base,
+            front_axis_base,
+            up_axis_base,
+            box_size,
+        )
+        box_marker = self._new_diagnostic_marker(
+            marker_id,
+            "base_link/fp_box_outline",
+            Marker.LINE_LIST,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id += 1
+        box_marker.scale.x = 0.018
+        self._set_marker_color(box_marker, 0.0, 0.85, 1.0, 0.55)
+        for start_index, end_index in self._box_edge_indices():
+            box_marker.points.append(self._point_from_vector(corners[start_index]))
+            box_marker.points.append(self._point_from_vector(corners[end_index]))
+        marker_array.markers.append(box_marker)
+
+        center_marker = self._new_diagnostic_marker(
+            marker_id,
+            "base_link/fp_box_center",
+            Marker.SPHERE,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id += 1
+        center_marker.pose.position = self._point_from_vector(center)
+        center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = 0.06
+        self._set_marker_color(center_marker, 1.0, 1.0, 0.0, 0.65)
+        marker_array.markers.append(center_marker)
+
+        text = self._new_diagnostic_marker(
+            marker_id,
+            "base_link/fp_box_text",
+            Marker.TEXT_VIEW_FACING,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id += 1
+        text.pose.position.x = float(center[0])
+        text.pose.position.y = float(center[1])
+        text.pose.position.z = float(center[2] + box_size[2] * 0.5 + 0.12)
+        text.scale.z = 0.055
+        self._set_marker_color(text, 0.75, 0.95, 1.0, 0.9)
+        text.text = (
+            "FP BOX base_link\n"
+            f"center=({center[0]:.2f},{center[1]:.2f},{center[2]:.2f})"
         )
         marker_array.markers.append(text)
         return marker_id
@@ -1182,9 +1387,9 @@ class ArmsToPose(TimedMockAction):
             )
         return "\n".join(lines)
 
-    def _new_diagnostic_marker(self, marker_id, namespace, marker_type):
+    def _new_diagnostic_marker(self, marker_id, namespace, marker_type, frame_id=MAP_FRAME):
         marker = Marker()
-        marker.header.frame_id = MAP_FRAME
+        marker.header.frame_id = frame_id
         marker.header.stamp = self.ros_node.now()
         marker.ns = f"claw_point_diagnostics/{namespace}"
         marker.id = marker_id

@@ -54,6 +54,9 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         self.visualization_topic = str(
             params.get("visualization_topic", "/move_box/held_box_estimate_markers")
         ).strip()
+        self.base_link_visualization_enabled = self._to_bool(
+            params.get("base_link_visualization_enabled", True)
+        )
         self.publish_interval_sec = max(0.03, float(params.get("publish_interval_sec", 0.10)))
         self.log_interval_sec = max(0.2, float(params.get("log_interval_sec", 2.0)))
 
@@ -207,6 +210,13 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         left_map = self._base_point_to_map(left_base, robot_pose, map_z_offset)
         right_map = self._base_point_to_map(right_base, robot_pose, map_z_offset)
         center_map, yaw_deg = self._estimate_box_pose(left_map, right_map, robot_pose)
+        left_base_point = self._np_point_to_dict(left_base)
+        right_base_point = self._np_point_to_dict(right_base)
+        center_base, yaw_base_deg = self._estimate_box_pose(
+            left_base_point,
+            right_base_point,
+            Pose2D(x=0.0, y=0.0, yaw=self.fallback_yaw_offset_deg),
+        )
 
         marker_array = MarkerArray()
         clear_marker = Marker()
@@ -256,7 +266,17 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             left_map,
             right_map,
         )
-        self._append_text(marker_array, marker_id, center_map, yaw_deg, left_map, right_map)
+        marker_id = self._append_text(marker_array, marker_id, center_map, yaw_deg, left_map, right_map)
+
+        if self.base_link_visualization_enabled:
+            marker_id = self._append_base_link_visualization(
+                marker_array,
+                marker_id,
+                center_base,
+                yaw_base_deg,
+                left_base_point,
+                right_base_point,
+            )
 
         self.visualization_pub.publish(marker_array)
 
@@ -307,6 +327,14 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             "z": float(point_base[2]) + map_z_offset,
         }
 
+    @staticmethod
+    def _np_point_to_dict(point):
+        return {
+            "x": float(point[0]),
+            "y": float(point[1]),
+            "z": float(point[2]),
+        }
+
     def _estimate_box_pose(self, left_map, right_map, robot_pose):
         midpoint = {
             "x": 0.5 * (left_map["x"] + right_map["x"]),
@@ -337,23 +365,41 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         }
         return center, yaw_deg
 
-    def _append_box(self, marker_array, marker_id, center_map, yaw_deg):
-        marker = self._new_marker(marker_id, "held_box_estimate", Marker.CUBE)
-        marker.pose.position.x = center_map["x"]
-        marker.pose.position.y = center_map["y"]
-        marker.pose.position.z = center_map["z"]
+    def _append_box(
+        self,
+        marker_array,
+        marker_id,
+        center,
+        yaw_deg,
+        frame_id=MAP_FRAME,
+        namespace="held_box_estimate",
+        alpha=0.35,
+    ):
+        marker = self._new_marker(marker_id, namespace, Marker.CUBE, frame_id=frame_id)
+        marker.pose.position.x = center["x"]
+        marker.pose.position.y = center["y"]
+        marker.pose.position.z = center["z"]
         yaw_rad = math.radians(yaw_deg)
         marker.pose.orientation.z = math.sin(yaw_rad * 0.5)
         marker.pose.orientation.w = math.cos(yaw_rad * 0.5)
         marker.scale.x = self.box_size_x
         marker.scale.y = self.box_size_y
         marker.scale.z = self.box_size_z
-        self._set_color(marker, 0.1, 0.85, 1.0, 0.35)
+        self._set_color(marker, 0.1, 0.85, 1.0, alpha)
         marker_array.markers.append(marker)
         return marker_id + 1
 
-    def _append_sphere(self, marker_array, marker_id, namespace, point, color, scale):
-        marker = self._new_marker(marker_id, namespace, Marker.SPHERE)
+    def _append_sphere(
+        self,
+        marker_array,
+        marker_id,
+        namespace,
+        point,
+        color,
+        scale,
+        frame_id=MAP_FRAME,
+    ):
+        marker = self._new_marker(marker_id, namespace, Marker.SPHERE, frame_id=frame_id)
         marker.pose.position.x = point["x"]
         marker.pose.position.y = point["y"]
         marker.pose.position.z = point["z"]
@@ -362,8 +408,18 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         marker_array.markers.append(marker)
         return marker_id + 1
 
-    def _append_line(self, marker_array, marker_id, namespace, start, end, color, width):
-        marker = self._new_marker(marker_id, namespace, Marker.LINE_LIST)
+    def _append_line(
+        self,
+        marker_array,
+        marker_id,
+        namespace,
+        start,
+        end,
+        color,
+        width,
+        frame_id=MAP_FRAME,
+    ):
+        marker = self._new_marker(marker_id, namespace, Marker.LINE_LIST, frame_id=frame_id)
         marker.scale.x = float(width)
         marker.points = [
             Point(x=start["x"], y=start["y"], z=start["z"]),
@@ -463,6 +519,30 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             )
         return points
 
+    def _read_action_points_base(self):
+        key_specs = [
+            ("pre", "left", self.pre_place_left_claw_point_key),
+            ("pre", "right", self.pre_place_right_claw_point_key),
+            ("push", "left", self.push_left_claw_point_key),
+            ("push", "right", self.push_right_claw_point_key),
+            ("lift", "left", self.lift_left_claw_point_key),
+            ("lift", "right", self.lift_right_claw_point_key),
+        ]
+        points = []
+        for stage, side, key in key_specs:
+            point_base = self._read_base_point(key)
+            if point_base is None:
+                continue
+            points.append(
+                {
+                    "stage": stage,
+                    "side": side,
+                    "key": key,
+                    "point": self._np_point_to_dict(point_base),
+                }
+            )
+        return points
+
     def _read_base_point(self, key):
         if not key or not self.blackboard.exists(key):
             return None
@@ -478,8 +558,23 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             return None
         return None
 
-    def _append_action_point_text(self, marker_array, marker_id, stage, side, point, color):
-        marker = self._new_marker(marker_id, f"action_point_text_{stage}_{side}", Marker.TEXT_VIEW_FACING)
+    def _append_action_point_text(
+        self,
+        marker_array,
+        marker_id,
+        stage,
+        side,
+        point,
+        color,
+        frame_id=MAP_FRAME,
+        namespace_prefix="",
+    ):
+        marker = self._new_marker(
+            marker_id,
+            f"{namespace_prefix}action_point_text_{stage}_{side}",
+            Marker.TEXT_VIEW_FACING,
+            frame_id=frame_id,
+        )
         marker.pose.position.x = point["x"]
         marker.pose.position.y = point["y"]
         marker.pose.position.z = point["z"] + 0.08
@@ -508,6 +603,166 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         )
         self._set_color(marker, 1.0, 1.0, 1.0, 1.0)
         marker_array.markers.append(marker)
+        return marker_id + 1
+
+    def _append_base_link_visualization(self, marker_array, marker_id, center_base, yaw_base_deg, left_base, right_base):
+        """在同一话题中追加 base_link 下的手中箱体估计和动作点。"""
+        marker_id = self._append_box(
+            marker_array,
+            marker_id,
+            center_base,
+            yaw_base_deg,
+            frame_id=BASE_LINK_FRAME,
+            namespace="base_link/held_box_estimate",
+            alpha=0.22,
+        )
+        marker_id = self._append_sphere(
+            marker_array,
+            marker_id,
+            "base_link/left_claw_actual",
+            left_base,
+            color=(1.0, 0.0, 1.0, 0.7),
+            scale=0.06,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id = self._append_sphere(
+            marker_array,
+            marker_id,
+            "base_link/right_claw_actual",
+            right_base,
+            color=(1.0, 0.55, 0.0, 0.7),
+            scale=0.06,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id = self._append_sphere(
+            marker_array,
+            marker_id,
+            "base_link/held_box_center",
+            center_base,
+            color=(0.0, 1.0, 0.25, 0.75),
+            scale=0.065,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id = self._append_line(
+            marker_array,
+            marker_id,
+            "base_link/claw_connection",
+            left_base,
+            right_base,
+            color=(1.0, 1.0, 0.0, 0.7),
+            width=0.018,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker_id = self._append_action_points_base(
+            marker_array,
+            marker_id,
+            left_base,
+            right_base,
+        )
+        return self._append_base_link_text(
+            marker_array,
+            marker_id,
+            center_base,
+            yaw_base_deg,
+            left_base,
+            right_base,
+        )
+
+    def _append_action_points_base(self, marker_array, marker_id, current_left, current_right):
+        if not self.action_points_enabled:
+            return marker_id
+
+        action_points = self._read_action_points_base()
+        if not action_points:
+            return marker_id
+
+        color_by_stage = {
+            "pre": (1.0, 0.95, 0.05, 0.75),
+            "push": (0.0, 1.0, 0.25, 0.75),
+            "lift": (0.7, 0.35, 1.0, 0.75),
+        }
+        scale_by_stage = {
+            "pre": 0.052,
+            "push": 0.060,
+            "lift": 0.052,
+        }
+
+        pairs = {}
+        for item in action_points:
+            stage = item["stage"]
+            side = item["side"]
+            point = item["point"]
+            marker_id = self._append_sphere(
+                marker_array,
+                marker_id,
+                f"base_link/action_point_{stage}_{side}",
+                point,
+                color=color_by_stage.get(stage, (1.0, 1.0, 1.0, 0.75)),
+                scale=scale_by_stage.get(stage, 0.05),
+                frame_id=BASE_LINK_FRAME,
+            )
+            marker_id = self._append_action_point_text(
+                marker_array,
+                marker_id,
+                stage,
+                side,
+                point,
+                color=color_by_stage.get(stage, (1.0, 1.0, 1.0, 0.75)),
+                frame_id=BASE_LINK_FRAME,
+                namespace_prefix="base_link/",
+            )
+            pairs.setdefault(stage, {})[side] = point
+
+            current = current_left if side == "left" else current_right
+            marker_id = self._append_line(
+                marker_array,
+                marker_id,
+                f"base_link/current_to_action_{stage}_{side}",
+                current,
+                point,
+                color=(0.8, 0.8, 0.8, 0.35),
+                width=0.010,
+                frame_id=BASE_LINK_FRAME,
+            )
+
+        for stage, points in pairs.items():
+            if "left" in points and "right" in points:
+                marker_id = self._append_line(
+                    marker_array,
+                    marker_id,
+                    f"base_link/action_pair_{stage}",
+                    points["left"],
+                    points["right"],
+                    color=color_by_stage.get(stage, (1.0, 1.0, 1.0, 0.75)),
+                    width=0.014,
+                    frame_id=BASE_LINK_FRAME,
+                )
+        return marker_id
+
+    def _append_base_link_text(self, marker_array, marker_id, center, yaw_deg, left, right):
+        distance = math.sqrt(
+            (right["x"] - left["x"]) ** 2
+            + (right["y"] - left["y"]) ** 2
+            + (right["z"] - left["z"]) ** 2
+        )
+        marker = self._new_marker(
+            marker_id,
+            "base_link/held_box_text",
+            Marker.TEXT_VIEW_FACING,
+            frame_id=BASE_LINK_FRAME,
+        )
+        marker.pose.position.x = center["x"]
+        marker.pose.position.y = center["y"]
+        marker.pose.position.z = center["z"] + 0.35
+        marker.scale.z = 0.075
+        marker.text = (
+            "HELD BOX ESTIMATE base_link\n"
+            f"center=({center['x']:.2f},{center['y']:.2f},{center['z']:.2f}) yaw={yaw_deg:.1f}\n"
+            f"claw_dist={distance:.3f} box=({self.box_size_x:.2f},{self.box_size_y:.2f},{self.box_size_z:.2f})"
+        )
+        self._set_color(marker, 0.75, 0.95, 1.0, 0.9)
+        marker_array.markers.append(marker)
+        return marker_id + 1
 
     def _publish_clear(self):
         if self.visualization_pub is None:
@@ -539,9 +794,9 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         self._last_log_at = now
         self.ros_node.get_logger().warning(f"[{self.config_label}] {message}")
 
-    def _new_marker(self, marker_id, namespace, marker_type):
+    def _new_marker(self, marker_id, namespace, marker_type, frame_id=MAP_FRAME):
         marker = Marker()
-        marker.header.frame_id = MAP_FRAME
+        marker.header.frame_id = frame_id
         marker.header.stamp = self.ros_node.now()
         marker.ns = namespace
         marker.id = marker_id

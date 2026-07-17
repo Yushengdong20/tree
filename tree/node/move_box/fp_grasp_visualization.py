@@ -14,7 +14,7 @@ import tf.transformations as tf_trans
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
 
-from tree.constants import MAP_FRAME
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME
 
 
 def publish_fp_box_and_targets(
@@ -168,6 +168,23 @@ def publish_fp_box_and_targets(
         f"source={box_size_source}"
     )
     marker_array.markers.append(text)
+    marker_id += 1
+
+    marker_id = _append_base_link_fp_visualization(
+        ros_node=ros_node,
+        marker_array=marker_array,
+        marker_id=marker_id,
+        center_base=center_base,
+        left_axis_base=left_axis_base,
+        front_axis_base=front_axis_base,
+        up_axis_base=up_axis_base,
+        box_size=box_size,
+        box_size_source=box_size_source,
+        strategy=strategy,
+        grasp_pair=grasp_pair,
+        target_points=target_points,
+        include_grasp_targets=include_grasp_targets,
+    )
 
     publisher.publish(marker_array)
     ros_node.get_logger().info(
@@ -176,6 +193,148 @@ def publish_fp_box_and_targets(
         f"include_grasp_targets={include_grasp_targets}, "
         f"box_size_source={box_size_source}"
     )
+
+
+def _append_base_link_fp_visualization(
+    *,
+    ros_node,
+    marker_array,
+    marker_id,
+    center_base,
+    left_axis_base,
+    front_axis_base,
+    up_axis_base,
+    box_size,
+    box_size_source,
+    strategy,
+    grasp_pair,
+    target_points,
+    include_grasp_targets,
+):
+    """在同一 /move_box/fp_grasp_markers 话题中追加 base_link 原始链路可视化。"""
+    center = np.array(center_base[:3], dtype=float)
+    corners = _fp_box_corners(center, left_axis_base, front_axis_base, up_axis_base, box_size)
+    box_marker = _new_marker(
+        ros_node,
+        marker_id,
+        "base_link/fp_box_outline",
+        Marker.LINE_LIST,
+        frame_id=BASE_LINK_FRAME,
+    )
+    marker_id += 1
+    box_marker.scale.x = 0.018
+    _set_marker_color(box_marker, 0.0, 0.85, 1.0, 0.55)
+    for start_index, end_index in _box_edge_indices():
+        box_marker.points.append(_point_message(corners[start_index]))
+        box_marker.points.append(_point_message(corners[end_index]))
+    marker_array.markers.append(box_marker)
+
+    center_marker = _new_marker(
+        ros_node,
+        marker_id,
+        "base_link/fp_box_center",
+        Marker.SPHERE,
+        frame_id=BASE_LINK_FRAME,
+    )
+    marker_id += 1
+    center_marker.pose.position = _point_message(center)
+    center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = 0.06
+    _set_marker_color(center_marker, 1.0, 1.0, 0.0, 0.65)
+    marker_array.markers.append(center_marker)
+
+    for label, axis, color in (
+        ("base_link/left_axis", left_axis_base, (1.0, 0.1, 1.0)),
+        ("base_link/front_axis", front_axis_base, (0.1, 1.0, 0.1)),
+        ("base_link/up_axis", up_axis_base, (1.0, 0.7, 0.1)),
+    ):
+        marker_id = _append_axis_marker(
+            ros_node,
+            marker_array,
+            marker_id,
+            label,
+            center,
+            axis,
+            color,
+            frame_id=BASE_LINK_FRAME,
+            alpha=0.65,
+        )
+
+    if include_grasp_targets:
+        left_grasp = None
+        right_grasp = None
+        if grasp_pair is not None and len(grasp_pair) >= 2:
+            left_grasp = _as_vector(grasp_pair[0])
+            right_grasp = _as_vector(grasp_pair[1])
+        marker_id = _append_point_marker(
+            ros_node,
+            marker_array,
+            marker_id,
+            "base_link/left_grasp",
+            left_grasp,
+            (1.0, 0.1, 1.0),
+            "LEFT GRASP base_link",
+            0.075,
+            frame_id=BASE_LINK_FRAME,
+            alpha=0.75,
+        )
+        marker_id = _append_point_marker(
+            ros_node,
+            marker_array,
+            marker_id,
+            "base_link/right_grasp",
+            right_grasp,
+            (1.0, 0.45, 0.05),
+            "RIGHT GRASP base_link",
+            0.075,
+            frame_id=BASE_LINK_FRAME,
+            alpha=0.75,
+        )
+
+        target_colors = (
+            (0.25, 0.75, 1.0),
+            (0.2, 1.0, 0.45),
+            (1.0, 0.85, 0.15),
+            (1.0, 0.35, 0.15),
+            (0.75, 0.45, 1.0),
+            (0.9, 0.9, 0.9),
+        )
+        for index, (label, point_base) in enumerate((target_points or {}).items()):
+            point = _as_vector(point_base)
+            marker_id = _append_point_marker(
+                ros_node,
+                marker_array,
+                marker_id,
+                f"base_link/target_{label}",
+                point,
+                target_colors[index % len(target_colors)],
+                f"{label} base_link",
+                0.052,
+                frame_id=BASE_LINK_FRAME,
+                alpha=0.7,
+            )
+
+    text = _new_marker(
+        ros_node,
+        marker_id,
+        "base_link/fp_debug_text",
+        Marker.TEXT_VIEW_FACING,
+        frame_id=BASE_LINK_FRAME,
+    )
+    marker_id += 1
+    text.pose.position.x = float(center[0])
+    text.pose.position.y = float(center[1])
+    text.pose.position.z = float(center[2] + box_size[2] * 0.5 + 0.13)
+    text.scale.z = 0.075
+    _set_marker_color(text, 0.75, 0.95, 1.0, 0.9)
+    text.text = (
+        "FP DEBUG base_link\n"
+        f"center_base=({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})\n"
+        f"strategy={strategy}\n"
+        f"box=({box_size[0]:.2f}, {box_size[1]:.2f}, {box_size[2]:.2f})\n"
+        f"source={box_size_source}"
+    )
+    marker_array.markers.append(text)
+    return marker_id
 
 
 def clear_marker_array(publisher):
@@ -284,43 +443,70 @@ def _fp_box_corners(center, left_axis, front_axis, up_axis, box_size):
     return corners
 
 
-def _append_axis_marker(ros_node, marker_array, marker_id, label, center, axis, color):
-    arrow = _new_marker(ros_node, marker_id, f"fp_{label}", Marker.ARROW)
+def _append_axis_marker(
+    ros_node,
+    marker_array,
+    marker_id,
+    label,
+    center,
+    axis,
+    color,
+    frame_id=MAP_FRAME,
+    alpha=0.95,
+):
+    arrow = _new_marker(ros_node, marker_id, f"fp_{label}", Marker.ARROW, frame_id=frame_id)
     marker_id += 1
     arrow.scale.x = 0.04
     arrow.scale.y = 0.08
     arrow.scale.z = 0.08
     arrow.points = [_point_message(center), _point_message(center + axis * 0.35)]
-    _set_marker_color(arrow, color[0], color[1], color[2], 0.95)
+    _set_marker_color(arrow, color[0], color[1], color[2], alpha)
     marker_array.markers.append(arrow)
     return marker_id
 
 
-def _append_point_marker(ros_node, marker_array, marker_id, namespace, point, color, label, scale):
+def _append_point_marker(
+    ros_node,
+    marker_array,
+    marker_id,
+    namespace,
+    point,
+    color,
+    label,
+    scale,
+    frame_id=MAP_FRAME,
+    alpha=1.0,
+):
     if point is None:
         return marker_id
-    sphere = _new_marker(ros_node, marker_id, namespace, Marker.SPHERE)
+    sphere = _new_marker(ros_node, marker_id, namespace, Marker.SPHERE, frame_id=frame_id)
     marker_id += 1
     sphere.pose.position = _point_message(point)
     sphere.scale.x = sphere.scale.y = sphere.scale.z = float(scale)
-    _set_marker_color(sphere, color[0], color[1], color[2], 1.0)
+    _set_marker_color(sphere, color[0], color[1], color[2], alpha)
     marker_array.markers.append(sphere)
 
-    text = _new_marker(ros_node, marker_id, f"{namespace}_text", Marker.TEXT_VIEW_FACING)
+    text = _new_marker(
+        ros_node,
+        marker_id,
+        f"{namespace}_text",
+        Marker.TEXT_VIEW_FACING,
+        frame_id=frame_id,
+    )
     marker_id += 1
     text.pose.position.x = float(point[0])
     text.pose.position.y = float(point[1])
     text.pose.position.z = float(point[2] + 0.10)
     text.scale.z = 0.075
-    _set_marker_color(text, color[0], color[1], color[2], 1.0)
+    _set_marker_color(text, color[0], color[1], color[2], alpha)
     text.text = str(label)
     marker_array.markers.append(text)
     return marker_id
 
 
-def _new_marker(ros_node, marker_id, namespace, marker_type):
+def _new_marker(ros_node, marker_id, namespace, marker_type, frame_id=MAP_FRAME):
     marker = Marker()
-    marker.header.frame_id = MAP_FRAME
+    marker.header.frame_id = frame_id
     marker.header.stamp = ros_node.now()
     marker.ns = namespace
     marker.id = marker_id
