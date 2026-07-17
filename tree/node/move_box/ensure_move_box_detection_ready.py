@@ -63,6 +63,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self._settle_deadline = 0.0
         self._settle_next_phase = ""
         self._settle_reason = ""
+        self._settle_wait_reason = ""
         self._reset_thread = None
         self._reset_result = None
         self._reset_generation = 0
@@ -104,11 +105,16 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self._settle_deadline = 0.0
         self._settle_next_phase = ""
         self._settle_reason = ""
+        self._settle_wait_reason = ""
         self._clear_fp_grasp_visualization()
         if self.restart_before_wait:
-            self._start_settle_before_restart("RESTART_BEFORE_WAIT", "初次视觉重置前")
+            self._start_settle_before_phase("RESTART_BEFORE_WAIT", "初次视觉重置前")
         else:
-            self._start_wait("WAIT_INITIAL", "初次等待视觉检测")
+            self._start_settle_before_phase(
+                "WAIT_INITIAL",
+                "初次视觉检测轮询前",
+                wait_reason="初次等待视觉检测",
+            )
 
     def update(self):
         if self.should_use_mock_execution():
@@ -124,8 +130,12 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
 
         if self._phase in ("WAIT_INITIAL", "WAIT_AFTER_RESTART"):
             return self._update_wait_detection()
-        if self._phase in ("SETTLE_BEFORE_RESTART", "SETTLE_AFTER_TIMEOUT"):
-            return self._update_settle_before_restart()
+        if self._phase in (
+            "SETTLE_BEFORE_WAIT",
+            "SETTLE_BEFORE_RESTART",
+            "SETTLE_AFTER_TIMEOUT",
+        ):
+            return self._update_settle_before_phase()
         if self._phase in ("RESTART_BEFORE_WAIT", "RESTART_AFTER_TIMEOUT"):
             return self._update_restart_detection()
 
@@ -156,7 +166,7 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
 
             self._reset_thread = None
             self._reset_result = None
-            self._start_settle_before_restart("RESTART_AFTER_TIMEOUT", "视觉检测超时重置前")
+            self._start_settle_before_phase("RESTART_AFTER_TIMEOUT", "视觉检测超时重置前")
             return Status.RUNNING
 
         if now < self._next_poll_at:
@@ -169,39 +179,54 @@ class EnsureMoveBoxDetectionReady(TimedMockAction):
         self._next_poll_at = now + self.poll_interval_sec
         return Status.RUNNING
 
-    def _start_settle_before_restart(self, next_phase, reason):
-        """在调用 FoundationPose reset 前，可选等待相机/TF/底盘画面稳定。"""
+    def _start_settle_before_phase(self, next_phase, reason, wait_reason=""):
+        """在调用 FoundationPose reset 或轮询检测前，可选等待相机/TF/底盘画面稳定。"""
         if not self.fp_settle_before_refresh_enabled or self.fp_settle_before_refresh_sec <= 0.0:
-            self._phase = next_phase
+            if next_phase in ("WAIT_INITIAL", "WAIT_AFTER_RESTART"):
+                self._start_wait(next_phase, wait_reason or reason)
+            else:
+                self._phase = next_phase
             return
 
         self._settle_next_phase = next_phase
         self._settle_reason = reason
+        self._settle_wait_reason = wait_reason
         self._settle_deadline = time.monotonic() + self.fp_settle_before_refresh_sec
-        self._phase = (
-            "SETTLE_BEFORE_RESTART"
-            if next_phase == "RESTART_BEFORE_WAIT"
-            else "SETTLE_AFTER_TIMEOUT"
-        )
+        if next_phase in ("WAIT_INITIAL", "WAIT_AFTER_RESTART"):
+            self._phase = "SETTLE_BEFORE_WAIT"
+        elif next_phase == "RESTART_BEFORE_WAIT":
+            self._phase = "SETTLE_BEFORE_RESTART"
+        else:
+            self._phase = "SETTLE_AFTER_TIMEOUT"
         self.ros_node.get_logger().info(
             f"[{self.config_label}] FP刷新前等待相机/TF稳定: "
             f"reason={reason}, wait={self.fp_settle_before_refresh_sec:.3f}s, "
             f"next={next_phase}"
         )
 
-    def _update_settle_before_restart(self):
+    def _update_settle_before_phase(self):
         now = time.monotonic()
         if now < self._settle_deadline:
             return Status.RUNNING
 
         next_phase = self._settle_next_phase or "RESTART_BEFORE_WAIT"
+        wait_reason = self._settle_wait_reason
+        action_desc = (
+            "开始轮询视觉检测"
+            if next_phase in ("WAIT_INITIAL", "WAIT_AFTER_RESTART")
+            else "开始调用视觉重置服务"
+        )
         self.ros_node.get_logger().info(
-            f"[{self.config_label}] FP刷新前等待结束，开始调用视觉重置服务: "
+            f"[{self.config_label}] FP刷新前等待结束，{action_desc}: "
             f"reason={self._settle_reason or '<unset>'}, next={next_phase}"
         )
-        self._phase = next_phase
+        if next_phase in ("WAIT_INITIAL", "WAIT_AFTER_RESTART"):
+            self._start_wait(next_phase, wait_reason or self._settle_reason or "等待视觉检测")
+        else:
+            self._phase = next_phase
         self._settle_next_phase = ""
         self._settle_reason = ""
+        self._settle_wait_reason = ""
         self._settle_deadline = 0.0
         return Status.RUNNING
 
