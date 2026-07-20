@@ -16,6 +16,7 @@ class OpenClaw(TimedMockAction):
         self.services_key = ROBOT_SERVICES_KEY
         self.side = str(params.get("side", "both")).strip().lower()
         self.side_key = str(params.get("side_key", "")).strip()
+        self.torque = self._optional_float(params.get("torque", ""))
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         if self.side_key:
             self.blackboard.register_key(key=self.side_key, access=py_trees.common.Access.READ)
@@ -43,7 +44,7 @@ class OpenClaw(TimedMockAction):
         except Exception as exc:
             self.ros_node.get_logger().error(f"[{self.config_label}] 解析夹爪侧别失败: {exc}")
             return Status.FAILURE
-        ok = services.arm_controller.open_claw(side)
+        ok = services.arm_controller.open_claw(side, effort=self.torque)
         return Status.SUCCESS if ok else Status.FAILURE
 
     def _resolve_side(self):
@@ -60,5 +61,13 @@ class OpenClaw(TimedMockAction):
     def describe_start(self):
         return (
             f"[{self.config_label}] OpenClaw start: key={self.services_key}, "
-            f"side={self.side}, side_key={self.side_key or '<none>'}"
+            f"side={self.side}, side_key={self.side_key or '<none>'}, "
+            f"torque={self.torque if self.torque is not None else '<default>'}"
         )
+
+    @staticmethod
+    def _optional_float(value):
+        """空值表示沿用 ArmController 的全局 claw_effort。"""
+        if value is None or str(value).strip() == "":
+            return None
+        return float(value)
