@@ -222,6 +222,10 @@
           "side": {
             "value": "both",
             "source": "CUSTOM"
+          },
+          "torque": {
+            "value": "0.5",
+            "source": "CUSTOM"
           }
         }
       },

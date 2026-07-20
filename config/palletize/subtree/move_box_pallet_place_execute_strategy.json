@@ -206,6 +206,10 @@
                   "side": {
                     "value": "both",
                     "source": "CUSTOM"
+                  },
+                  "torque": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
                   }
                 }
               },
@@ -298,6 +302,10 @@
                   "side": {
                     "value": "left",
                     "source": "CUSTOM"
+                  },
+                  "torque": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
                   }
                 }
               },
@@ -389,6 +397,10 @@
                 "params": {
                   "side": {
                     "value": "right",
+                    "source": "CUSTOM"
+                  },
+                  "torque": {
+                    "value": "0.0",
                     "source": "CUSTOM"
                   }
                 }
@@ -518,6 +530,10 @@
                   "side": {
                     "value": "right",
                     "source": "CUSTOM"
+                  },
+                  "torque": {
+                    "value": "0.0",
+                    "source": "CUSTOM"
                   }
                 }
               },
@@ -609,6 +625,10 @@
                 "params": {
                   "side": {
                     "value": "left",
+                    "source": "CUSTOM"
+                  },
+                  "torque": {
+                    "value": "0.0",
                     "source": "CUSTOM"
                   }
                 }
