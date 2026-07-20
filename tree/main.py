@@ -34,8 +34,9 @@ from tree.ros_interface import create_ros_interface
 # 通用动作节点完整搬箱流程。
 # DEFAULT_TREE_FILE_NAME = "tree/staring/move_box_full_direct_grasp_place_common_cn.json"
 # 完整实机搬箱流程：抓箱对齐、直接抓取、放箱、返回等待区域。
-# DEFAULT_TREE_FILE_NAME = "tree/staring/move_box_full_direct_grasp_place_memory.json"
-
+DEFAULT_TREE_FILE_NAME = "tree/staring/move_box_full_direct_grasp_place_memory.json"
+# 完整实机搬箱流程：抓箱对齐、直接抓取、放箱、返回等待区域，带转身。
+# DEFAULT_TREE_FILE_NAME = "tree/box/move_box_full_direct_grasp_place_turn.json"
 # 高效动态拆垛分段实机测试：按 01 -> 05 顺序逐棵验证。
 # 00：静止验证最高层箱体长边两侧站位、通道过滤和RViz，不执行导航。
 # DEFAULT_TREE_FILE_NAME = "depalletize/test/test_00_plan_box_approaches.json"

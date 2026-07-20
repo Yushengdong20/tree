@@ -98,23 +98,35 @@
                     "label": "导航到放置点",
                     "params": {
                       "x": {
-                        "value": "2.820933034031259",
+                        "value": "1.84",
                         "source": "CUSTOM"
                       },
                       "y": {
-                        "value": "3.307197578516518",
+                        "value": "4.26",
                         "source": "CUSTOM"
                       },
                       "yaw": {
-                        "value": "86.41201143492874",
+                        "value": "6.30",
                         "source": "CUSTOM"
                       },
                       "chassis_url": {
                         "value": "http://localhost:8081",
                         "source": "CUSTOM"
                       },
+                      "navigation_visualization_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_visualization_topic": {
+                        "value": "/move_box/http_navigation_place_markers",
+                        "source": "CUSTOM"
+                      },
                       "navigation_timeout_sec": {
                         "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "odom_topic": {
+                        "value": "melon_odom",
                         "source": "CUSTOM"
                       },
                       "poll_interval_sec": {
@@ -263,34 +275,42 @@
                     "childs": [
                       {
                         "name": "HttpNavigateToPose",
-                        "label": "放箱后后退1米避免碰到箱子",
+                        "label": "回等待区域前先后退1米",
                         "params": {
                           "x": {
-                            "value": "2.820933034031259",
+                            "value": "0.84",
                             "source": "CUSTOM"
                           },
                           "y": {
-                            "value": "2.307197578516518",
+                            "value": "4.26",
                             "source": "CUSTOM"
                           },
                           "yaw": {
-                            "value": "176.41201143492874",
+                            "value": "-105.02",
                             "source": "CUSTOM"
                           },
                           "chassis_url": {
                             "value": "http://localhost:8081",
                             "source": "CUSTOM"
                           },
+                          "navigation_visualization_enabled": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          },
+                          "navigation_visualization_topic": {
+                            "value": "/move_box/http_navigation_return_wait_markers",
+                            "source": "CUSTOM"
+                          },
                           "navigation_timeout_sec": {
                             "value": "600",
                             "source": "CUSTOM"
                           },
-                          "poll_interval_sec": {
-                            "value": "0.2",
+                          "odom_topic": {
+                            "value": "melon_odom",
                             "source": "CUSTOM"
                           },
-                          "navigation_target_key": {
-                            "value": "move_box_retreat_navigation_target",
+                          "poll_interval_sec": {
+                            "value": "0.2",
                             "source": "CUSTOM"
                           }
                         }
