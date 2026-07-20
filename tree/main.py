@@ -57,7 +57,9 @@ from tree.ros_interface import create_ros_interface
 # 码垛策略版：动态预估箱体，按直接/左推/右推策略执行真实放箱，每步 Enter 确认。
 DEFAULT_TREE_FILE_NAME = "palletize/move_box_palletize_strategy_preview.json"
 # enter确认版原地抓箱测试。
-DEFAULT_TREE_FILE_NAME = "palletize/stationary_box_grasp_test.json"
+# DEFAULT_TREE_FILE_NAME = "palletize/stationary_box_grasp_test.json"
+# 夹爪测试
+# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_claw_open_close_enter_loop_test_cn.json"
 
 def parse_main_args(args=None):
     """

@@ -58,6 +58,18 @@
                     "value": "/move_box/yolo_box_pose_map",
                     "source": "CUSTOM"
                   },
+                  "publish_selected_box_during_navigation": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "selected_box_publish_interval_sec": {
+                    "value": "0.3",
+                    "source": "CUSTOM"
+                  },
+                  "selected_box_publish_log_interval_sec": {
+                    "value": "2.0",
+                    "source": "CUSTOM"
+                  },
                   "navigation_visualization_enabled": {
                     "value": "True",
                     "source": "CUSTOM"

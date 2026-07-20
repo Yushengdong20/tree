@@ -91,6 +91,22 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             params.get("memory_update_interval_sec", 0.5)
         )
         self.memory_update_interval_sec = max(self.memory_update_interval_sec, 0.05)
+        # 粗导航与 FP 重启可并行发生。导航途中持续重发同一已选箱的 map OBB，
+        # 让 FP 始终拿到当前时刻附近的目标时间戳，而不是重新从其它 YOLO 箱中选目标。
+        self.publish_selected_box_during_navigation = self._to_bool(
+            params.get("publish_selected_box_during_navigation", True)
+        )
+        self.selected_box_publish_interval_sec = float(
+            params.get("selected_box_publish_interval_sec", 0.5)
+        )
+        self.selected_box_publish_interval_sec = max(
+            self.selected_box_publish_interval_sec,
+            0.05,
+        )
+        self.selected_box_publish_log_interval_sec = max(
+            float(params.get("selected_box_publish_log_interval_sec", 2.0)),
+            0.0,
+        )
         self.min_detected_box_3d_distance_m = float(
             params.get("min_detected_box_3d_distance_m", 0.25)
         )
@@ -218,6 +234,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self._deadline = None
         self._next_poll_at = None
         self._next_memory_update_at = None
+        self._next_selected_box_publish_at = None
+        self._last_selected_box_publish_log_at = None
         self._no_valid_yolo_warning_at = None
         self._last_yolo_frame_generation = 0
         self._latest_detection_frame = None
@@ -300,7 +318,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     self._current_box_target
                 )
                 self._box_global_position = self._current_box_target.get("map_position")
-                self._publish_box_map_pose()
+                self._publish_box_map_pose(force_log=True)
                 box_distance_m = math.hypot(
                     self._box_global_position["x"] - self._current_pose.x,
                     self._box_global_position["y"] - self._current_pose.y,
@@ -390,6 +408,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                 )
                 self._next_poll_at = now
                 self._next_memory_update_at = now + self.memory_update_interval_sec
+                self._next_selected_box_publish_at = now + self.selected_box_publish_interval_sec
                 self._phase = "POLL_NAVIGATION"
                 return Status.RUNNING
 
@@ -428,7 +447,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         # 投影当前图像，导致运动后 reset/register 失败。到达粗导航目标后
         # 重新发布同一个 map 目标，但 stamp 更新为当前 ROS 时间，让 FP
         # 用当前图像时刻附近的 TF 去投影目标框。
-        self._publish_box_map_pose()
+        self._publish_box_map_pose(force_log=True)
         self._store_result(need_navigation=True, box_distance_m=self._box_distance_m)
         self.blackboard.final_pose = {
             "x": self._target_pose.x,
@@ -469,24 +488,48 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         return services
 
     def _update_memory_while_navigation(self, now):
-        """YOLO 粗靠近过程中持续用本轮检测刷新记忆，直到 FP 接管。"""
-        if not self.use_box_memory or not self.memory_update_during_navigation:
-            return
-        if self._next_memory_update_at is not None and now < self._next_memory_update_at:
+        """导航中可选地刷新记忆，并持续重发同一粗导航目标给 FP。"""
+        should_refresh_memory = (
+            self.use_box_memory
+            and self.memory_update_during_navigation
+            and (
+                self._next_memory_update_at is None
+                or now >= self._next_memory_update_at
+            )
+        )
+        should_publish_selected_box = (
+            self.publish_selected_box_during_navigation
+            and self.box_map_pose_pub is not None
+            and self._current_box_target is not None
+            and (
+                self._next_selected_box_publish_at is None
+                or now >= self._next_selected_box_publish_at
+            )
+        )
+        if not should_refresh_memory and not should_publish_selected_box:
             return
 
-        self._next_memory_update_at = now + self.memory_update_interval_sec
         try:
-            # 关键步骤：机器人移动中 base 坐标持续变化，刷新当前底盘位姿后再换算 map 坐标。
-            self._current_pose = get_chassis_current_pose(self.chassis_config)
-            services = self._get_services()
-            self._update_yolo_targets(services)
-            self._choose_current_target_from_yolo()
-            if self._current_box_target is not None:
+            if should_refresh_memory:
+                self._next_memory_update_at = now + self.memory_update_interval_sec
+                # 只有箱子记忆模式才重新读取 YOLO 帧并更新记忆；普通粗导航模式
+                # 则严格保持初次选中的目标，避免 FP 锁定对象在移动中跳变。
+                self._current_pose = get_chassis_current_pose(self.chassis_config)
+                services = self._get_services()
+                self._update_yolo_targets(services)
+                self._choose_current_target_from_yolo()
+
+            if self._current_box_target is not None and (
+                should_refresh_memory or should_publish_selected_box
+            ):
                 self._box_base_position = self._derive_target_base_position(
                     self._current_box_target
                 )
                 self._box_global_position = self._current_box_target.get("map_position")
+                if should_publish_selected_box:
+                    self._next_selected_box_publish_at = (
+                        now + self.selected_box_publish_interval_sec
+                    )
                 self._publish_box_map_pose()
         except Exception as exc:
             self._log_info(
@@ -1610,7 +1653,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             return
         self.blackboard.set(self.navigation_target_key, None, overwrite=True)
 
-    def _publish_box_map_pose(self):
+    def _publish_box_map_pose(self, force_log=False):
         """发布 map 坐标系下的 YOLO 箱体三维框 String。"""
         if self.box_map_pose_pub is None:
             return
@@ -1638,13 +1681,22 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         payload = serialize_yolo_box(box, frame_id=MAP_FRAME, stamp=box["stamp"])
         self.box_map_pose_pub.publish(payload)
         now_stamp = self._ros_stamp_to_seconds(self.ros_node.now())
-        self.ros_node.get_logger().info(
-            f"[{self.config_label}] 已发布 map 下 YOLO 箱体 String: "
-            f"topic={self.box_map_pose_topic}, "
-            f"stamp={box['stamp']:.3f}, now={now_stamp:.3f}, age={(now_stamp - box['stamp']) * 1000.0:.1f}ms, "
-            f"center=({box['center'][0]:.3f}, {box['center'][1]:.3f}, {box['center'][2]:.3f}), "
-            f"size={box.get('size')}, score={box.get('score')}, class_id={box.get('class_id')}"
-        )
+        should_log = force_log or self.selected_box_publish_log_interval_sec <= 0.0
+        if not should_log:
+            last_log_at = self._last_selected_box_publish_log_at
+            should_log = (
+                last_log_at is None
+                or time.monotonic() - last_log_at >= self.selected_box_publish_log_interval_sec
+            )
+        if should_log:
+            self._last_selected_box_publish_log_at = time.monotonic()
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] 已发布 map 下 YOLO 箱体 String: "
+                f"topic={self.box_map_pose_topic}, "
+                f"stamp={box['stamp']:.3f}, now={now_stamp:.3f}, age={(now_stamp - box['stamp']) * 1000.0:.1f}ms, "
+                f"center=({box['center'][0]:.3f}, {box['center'][1]:.3f}, {box['center'][2]:.3f}), "
+                f"size={box.get('size')}, score={box.get('score')}, class_id={box.get('class_id')}"
+            )
 
     def _publish_navigation_visualization(self, target_x, target_y, target_yaw, skipped):
         """在map下显示用于导航的箱子、候选箱、目标站位、连线和最终朝向。"""

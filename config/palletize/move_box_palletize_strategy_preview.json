@@ -277,7 +277,7 @@
                     "source": "CUSTOM"
                   },
                   "place_clearance_z": {
-                    "value": "0.02",
+                    "value": "0.06",
                     "source": "CUSTOM"
                   },
                   "approach_side": {
@@ -289,7 +289,7 @@
                     "source": "CUSTOM"
                   },
                   "place_box_forward_offset_m": {
-                    "value": "1.0",
+                    "value": "0.90",
                     "source": "CUSTOM"
                   },
                   "stack_count_key": {
@@ -347,8 +347,90 @@
                 }
               },
               {
+                "name": "ComputeMoveBoxOffsetNavigationTarget",
+                "label": "计算垛盘码垛站位后退1米安全预备位",
+                "params": {
+                  "source_pose_key": {
+                    "value": "move_box_pallet_stack_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "target_pose_key": {
+                    "value": "move_box_pallet_stack_pre_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "offset_distance_m": {
+                    "value": "1.0",
+                    "source": "CUSTOM"
+                  },
+                  "offset_direction": {
+                    "value": "backward",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
                 "name": "Parallel",
-                "label": "上提箱体同时导航到垛盘码垛站位",
+                "label": "上提箱体同时导航到垛盘后退1米安全预备位",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到垛盘码垛站位后退1米安全预备位",
+                    "params": {
+                      "target_pose_key": {
+                        "value": "move_box_pallet_stack_pre_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_visualization_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_visualization_topic": {
+                        "value": "/move_box/http_navigation_pallet_stack_pre_markers",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "move_box_pallet_stack_pre_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "odom_topic": {
+                        "value": "melon_odom",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "SubTree",
+                    "label": "上提箱体并回位",
+                    "params": {
+                      "file": {
+                        "value": "subtree/move_box_direct_grasp_lift_restore_no_enter_cn.json",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "Parallel",
+                "label": "从安全预备位进入垛盘码垛站位并调整躯干",
                 "params": {
                   "policy": {
                     "value": "SuccessOnAll",
@@ -390,16 +472,6 @@
                       },
                       "odom_topic": {
                         "value": "melon_odom",
-                        "source": "CUSTOM"
-                      }
-                    }
-                  },
-                  {
-                    "name": "SubTree",
-                    "label": "上提箱体并回位",
-                    "params": {
-                      "file": {
-                        "value": "subtree/move_box_direct_grasp_lift_restore_no_enter_cn.json",
                         "source": "CUSTOM"
                       }
                     }
