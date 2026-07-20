@@ -313,11 +313,11 @@
                     "source": "CUSTOM"
                   },
                   "pre_place_lateral_offset_m": {
-                    "value": "0.10",
+                    "value": "0.06",
                     "source": "CUSTOM"
                   },
                   "push_distance_m": {
-                    "value": "0.10",
+                    "value": "0.06",
                     "source": "CUSTOM"
                   },
                   "claw_lift_clearance_m": {
@@ -429,56 +429,126 @@
                 ]
               },
               {
-                "name": "Parallel",
-                "label": "从安全预备位进入垛盘码垛站位并调整躯干",
+                "name": "HttpNavigateToPose",
+                "label": "保持抬箱高度导航到垛盘码垛站位",
                 "params": {
-                  "policy": {
-                    "value": "SuccessOnAll",
+                  "target_pose_key": {
+                    "value": "move_box_pallet_stack_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_visualization_enabled": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_visualization_topic": {
+                    "value": "/move_box/http_navigation_pallet_stack_markers",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "move_box_pallet_stack_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "ComputeMoveBoxPalletPrePlaceSafeTargets",
+                "label": "计算下腰前高位安全预落位",
+                "params": {
+                  "services_key": {
+                    "value": "robot_services",
+                    "source": "CUSTOM"
+                  },
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "strategy_key": {
+                    "value": "move_box_pallet_place_strategy",
+                    "source": "CUSTOM"
+                  },
+                  "pre_box_pose_key": {
+                    "value": "move_box_pallet_place_pre_box_pose",
+                    "source": "CUSTOM"
+                  },
+                  "place_plane_height_key": {
+                    "value": "move_box_pallet_stack_place_plane_height",
+                    "source": "CUSTOM"
+                  },
+                  "left_target_key": {
+                    "value": "move_box_pallet_safe_pre_place_left_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "right_target_key": {
+                    "value": "move_box_pallet_safe_pre_place_right_claw_point",
+                    "source": "CUSTOM"
+                  },
+                  "safe_box_pose_key": {
+                    "value": "move_box_pallet_safe_pre_place_box_pose",
+                    "source": "CUSTOM"
+                  },
+                  "requires_safe_pre_place_key": {
+                    "value": "move_box_pallet_requires_safe_pre_place",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_x": {
+                    "value": "0.60",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_y": {
+                    "value": "0.40",
+                    "source": "CUSTOM"
+                  },
+                  "box_size_z": {
+                    "value": "0.34",
+                    "source": "CUSTOM"
+                  },
+                  "pre_place_safe_clearance_m": {
+                    "value": "0.10",
+                    "source": "CUSTOM"
+                  },
+                  "pre_place_safe_retract_m": {
+                    "value": "0.08",
+                    "source": "CUSTOM"
+                  },
+                  "visualization_enabled": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  },
+                  "visualization_topic": {
+                    "value": "/move_box/pallet_place_dynamic_estimate_markers",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "Selector",
+                "label": "推箱策略先高位横移到安全预落位",
+                "params": {
+                  "memory": {
+                    "value": "False",
                     "source": "CUSTOM"
                   }
                 },
                 "childs": [
                   {
-                    "name": "HttpNavigateToPose",
-                    "label": "导航到垛盘码垛站位",
-                    "params": {
-                      "target_pose_key": {
-                        "value": "move_box_pallet_stack_navigation_target",
-                        "source": "CUSTOM"
-                      },
-                      "chassis_url": {
-                        "value": "http://localhost:8081",
-                        "source": "CUSTOM"
-                      },
-                      "navigation_timeout_sec": {
-                        "value": "600",
-                        "source": "CUSTOM"
-                      },
-                      "poll_interval_sec": {
-                        "value": "0.2",
-                        "source": "CUSTOM"
-                      },
-                      "navigation_visualization_enabled": {
-                        "value": "True",
-                        "source": "CUSTOM"
-                      },
-                      "navigation_visualization_topic": {
-                        "value": "/move_box/http_navigation_pallet_stack_markers",
-                        "source": "CUSTOM"
-                      },
-                      "navigation_target_key": {
-                        "value": "move_box_pallet_stack_navigation_target",
-                        "source": "CUSTOM"
-                      },
-                      "odom_topic": {
-                        "value": "melon_odom",
-                        "source": "CUSTOM"
-                      }
-                    }
-                  },
-                  {
                     "name": "Sequence",
-                    "label": "接近垛盘站位后调整躯干到码垛高度",
+                    "label": "右推左放高位进入预落位",
                     "params": {
                       "memory": {
                         "value": "True",
@@ -487,80 +557,132 @@
                     },
                     "childs": [
                       {
-                        "name": "WaitUntilNearNavigationGoal",
-                        "label": "监听接近垛盘码垛站位",
+                        "name": "CheckBlackboardValue",
+                        "label": "选择右推左放高位避障",
                         "params": {
-                          "odom_topic": {
-                            "value": "melon_odom",
+                          "key": {
+                            "value": "move_box_pallet_place_strategy",
                             "source": "CUSTOM"
                           },
-                          "target_key": {
-                            "value": "move_box_pallet_stack_navigation_target",
-                            "source": "CUSTOM"
-                          },
-                          "distance_threshold": {
-                            "value": "0.6",
+                          "expected": {
+                            "value": "right_push_left_place",
                             "source": "CUSTOM"
                           }
                         }
                       },
                       {
-                        "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
-                        "label": "根据码垛层高计算躯干目标",
+                        "name": "WaitForEnter",
+                        "label": "高位预落位确认：右推左放",
                         "params": {
-                          "place_plane_height_key": {
-                            "value": "move_box_pallet_stack_place_plane_height",
-                            "source": "CUSTOM"
-                          },
-                          "place_plane_frame": {
-                            "value": "map",
-                            "source": "CUSTOM"
-                          },
-                          "odom_topic": {
-                            "value": "melon_odom",
-                            "source": "CUSTOM"
-                          },
-                          "place_torso_height_offset": {
-                            "value": "0.4",
-                            "source": "CUSTOM"
-                          },
-                          "place_torso_min_height": {
-                            "value": "0.6",
-                            "source": "CUSTOM"
-                          },
-                          "place_torso_max_height": {
-                            "value": "1.4",
-                            "source": "CUSTOM"
-                          },
-                          "place_torso_x": {
-                            "value": "0.5",
-                            "source": "CUSTOM"
-                          },
-                          "target_pose_key": {
-                            "value": "move_box_pallet_place_torso_pose",
+                          "message": {
+                            "value": "右推左放：将保持箱体高于邻箱横移到紫色安全预落位，确认后按 Enter 执行...",
                             "source": "CUSTOM"
                           }
                         }
                       },
                       {
-                        "name": "MoveTorsoPose",
-                        "label": "根据码垛层高调整躯干",
+                        "name": "ArmsToPose",
+                        "label": "右推左放：双爪高位横移到安全预落位",
                         "params": {
-                          "pose_key": {
-                            "value": "move_box_pallet_place_torso_pose",
+                          "target_type": {
+                            "value": "claw_point",
                             "source": "CUSTOM"
                           },
-                          "wait_done": {
-                            "value": "True",
+                          "pose_frame": {
+                            "value": "base_link",
                             "source": "CUSTOM"
                           },
-                          "skip_torso_motion": {
-                            "value": "False",
+                          "left_point_key": {
+                            "value": "move_box_pallet_safe_pre_place_left_claw_point",
+                            "source": "CUSTOM"
+                          },
+                          "right_point_key": {
+                            "value": "move_box_pallet_safe_pre_place_right_claw_point",
+                            "source": "CUSTOM"
+                          },
+                          "claw_ypr": {
+                            "value": "[0.0, -75.0, 0.0]",
                             "source": "CUSTOM"
                           }
                         }
                       }
                     ]
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "左推右放高位进入预落位",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "CheckBlackboardValue",
+                        "label": "选择左推右放高位避障",
+                        "params": {
+                          "key": {
+                            "value": "move_box_pallet_place_strategy",
+                            "source": "CUSTOM"
+                          },
+                          "expected": {
+                            "value": "left_push_right_place",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "WaitForEnter",
+                        "label": "高位预落位确认：左推右放",
+                        "params": {
+                          "message": {
+                            "value": "左推右放：将保持箱体高于邻箱横移到紫色安全预落位，确认后按 Enter 执行...",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      },
+                      {
+                        "name": "ArmsToPose",
+                        "label": "左推右放：双爪高位横移到安全预落位",
+                        "params": {
+                          "target_type": {
+                            "value": "claw_point",
+                            "source": "CUSTOM"
+                          },
+                          "pose_frame": {
+                            "value": "base_link",
+                            "source": "CUSTOM"
+                          },
+                          "left_point_key": {
+                            "value": "move_box_pallet_safe_pre_place_left_claw_point",
+                            "source": "CUSTOM"
+                          },
+                          "right_point_key": {
+                            "value": "move_box_pallet_safe_pre_place_right_claw_point",
+                            "source": "CUSTOM"
+                          },
+                          "claw_ypr": {
+                            "value": "[0.0, -75.0, 0.0]",
+                            "source": "CUSTOM"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "CheckBlackboardValue",
+                    "label": "直接放箱无需高位横移",
+                    "params": {
+                      "key": {
+                        "value": "move_box_pallet_place_strategy",
+                        "source": "CUSTOM"
+                      },
+                      "expected": {
+                        "value": "direct_place",
+                        "source": "CUSTOM"
+                      }
+                    }
                   }
                 ]
               },
@@ -608,6 +730,16 @@
                       },
                       "target_pose_key": {
                         "value": "move_box_pallet_place_torso_pose",
+                        "source": "CUSTOM"
+                      }
+                    }
+                  },
+                  {
+                    "name": "WaitForEnter",
+                    "label": "高位预落位确认后下腰到码垛高度",
+                    "params": {
+                      "message": {
+                        "value": "已完成高位安全预落位；确认箱体未扫到邻箱后，按 Enter 下腰到码垛高度...",
                         "source": "CUSTOM"
                       }
                     }
