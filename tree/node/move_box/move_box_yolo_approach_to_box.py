@@ -422,6 +422,13 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             return Status.FAILURE
 
     def _finish_success(self):
+        # 关键步骤：粗导航可能持续数秒到十几秒，FP 服务读取的是 latch 的
+        # /move_box/yolo_box_pose_map。如果只在发车前发布一次，运动过程中
+        # FoundationPose 会拿到旧 target stamp，再用旧时刻的 map->camera
+        # 投影当前图像，导致运动后 reset/register 失败。到达粗导航目标后
+        # 重新发布同一个 map 目标，但 stamp 更新为当前 ROS 时间，让 FP
+        # 用当前图像时刻附近的 TF 去投影目标框。
+        self._publish_box_map_pose()
         self._store_result(need_navigation=True, box_distance_m=self._box_distance_m)
         self.blackboard.final_pose = {
             "x": self._target_pose.x,
@@ -1630,9 +1637,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         box["quat"] = [0.0, 0.0, 0.0, 1.0]
         payload = serialize_yolo_box(box, frame_id=MAP_FRAME, stamp=box["stamp"])
         self.box_map_pose_pub.publish(payload)
+        now_stamp = self._ros_stamp_to_seconds(self.ros_node.now())
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已发布 map 下 YOLO 箱体 String: "
             f"topic={self.box_map_pose_topic}, "
+            f"stamp={box['stamp']:.3f}, now={now_stamp:.3f}, age={(now_stamp - box['stamp']) * 1000.0:.1f}ms, "
             f"center=({box['center'][0]:.3f}, {box['center'][1]:.3f}, {box['center'][2]:.3f}), "
             f"size={box.get('size')}, score={box.get('score')}, class_id={box.get('class_id')}"
         )

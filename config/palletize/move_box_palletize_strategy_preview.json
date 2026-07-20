@@ -613,6 +613,16 @@
                 }
               },
               {
+                "name": "WaitForEnter",
+                "label": "等待放箱后刷新FP并报告码垛偏差（按 Enter）",
+                "params": {
+                  "message": {
+                    "value": "等待放箱后刷新FP并报告码垛偏差，按 Enter 开始回等待区...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
                 "name": "MoveBoxHeldBoxVisualizationMonitor",
                 "label": "停止抓箱后手中箱体持续可视化",
                 "params": {
