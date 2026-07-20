@@ -45,7 +45,21 @@ class CloseClaw(TimedMockAction):
         except Exception as exc:
             self.ros_node.get_logger().error(f"[{self.config_label}] 解析夹爪侧别失败: {exc}")
             return Status.FAILURE
-        ok = services.arm_controller.close_claw(side, effort=self.torque)
+        # 旧版 SDK 的 close_claw(side) 不接受 effort 关键字。没有显式配置
+        # torque 时完全沿用旧调用，确保既有树不受新参数扩展影响。
+        if self.torque is None:
+            ok = services.arm_controller.close_claw(side)
+        else:
+            try:
+                ok = services.arm_controller.close_claw(side, effort=self.torque)
+            except TypeError as exc:
+                if "unexpected keyword argument" not in str(exc):
+                    raise
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 当前 ArmController 不支持 torque 参数，"
+                    f"将按默认力矩闭合夹爪: {exc}"
+                )
+                ok = services.arm_controller.close_claw(side)
         return Status.SUCCESS if ok else Status.FAILURE
 
     def _resolve_side(self):
