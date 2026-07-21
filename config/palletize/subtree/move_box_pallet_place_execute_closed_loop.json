@@ -64,11 +64,11 @@
             "source": "CUSTOM"
           },
           "planar_tolerance_m": {
-            "value": "0.030",
+            "value": "0.035",
             "source": "CUSTOM"
           },
           "z_tolerance_m": {
-            "value": "0.020",
+            "value": "0.060",
             "source": "CUSTOM"
           },
           "push_tolerance_m": {
@@ -80,7 +80,7 @@
             "source": "CUSTOM"
           },
           "push_z_tolerance_m": {
-            "value": "0.080",
+            "value": "0.100",
             "source": "CUSTOM"
           },
           "max_step_xy_m": {
@@ -120,7 +120,7 @@
             "source": "CUSTOM"
           },
           "drop_planar_guard_m": {
-            "value": "0.030",
+            "value": "0.035",
             "source": "CUSTOM"
           },
           "max_push_iterations": {
