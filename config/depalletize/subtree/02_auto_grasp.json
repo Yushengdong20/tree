@@ -170,6 +170,16 @@
                 }
               },
               {
+                "name": "WaitForEnter",
+                "label": "确认夹爪到位后按 Enter 继续",
+                "params": {
+                  "message": {
+                    "value": "确认夹爪到位后按 Enter 继续...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
                 "name": "ArmsToPose",
                 "label": "左手小幅上提箱体",
                 "params": {
@@ -305,6 +315,16 @@
                   },
                   "side": {
                     "value": "right",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认夹爪到位后按 Enter 继续",
+                "params": {
+                  "message": {
+                    "value": "确认夹爪到位后按 Enter 继续...",
                     "source": "CUSTOM"
                   }
                 }
@@ -476,6 +496,16 @@
                 }
               },
               {
+                "name": "WaitForEnter",
+                "label": "确认夹爪到位后按 Enter 继续",
+                "params": {
+                  "message": {
+                    "value": "确认夹爪到位后按 Enter 继续...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
                 "name": "ArmsToPose",
                 "label": "右手小幅上提箱体",
                 "params": {
@@ -611,6 +641,16 @@
                   },
                   "side": {
                     "value": "left",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认夹爪到位后按 Enter 继续",
+                "params": {
+                  "message": {
+                    "value": "确认夹爪到位后按 Enter 继续...",
                     "source": "CUSTOM"
                   }
                 }
@@ -789,6 +829,16 @@
                   },
                   "side": {
                     "value": "both",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "WaitForEnter",
+                "label": "确认夹爪到位后按 Enter 继续",
+                "params": {
+                  "message": {
+                    "value": "确认夹爪到位后按 Enter 继续...",
                     "source": "CUSTOM"
                   }
                 }

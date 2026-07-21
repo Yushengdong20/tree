@@ -166,6 +166,16 @@
             "source": "CUSTOM"
           }
         }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认夹爪到位后按 Enter 继续",
+        "params": {
+          "message": {
+            "value": "确认夹爪到位后按 Enter 继续...",
+            "source": "CUSTOM"
+          }
+        }
       }
     ]
   }

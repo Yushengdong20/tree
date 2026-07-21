@@ -20,16 +20,6 @@
         }
       },
       {
-        "name": "WaitForEnter",
-        "label": "初始化完成后暂停（按 Enter）",
-        "params": {
-          "message": {
-            "value": "move_box 视觉与控制实例已初始化，按 Enter 开始循环抓箱放箱流程（箱子记忆版）...",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
         "name": "Repeat",
         "label": "循环执行抓箱放箱单轮流程",
         "params": {
@@ -49,6 +39,16 @@
               }
             },
             "childs": [
+              {
+                "name": "WaitForEnter",
+                "label": "初始化完成后暂停（按 Enter）",
+                "params": {
+                  "message": {
+                    "value": "move_box 视觉与控制实例已初始化，按 Enter 开始循环抓箱放箱流程（箱子记忆版）...",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
               {
                 "name": "SubTree",
                 "label": "抓箱前导航、更新记忆与底盘对齐",
