@@ -64,11 +64,11 @@
             "source": "CUSTOM"
           },
           "planar_tolerance_m": {
-            "value": "0.015",
+            "value": "0.030",
             "source": "CUSTOM"
           },
           "z_tolerance_m": {
-            "value": "0.010",
+            "value": "0.020",
             "source": "CUSTOM"
           },
           "push_tolerance_m": {
@@ -79,8 +79,16 @@
             "value": "0.020",
             "source": "CUSTOM"
           },
+          "push_z_tolerance_m": {
+            "value": "0.080",
+            "source": "CUSTOM"
+          },
           "max_step_xy_m": {
             "value": "0.010",
+            "source": "CUSTOM"
+          },
+          "high_align_max_step_xy_m": {
+            "value": "0.020",
             "source": "CUSTOM"
           },
           "max_step_z_m": {
@@ -112,7 +120,7 @@
             "source": "CUSTOM"
           },
           "drop_planar_guard_m": {
-            "value": "0.020",
+            "value": "0.030",
             "source": "CUSTOM"
           },
           "max_push_iterations": {
@@ -149,6 +157,10 @@
           },
           "single_step_key": {
             "value": "s",
+            "source": "CUSTOM"
+          },
+          "diagnostic_log_enabled": {
+            "value": "True",
             "source": "CUSTOM"
           },
           "visualization_enabled": {

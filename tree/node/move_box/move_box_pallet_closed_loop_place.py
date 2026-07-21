@@ -64,7 +64,16 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             float(params.get("push_cross_track_tolerance_m", 0.020)),
             self.planar_tolerance_m,
         )
+        # 推箱时已经由单爪保持箱体，允许比双爪精对齐阶段更大的高度偏差。
+        # 该阈值只决定能否开始“纯水平推送”，不会放宽最终双爪下降阶段的 z 精度。
+        self.push_z_tolerance_m = max(
+            float(params.get("push_z_tolerance_m", self.z_tolerance_m)),
+            self.z_tolerance_m,
+        )
         self.max_step_xy_m = max(float(params.get("max_step_xy_m", 0.010)), 0.001)
+        self.high_align_max_step_xy_m = max(
+            float(params.get("high_align_max_step_xy_m", 0.020)), self.max_step_xy_m
+        )
         self.max_step_z_m = max(float(params.get("max_step_z_m", 0.008)), 0.001)
         self.max_push_step_m = max(float(params.get("max_push_step_m", 0.008)), 0.001)
         self.max_push_travel_m = max(float(params.get("max_push_travel_m", 0.09)), self.max_push_step_m)
@@ -88,6 +97,9 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self.claw_ypr = self._parse_ypr(params.get("claw_ypr", [0.0, -60.0, 0.0]))
         self.single_step_debug_enabled = self._to_bool(params.get("single_step_debug_enabled", False))
         self.single_step_key = str(params.get("single_step_key", "s")).strip() or "s"
+        # 每取得一帧用于闭环决策的 FP 数据都打印箱心、目标和误差。该日志只在
+        # 闭环节点运行期间产生，便于将 FP 的反馈与下一条手臂命令逐帧对应。
+        self.diagnostic_log_enabled = self._to_bool(params.get("diagnostic_log_enabled", True))
         self.visualization_enabled = self._to_bool(params.get("visualization_enabled", True))
         self.visualization_topic = str(
             params.get("visualization_topic", "/move_box/pallet_closed_loop_markers")
@@ -268,9 +280,15 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             self.safe_align_z = float(actual[2])
         goal = self._stage_goal()
         error = goal - actual
+        if self.stage == self._STAGE_ALIGN_XY_HIGH:
+            # 高位阶段只做水平收敛。FP 的 z 在该阶段不参与反馈，避免检测深度轻微
+            # 抖动让机器人在“安全高度对齐”过程中意外上/下摆动。
+            goal[2] = float(actual[2])
+            error[2] = 0.0
         planar = math.hypot(float(error[0]), float(error[1]))
         z_error = abs(float(error[2]))
         self._record_and_publish(actual, goal, error, planar, z_error)
+        self._log_fp_observation(actual, goal, error, planar, z_error)
         if self.stage == self._STAGE_ALIGN_XY_HIGH and self.stage_iterations == 0 and (
             planar > self.max_initial_planar_error_m
         ):
@@ -323,9 +341,20 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         z_error = abs(float(error[2]))
         planar = math.hypot(float(error[0]), float(error[1]))
         self._record_and_publish(actual, self.final_goal, error, planar, z_error, along, cross_error)
-        if cross_error > self.push_cross_track_tolerance_m or z_error > self.z_tolerance_m:
+        self._log_fp_observation(
+            actual,
+            self.final_goal,
+            error,
+            planar,
+            z_error,
+            along=along,
+            cross=cross_error,
+        )
+        if cross_error > self.push_cross_track_tolerance_m or z_error > self.push_z_tolerance_m:
             return self._fail(
-                f"推送前箱体偏离安全通道: cross={cross_error:.3f}m, z={z_error:.3f}m；拒绝横向硬推"
+                f"推送前箱体偏离安全通道: cross={cross_error:.3f}m/"
+                f"{self.push_cross_track_tolerance_m:.3f}m, z={z_error:.3f}m/"
+                f"{self.push_z_tolerance_m:.3f}m；拒绝横向硬推"
             )
         if along < -self.push_tolerance_m:
             return self._fail(f"推送已越过最终目标: along_error={along:.3f}m")
@@ -376,8 +405,13 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
     def _limit_both_step(self, error):
         step = np.array(error, dtype=float)
         planar = math.hypot(float(step[0]), float(step[1]))
-        if planar > self.max_step_xy_m:
-            step[:2] *= self.max_step_xy_m / planar
+        max_step_xy = (
+            self.high_align_max_step_xy_m
+            if self.stage == self._STAGE_ALIGN_XY_HIGH
+            else self.max_step_xy_m
+        )
+        if planar > max_step_xy:
+            step[:2] *= max_step_xy / planar
         step[2] = max(-self.max_step_z_m, min(self.max_step_z_m, step[2]))
         return step
 
@@ -623,6 +657,22 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             f"\033[1;97;44m[{self.config_label}] 闭环{action}小步: stage={self.stage}, "
             f"step_map=({step_map[0]:.3f},{step_map[1]:.3f},{step_map[2]:.3f}), "
             f"step_base=({step_base[0]:.3f},{step_base[1]:.3f},{step_base[2]:.3f})\033[0m"
+        )
+
+    def _log_fp_observation(self, actual, goal, error, planar, z_error, along=None, cross=None):
+        """打印本次闭环决策所用的 FP 箱心与目标箱心（均为 map 坐标）。"""
+        if not self.diagnostic_log_enabled:
+            return
+        suffix = ""
+        if along is not None:
+            suffix = f", push_along={along:.3f}m, push_cross={cross:.3f}m"
+        self.ros_node.get_logger().info(
+            f"\033[1;97;45m[{self.config_label}] FP闭环箱心: "
+            f"stage={self.stage}, iter={self.stage_iterations}, "
+            f"当前箱心(map)=({actual[0]:.3f},{actual[1]:.3f},{actual[2]:.3f}), "
+            f"目标箱心(map)=({goal[0]:.3f},{goal[1]:.3f},{goal[2]:.3f}), "
+            f"误差(map)=({error[0]:+.3f},{error[1]:+.3f},{error[2]:+.3f}), "
+            f"平面误差={planar:.3f}m, 高度误差={z_error:.3f}m{suffix}\033[0m"
         )
 
     def _succeed(self, message):
