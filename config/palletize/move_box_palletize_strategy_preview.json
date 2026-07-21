@@ -769,7 +769,7 @@
                 "label": "根据码垛策略执行放箱",
                 "params": {
                   "file": {
-                    "value": "subtree/move_box_pallet_place_execute_strategy.json",
+                    "value": "subtree/move_box_pallet_place_execute_closed_loop.json",
                     "source": "CUSTOM"
                   }
                 }

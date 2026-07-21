@@ -1,0 +1,211 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "根据码垛策略执行全流程FP闭环放箱",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "WaitForEnter",
+        "label": "码垛闭环确认：准备开始全流程闭环放箱",
+        "params": {
+          "message": {
+            "value": "箱体仍由双爪夹持。按 Enter 后将重启一次 FoundationPose；后续悬停、下降、推送和释放均按新 FP 帧小步闭环执行。视觉超时、越界或未收敛时会保持夹持且不释放。",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxDetectionReady",
+        "label": "全流程闭环前重启并锁定FoundationPose手中箱",
+        "params": {
+          "services_key": {
+            "value": "robot_services",
+            "source": "CUSTOM"
+          },
+          "restart_before_wait": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "restart_on_timeout": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "detect_timeout_sec": {
+            "value": "8.0",
+            "source": "CUSTOM"
+          },
+          "detection_reset_timeout_sec": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_topic": {
+            "value": "/move_box/fp_grasp_markers",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxPalletClosedLoopPlace",
+        "label": "FoundationPose全流程闭环码垛放箱",
+        "params": {
+          "services_key": {
+            "value": "robot_services",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "strategy_key": {
+            "value": "move_box_pallet_place_strategy",
+            "source": "CUSTOM"
+          },
+          "final_box_pose_key": {
+            "value": "move_box_pallet_place_final_box_pose",
+            "source": "CUSTOM"
+          },
+          "pre_box_pose_key": {
+            "value": "move_box_pallet_place_pre_box_pose",
+            "source": "CUSTOM"
+          },
+          "push_direction_key": {
+            "value": "move_box_pallet_place_push_direction",
+            "source": "CUSTOM"
+          },
+          "release_first_side_key": {
+            "value": "move_box_pallet_place_release_first_side",
+            "source": "CUSTOM"
+          },
+          "push_side_key": {
+            "value": "move_box_pallet_place_push_side",
+            "source": "CUSTOM"
+          },
+          "result_key": {
+            "value": "move_box_pallet_closed_loop_result",
+            "source": "CUSTOM"
+          },
+          "hover_height_m": {
+            "value": "0.03",
+            "source": "CUSTOM"
+          },
+          "planar_tolerance_m": {
+            "value": "0.015",
+            "source": "CUSTOM"
+          },
+          "z_tolerance_m": {
+            "value": "0.010",
+            "source": "CUSTOM"
+          },
+          "push_tolerance_m": {
+            "value": "0.012",
+            "source": "CUSTOM"
+          },
+          "push_cross_track_tolerance_m": {
+            "value": "0.020",
+            "source": "CUSTOM"
+          },
+          "max_step_xy_m": {
+            "value": "0.010",
+            "source": "CUSTOM"
+          },
+          "max_step_z_m": {
+            "value": "0.015",
+            "source": "CUSTOM"
+          },
+          "max_push_step_m": {
+            "value": "0.008",
+            "source": "CUSTOM"
+          },
+          "max_push_travel_m": {
+            "value": "0.090",
+            "source": "CUSTOM"
+          },
+          "max_initial_planar_error_m": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          },
+          "max_initial_z_error_m": {
+            "value": "0.30",
+            "source": "CUSTOM"
+          },
+          "max_align_iterations": {
+            "value": "20",
+            "source": "CUSTOM"
+          },
+          "max_drop_iterations": {
+            "value": "20",
+            "source": "CUSTOM"
+          },
+          "drop_planar_guard_m": {
+            "value": "0.020",
+            "source": "CUSTOM"
+          },
+          "max_push_iterations": {
+            "value": "16",
+            "source": "CUSTOM"
+          },
+          "release_lift_clearance_m": {
+            "value": "0.18",
+            "source": "CUSTOM"
+          },
+          "frame_timeout_sec": {
+            "value": "3.0",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.15",
+            "source": "CUSTOM"
+          },
+          "post_motion_settle_sec": {
+            "value": "0.25",
+            "source": "CUSTOM"
+          },
+          "open_torque": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "visualization_topic": {
+            "value": "/move_box/pallet_closed_loop_markers",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "码垛闭环完成确认",
+        "params": {
+          "message": {
+            "value": "全流程 FP 闭环放箱已完成。请检查 /move_box/pallet_closed_loop_markers 和实际落点，按 Enter 继续执行放箱后验证与下一轮流程。",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}
+
