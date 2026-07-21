@@ -86,6 +86,8 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self.post_motion_settle_sec = max(float(params.get("post_motion_settle_sec", 0.25)), 0.0)
         self.open_torque = float(params.get("open_torque", 0.0))
         self.claw_ypr = self._parse_ypr(params.get("claw_ypr", [0.0, -60.0, 0.0]))
+        self.single_step_debug_enabled = self._to_bool(params.get("single_step_debug_enabled", False))
+        self.single_step_key = str(params.get("single_step_key", "s")).strip() or "s"
         self.visualization_enabled = self._to_bool(params.get("visualization_enabled", True))
         self.visualization_topic = str(
             params.get("visualization_topic", "/move_box/pallet_closed_loop_markers")
@@ -133,6 +135,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self._settle_deadline = 0.0
         self._next_poll_at = 0.0
         self._pending_after_arm = None
+        self._pending_command = None
         self._last_result = None
 
     def initialise(self):
@@ -154,6 +157,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self._settle_deadline = 0.0
         self._next_poll_at = 0.0
         self._pending_after_arm = None
+        self._pending_command = None
         self._last_result = None
 
     def update(self):
@@ -165,6 +169,8 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             return self._wait_fresh_fp()
         if self.phase == "WAIT_SETTLE":
             return self._wait_settle()
+        if self.phase == "WAIT_STEP_CONFIRM":
+            return self._wait_step_confirmation()
         if self.phase == "WAIT_ARM":
             return self._wait_arm()
         return self._fail(f"未知闭环放箱阶段: phase={self.phase}, stage={self.stage}")
@@ -269,7 +275,10 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             planar > self.max_initial_planar_error_m
         ):
             return self._fail(
-                f"初始 FP 平面误差过大: planar={planar:.3f}m，保持夹持不释放"
+                f"初始 FP 平面误差过大: planar={planar:.3f}m, "
+                f"limit={self.max_initial_planar_error_m:.3f}m, "
+                f"actual=({actual[0]:.3f},{actual[1]:.3f},{actual[2]:.3f}), "
+                f"goal=({goal[0]:.3f},{goal[1]:.3f},{goal[2]:.3f})，保持夹持不释放"
             )
         if self.stage == self._STAGE_ALIGN_HOVER and self.stage_iterations == 0 and z_error > self.max_initial_z_error_m:
             return self._fail(
@@ -289,11 +298,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         if self.stage == self._STAGE_ALIGN_DROP and planar > self.drop_planar_guard_m:
             # 已接近垛盘时禁止一边带着明显平面误差一边下降，先恢复对齐再下行。
             step[2] = 0.0
-        if not self._start_both_arm_step(step):
-            return self._fail("启动双爪闭环小步失败")
-        self._pending_after_arm = "REMEASURE_SAME_STAGE"
-        self.phase = "WAIT_ARM"
-        return Status.RUNNING
+        return self._request_or_execute("BOTH_STEP", {"step_map": step})
 
     def _advance_after_both_stage(self):
         if self.stage == self._STAGE_ALIGN_XY_HIGH:
@@ -307,17 +312,8 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             self._start_wait_new_frame("悬停位收敛，开始闭环下降")
             return Status.RUNNING
         if self.strategy == "direct_place":
-            if not self._open_claw("both"):
-                return self._fail("直接放箱双爪释放失败")
-            return self._succeed("直接放箱已闭环对齐并释放")
-        if not self._open_claw(self.release_side):
-            return self._fail(f"推箱前张开{self.release_side}爪失败")
-        if not self._start_lift_released_claw():
-            return self._fail(f"推箱前上抬{self.release_side}爪失败")
-        self.stage = self._STAGE_LIFT_RELEASED
-        self._pending_after_arm = "START_PUSH"
-        self.phase = "WAIT_ARM"
-        return Status.RUNNING
+            return self._request_or_execute("RELEASE_BOTH")
+        return self._request_or_execute("RELEASE_FIRST")
 
     def _process_push(self, actual):
         error = self.final_goal - actual
@@ -334,10 +330,9 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         if along < -self.push_tolerance_m:
             return self._fail(f"推送已越过最终目标: along_error={along:.3f}m")
         if along <= self.push_tolerance_m:
-            if not self._open_claw(self.push_side):
-                return self._fail(f"推送到位后张开{self.push_side}爪失败")
-            return self._succeed(
-                f"推箱闭环收敛并释放: along={along:.3f}m, cross={cross_error:.3f}m, z={z_error:.3f}m"
+            return self._request_or_execute(
+                "RELEASE_PUSHER",
+                {"along": along, "cross": cross_error, "z_error": z_error},
             )
         if self.stage_iterations >= self.max_push_iterations:
             return self._fail(f"推箱闭环迭代超限: along_error={along:.3f}m")
@@ -348,12 +343,9 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
                 f"next_step={push_step:.3f}m, limit={self.max_push_travel_m:.3f}m"
             )
         step_map = self.push_axis_map * push_step
-        if not self._start_push_arm_step(step_map):
-            return self._fail(f"启动{self.push_side}爪闭环推送失败")
-        self.push_travel_m += push_step
-        self._pending_after_arm = "REMEASURE_SAME_STAGE"
-        self.phase = "WAIT_ARM"
-        return Status.RUNNING
+        return self._request_or_execute(
+            "PUSH_STEP", {"step_map": step_map, "push_step": push_step}
+        )
 
     def _wait_arm(self):
         status = self.arm_controller.get_arm_event_status()
@@ -458,6 +450,85 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
                 f"[{self.config_label}] ArmController 不支持显式张爪力矩，按默认力矩执行: {exc}"
             )
             return bool(self.arm_controller.open_claw(side))
+
+    def _request_or_execute(self, command, payload=None):
+        """调试模式下等待 s；正常模式立即执行下一条物理动作。"""
+        payload = dict(payload or {})
+        if not self.single_step_debug_enabled:
+            return self._execute_command(command, payload)
+        self._pending_command = (command, payload)
+        self.phase = "WAIT_STEP_CONFIRM"
+        self.ros_node.get_logger().warning(
+            f"\033[1;30;43m[{self.config_label}] 单步调试暂停: "
+            f"stage={self.stage}, next_action={self._command_label(command)}；"
+            f"请按 '{self.single_step_key}' 执行下一动作\033[0m"
+        )
+        return Status.RUNNING
+
+    def _wait_step_confirmation(self):
+        if not hasattr(self.ros_node, "consume_key_event"):
+            return self._fail("单步调试需要支持原始按键输入的 ros_node")
+        accepted = [self.single_step_key]
+        if len(self.single_step_key) == 1:
+            accepted.append(self.single_step_key.upper())
+        if self.ros_node.consume_key_event(*accepted) is None:
+            return Status.RUNNING
+        command, payload = self._pending_command
+        self._pending_command = None
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 收到单步按键，执行: {self._command_label(command)}"
+        )
+        return self._execute_command(command, payload)
+
+    def _execute_command(self, command, payload):
+        if command == "BOTH_STEP":
+            if not self._start_both_arm_step(payload["step_map"]):
+                return self._fail("启动双爪闭环小步失败")
+            self._pending_after_arm = "REMEASURE_SAME_STAGE"
+            self.phase = "WAIT_ARM"
+            return Status.RUNNING
+        if command == "RELEASE_BOTH":
+            if not self._open_claw("both"):
+                return self._fail("直接放箱双爪释放失败")
+            return self._succeed("直接放箱已闭环对齐并释放")
+        if command == "RELEASE_FIRST":
+            if not self._open_claw(self.release_side):
+                return self._fail(f"推箱前张开{self.release_side}爪失败")
+            return self._request_or_execute("LIFT_RELEASED")
+        if command == "LIFT_RELEASED":
+            if not self._start_lift_released_claw():
+                return self._fail(f"推箱前上抬{self.release_side}爪失败")
+            self.stage = self._STAGE_LIFT_RELEASED
+            self._pending_after_arm = "START_PUSH"
+            self.phase = "WAIT_ARM"
+            return Status.RUNNING
+        if command == "PUSH_STEP":
+            if not self._start_push_arm_step(payload["step_map"]):
+                return self._fail(f"启动{self.push_side}爪闭环推送失败")
+            self.push_travel_m += float(payload["push_step"])
+            self._pending_after_arm = "REMEASURE_SAME_STAGE"
+            self.phase = "WAIT_ARM"
+            return Status.RUNNING
+        if command == "RELEASE_PUSHER":
+            if not self._open_claw(self.push_side):
+                return self._fail(f"推送到位后张开{self.push_side}爪失败")
+            return self._succeed(
+                "推箱闭环收敛并释放: "
+                f"along={payload['along']:.3f}m, cross={payload['cross']:.3f}m, "
+                f"z={payload['z_error']:.3f}m"
+            )
+        return self._fail(f"未知单步动作: {command}")
+
+    @staticmethod
+    def _command_label(command):
+        return {
+            "BOTH_STEP": "双爪闭环小步",
+            "RELEASE_BOTH": "双爪张开释放",
+            "RELEASE_FIRST": "张开避让爪",
+            "LIFT_RELEASED": "上抬避让爪",
+            "PUSH_STEP": "推送爪闭环小步",
+            "RELEASE_PUSHER": "张开推送爪释放",
+        }.get(command, command)
 
     def _read_fp_center_map(self, detector):
         center_base = detector.get_latest_box_center()

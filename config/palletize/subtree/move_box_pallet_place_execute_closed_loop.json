@@ -20,48 +20,6 @@
         }
       },
       {
-        "name": "EnsureMoveBoxDetectionReady",
-        "label": "全流程闭环前重启并锁定FoundationPose手中箱",
-        "params": {
-          "services_key": {
-            "value": "robot_services",
-            "source": "CUSTOM"
-          },
-          "restart_before_wait": {
-            "value": "True",
-            "source": "CUSTOM"
-          },
-          "restart_on_timeout": {
-            "value": "False",
-            "source": "CUSTOM"
-          },
-          "detect_timeout_sec": {
-            "value": "8.0",
-            "source": "CUSTOM"
-          },
-          "detection_reset_timeout_sec": {
-            "value": "10.0",
-            "source": "CUSTOM"
-          },
-          "poll_interval_sec": {
-            "value": "0.2",
-            "source": "CUSTOM"
-          },
-          "odom_topic": {
-            "value": "melon_odom",
-            "source": "CUSTOM"
-          },
-          "fp_grasp_visualization_enabled": {
-            "value": "True",
-            "source": "CUSTOM"
-          },
-          "fp_grasp_visualization_topic": {
-            "value": "/move_box/fp_grasp_markers",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
         "name": "MoveBoxPalletClosedLoopPlace",
         "label": "FoundationPose全流程闭环码垛放箱",
         "params": {
@@ -138,7 +96,7 @@
             "source": "CUSTOM"
           },
           "max_initial_planar_error_m": {
-            "value": "0.10",
+            "value": "0.15",
             "source": "CUSTOM"
           },
           "max_initial_z_error_m": {
@@ -185,6 +143,14 @@
             "value": "[0.0, -60.0, 0.0]",
             "source": "CUSTOM"
           },
+          "single_step_debug_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "single_step_key": {
+            "value": "s",
+            "source": "CUSTOM"
+          },
           "visualization_enabled": {
             "value": "True",
             "source": "CUSTOM"
@@ -208,4 +174,3 @@
     ]
   }
 }
-
