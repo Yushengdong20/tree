@@ -4,6 +4,10 @@
 FoundationPose 的箱心/朝向反馈，箱子尺寸、邻箱关系、预落位和推送方向仍由
 ``ComputeMoveBoxPalletPlaceStrategy`` 规划。
 
+除默认的逐帧模式外，``measurement_frame_count > 1`` 可启用“稳定测量”模式：
+每次手臂静止后连续收集多帧 FP，检查离散度并取中位数作为本轮决策输入。这样
+不会把单帧相机/TF 延迟直接变成下一条手臂命令，适合实际码垛。
+
 状态机：
 
 * direct_place：双爪闭环到最终箱心上方 -> 闭环下降 -> 双爪释放；
@@ -93,6 +97,15 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self.frame_timeout_sec = max(float(params.get("frame_timeout_sec", 3.0)), 0.1)
         self.poll_interval_sec = max(float(params.get("poll_interval_sec", 0.15)), 0.03)
         self.post_motion_settle_sec = max(float(params.get("post_motion_settle_sec", 0.25)), 0.0)
+        # 稳定视觉测量参数。保持默认 1 帧以完全兼容旧闭环子树；新子树配置为
+        # 5 帧，且只在手臂停止后的稳定窗口内作一次中位数判断。
+        self.measurement_frame_count = max(int(params.get("measurement_frame_count", 1)), 1)
+        self.measurement_max_planar_spread_m = max(
+            float(params.get("measurement_max_planar_spread_m", 0.015)), 0.0
+        )
+        self.measurement_max_z_spread_m = max(
+            float(params.get("measurement_max_z_spread_m", 0.020)), 0.0
+        )
         self.open_torque = float(params.get("open_torque", 0.0))
         self.claw_ypr = self._parse_ypr(params.get("claw_ypr", [0.0, -60.0, 0.0]))
         self.single_step_debug_enabled = self._to_bool(params.get("single_step_debug_enabled", False))
@@ -149,6 +162,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self._pending_after_arm = None
         self._pending_command = None
         self._last_result = None
+        self._fp_samples = []
 
     def initialise(self):
         super().initialise()
@@ -171,6 +185,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self._pending_after_arm = None
         self._pending_command = None
         self._last_result = None
+        self._fp_samples = []
 
     def update(self):
         if self.should_use_mock_execution():
@@ -241,6 +256,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             clear_cache()
         self._deadline = time.monotonic() + self.frame_timeout_sec
         self._next_poll_at = 0.0
+        self._fp_samples = []
         self.phase = "WAIT_FP"
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 等待闭环新 FP 帧: stage={self.stage}, reason={reason}, "
@@ -266,12 +282,48 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             self.arm_controller.get_initial_left_ypr(), self.arm_controller.get_initial_right_ypr()
         ):
             return Status.RUNNING
-        actual = self._read_fp_center_map(detector)
+        sample = self._read_fp_center_map(detector)
+        if sample is None:
+            return Status.RUNNING
+        actual = self._collect_stable_fp_measurement(sample)
         if actual is None:
             return Status.RUNNING
         if self.stage == self._STAGE_PUSH:
             return self._process_push(actual)
         return self._process_both_claw_stage(actual)
+
+    def _collect_stable_fp_measurement(self, sample):
+        """收集稳定 FP 帧并返回中位数；不足帧数时继续 RUNNING。
+
+        一帧模式保留旧行为。多帧模式不把最后一帧当作真值，而是用坐标分量中位数
+        抑制偶发的深度跳变；若样本散布过大则舍弃旧窗口并继续等待。
+        """
+        if self.measurement_frame_count <= 1:
+            return sample
+        self._fp_samples.append(np.array(sample, dtype=float))
+        if len(self._fp_samples) < self.measurement_frame_count:
+            return None
+        samples = np.vstack(self._fp_samples[-self.measurement_frame_count:])
+        median = np.median(samples, axis=0)
+        planar_spread = float(np.max(np.linalg.norm(samples[:, :2] - median[:2], axis=1)))
+        z_spread = float(np.max(np.abs(samples[:, 2] - median[2])))
+        if planar_spread > self.measurement_max_planar_spread_m or z_spread > self.measurement_max_z_spread_m:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] FP稳定测量离散过大，重取窗口: "
+                f"stage={self.stage}, planar_spread={planar_spread:.3f}m/"
+                f"{self.measurement_max_planar_spread_m:.3f}m, z_spread={z_spread:.3f}m/"
+                f"{self.measurement_max_z_spread_m:.3f}m"
+            )
+            self._fp_samples = []
+            return None
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] FP稳定测量完成: stage={self.stage}, "
+            f"frames={self.measurement_frame_count}, "
+            f"center(map)=({median[0]:.3f},{median[1]:.3f},{median[2]:.3f}), "
+            f"planar_spread={planar_spread:.3f}m, z_spread={z_spread:.3f}m"
+        )
+        self._fp_samples = []
+        return median
 
     def _process_both_claw_stage(self, actual):
         if self.stage == self._STAGE_ALIGN_XY_HIGH and self.safe_align_z is None:

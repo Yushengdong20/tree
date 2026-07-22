@@ -100,7 +100,7 @@
             "source": "CUSTOM"
           },
           "max_push_travel_m": {
-            "value": "0.090",
+            "value": "0.130",
             "source": "CUSTOM"
           },
           "max_initial_planar_error_m": {

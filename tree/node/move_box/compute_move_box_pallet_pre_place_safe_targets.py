@@ -65,6 +65,12 @@ class ComputeMoveBoxPalletPrePlaceSafeTargets(TimedMockAction):
             float(params.get("pre_place_safe_retract_m", 0.0)),
             0.0,
         )
+        # 高位避障阶段通常只需把手中箱体横向挪到邻箱外侧。开启后锁住当前
+        # base_link.x，防止把黄色低位预落位的前向坐标直接带到高位动作中，
+        # 造成双臂前伸到极限或在下腰时扫到已有箱体。
+        self.pre_place_safe_lateral_only = self._to_bool(
+            params.get("pre_place_safe_lateral_only", False)
+        )
         self.visualization_enabled = self._to_bool(params.get("visualization_enabled", True))
         self.visualization_topic = str(
             params.get("visualization_topic", "/move_box/pallet_place_dynamic_estimate_markers")
@@ -144,7 +150,13 @@ class ComputeMoveBoxPalletPrePlaceSafeTargets(TimedMockAction):
                 f"[{self.config_label}] 无法把高位安全预落位转换到 base_link"
             )
             return Status.FAILURE
-        safe_center_base = self._retract_toward_robot(safe_center_base)
+        if self.pre_place_safe_lateral_only:
+            # “左/右横移”以当前机器人坐标系定义：保持双爪中点的前后 x，
+            # 只采用规划预落位的 y，并上提到安全 z。此模式下不能再使用
+            # 径向回收，否则会重新引入 x 向位移。
+            safe_center_base[0] = float(current_center[0])
+        else:
+            safe_center_base = self._retract_toward_robot(safe_center_base)
         safe_box_pose["x"], safe_box_pose["y"] = self._base_xy_to_map(
             safe_center_base[:2],
             current_pose,
@@ -166,6 +178,7 @@ class ComputeMoveBoxPalletPrePlaceSafeTargets(TimedMockAction):
             f"minimum_safe_center_map_z={minimum_safe_center_map_z:.3f}, "
             f"clearance={self.pre_place_safe_clearance_m:.3f}, "
             f"retract={self.pre_place_safe_retract_m:.3f}, "
+            f"lateral_only={self.pre_place_safe_lateral_only}, "
             f"left=({safe_left[0]:.3f},{safe_left[1]:.3f},{safe_left[2]:.3f}), "
             f"right=({safe_right[0]:.3f},{safe_right[1]:.3f},{safe_right[2]:.3f})"
         )
@@ -329,5 +342,6 @@ class ComputeMoveBoxPalletPrePlaceSafeTargets(TimedMockAction):
             f"strategy_key={self.strategy_key}, pre_box_key={self.pre_box_pose_key}, "
             f"box=({self.box_size_x:.3f},{self.box_size_y:.3f},{self.box_size_z:.3f}), "
             f"clearance={self.pre_place_safe_clearance_m:.3f}, "
-            f"retract={self.pre_place_safe_retract_m:.3f}"
+            f"retract={self.pre_place_safe_retract_m:.3f}, "
+            f"lateral_only={self.pre_place_safe_lateral_only}"
         )

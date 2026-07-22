@@ -1,0 +1,139 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "开环到码垛动作点后稳定视觉校正放箱",
+    "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+    "childs": [
+      {
+        "name": "ComputeMoveBoxPalletPlaceActionPoints",
+        "label": "按垛盘站位刷新开环预落位与最终动作点",
+        "params": {
+          "services_key": {"value": "robot_services", "source": "CUSTOM"},
+          "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+          "strategy_key": {"value": "move_box_pallet_place_strategy", "source": "CUSTOM"},
+          "final_box_pose_key": {"value": "move_box_pallet_place_final_box_pose", "source": "CUSTOM"},
+          "pre_box_pose_key": {"value": "move_box_pallet_place_pre_box_pose", "source": "CUSTOM"},
+          "place_plane_height_key": {"value": "move_box_pallet_stack_place_plane_height", "source": "CUSTOM"},
+          "box_size_z": {"value": "0.34", "source": "CUSTOM"},
+          "claw_lift_clearance_m": {"value": "0.18", "source": "CUSTOM"},
+          "pre_place_left_claw_point_key": {"value": "move_box_pallet_pre_place_left_claw_point", "source": "CUSTOM"},
+          "pre_place_right_claw_point_key": {"value": "move_box_pallet_pre_place_right_claw_point", "source": "CUSTOM"},
+          "push_left_claw_point_key": {"value": "move_box_pallet_push_left_claw_point", "source": "CUSTOM"},
+          "push_right_claw_point_key": {"value": "move_box_pallet_push_right_claw_point", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "开环预对位确认",
+        "params": {
+          "message": {
+            "value": "已按当前垛盘站位刷新开环动作点。按 Enter 后仅移动到最终/预落位，双爪保持闭合；不会在开环阶段张爪释放。",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Selector",
+        "label": "根据码垛策略开环移动到视觉校正起点",
+        "params": {"memory": {"value": "False", "source": "CUSTOM"}},
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "直接放箱开环到最终动作点但保持夹持",
+            "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "选择直接放箱开环预对位",
+                "params": {
+                  "key": {"value": "move_box_pallet_place_strategy", "source": "CUSTOM"},
+                  "expected": {"value": "direct_place", "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "直接放箱开环到最终动作点并保持双爪闭合",
+                "params": {
+                  "target_type": {"value": "claw_point", "source": "CUSTOM"},
+                  "pose_frame": {"value": "base_link", "source": "CUSTOM"},
+                  "left_point_key": {"value": "move_box_pallet_push_left_claw_point", "source": "CUSTOM"},
+                  "right_point_key": {"value": "move_box_pallet_push_right_claw_point", "source": "CUSTOM"},
+                  "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
+                }
+              }
+            ]
+          },
+          {
+            "name": "Sequence",
+            "label": "右推左放开环到右偏预落位但保持夹持",
+            "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "选择右推左放开环预对位",
+                "params": {
+                  "key": {"value": "move_box_pallet_place_strategy", "source": "CUSTOM"},
+                  "expected": {"value": "right_push_left_place", "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "右推左放开环到右偏预落位并保持双爪闭合",
+                "params": {
+                  "target_type": {"value": "claw_point", "source": "CUSTOM"},
+                  "pose_frame": {"value": "base_link", "source": "CUSTOM"},
+                  "left_point_key": {"value": "move_box_pallet_pre_place_left_claw_point", "source": "CUSTOM"},
+                  "right_point_key": {"value": "move_box_pallet_pre_place_right_claw_point", "source": "CUSTOM"},
+                  "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
+                }
+              }
+            ]
+          },
+          {
+            "name": "Sequence",
+            "label": "左推右放开环到左偏预落位但保持夹持",
+            "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "选择左推右放开环预对位",
+                "params": {
+                  "key": {"value": "move_box_pallet_place_strategy", "source": "CUSTOM"},
+                  "expected": {"value": "left_push_right_place", "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "左推右放开环到左偏预落位并保持双爪闭合",
+                "params": {
+                  "target_type": {"value": "claw_point", "source": "CUSTOM"},
+                  "pose_frame": {"value": "base_link", "source": "CUSTOM"},
+                  "left_point_key": {"value": "move_box_pallet_pre_place_left_claw_point", "source": "CUSTOM"},
+                  "right_point_key": {"value": "move_box_pallet_pre_place_right_claw_point", "source": "CUSTOM"},
+                  "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "开环动作点到位后开始稳定视觉校正",
+        "params": {
+          "message": {
+            "value": "已到达开环最终动作点或预落位，箱体仍被双爪夹持。确认没有碰撞后按 Enter，开始稳定多帧 FP 校正与最终释放。",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "稳定多帧视觉校正并按策略释放",
+        "params": {
+          "file": {"value": "move_box_pallet_place_execute_staged_visual.json", "source": "CUSTOM"}
+        }
+      }
+    ]
+  }
+}

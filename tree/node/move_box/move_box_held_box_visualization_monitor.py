@@ -12,14 +12,16 @@
 2. timer 按 publish_interval_sec 周期读取当前左右 EEF 实际位姿。
 3. 使用 arm_controller 的 end_effector -> claw 外参，计算左右夹爪点。
 4. 通过共享 odom transformer 把 base_link 下夹爪点投到 map。
-5. 以左右夹爪中点作为默认箱心，并支持 box_center_offset_*_m 做调试补偿。
-6. 发布 MarkerArray：估计箱体、左右夹爪点、夹爪连线、箱心、已计算动作点、文字说明。
-7. action=stop 时只停止 timer，默认保留最后一帧话题内容，方便 RViz 现场分析。
+5. ``action=capture`` 时，把 FP 箱心相对左右夹爪中点的局部偏移锁定到黑板；
+   ``action=capture_start`` 则在锁定成功后立即启动同一个持续发布 timer。
+6. 以左右夹爪中点作为默认箱心；若存在已锁定偏移则优先使用它，否则使用
+   box_center_offset_*_m 做调试补偿。
+7. 发布 MarkerArray：估计箱体、左右夹爪点、夹爪连线、箱心、已计算动作点、文字说明。
+8. action=stop 时只停止 timer，默认保留最后一帧话题内容，方便 RViz 现场分析。
 
 注意：
-- 这个节点只做诊断可视化，不参与控制、不修改抓取/放置目标。
-- 默认估计箱心=左右夹爪中点。后续如果要更严谨，可以在闭爪瞬间记录
-  “FP 箱心 - 左右夹爪中点”的偏移，然后持续使用该偏移。
+- 这个节点不直接下发手臂命令；但 ``capture`` 写出的抓取偏移可被后续放置
+  控制节点读取，作为运动学箱体估计的统一来源。
 """
 
 import math
@@ -50,6 +52,11 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         self.monitor_state_key = str(
             params.get("monitor_state_key", "move_box_held_box_visualization_monitor")
         ).strip()
+        self.held_box_transform_key = str(
+            params.get("held_box_transform_key", "move_box_held_box_grasp_transform")
+        ).strip()
+        self.use_captured_transform = self._to_bool(params.get("use_captured_transform", True))
+        self.capture_timeout_sec = max(float(params.get("capture_timeout_sec", 2.0)), 0.1)
         self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
         self.visualization_topic = str(
             params.get("visualization_topic", "/move_box/held_box_estimate_markers")
@@ -94,6 +101,14 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.monitor_state_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.monitor_state_key, access=py_trees.common.Access.READ)
+        if self.held_box_transform_key:
+            self.blackboard.register_key(
+                key=self.held_box_transform_key, access=py_trees.common.Access.READ
+            )
+            if self.action in ("capture", "snapshot", "lock", "capture_start", "lock_start"):
+                self.blackboard.register_key(
+                    key=self.held_box_transform_key, access=py_trees.common.Access.WRITE
+                )
         if self.action_points_enabled:
             for key in (
                 self.pre_place_left_claw_point_key,
@@ -122,8 +137,27 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
         self._timer = None
         self._last_log_at = 0.0
         self._last_publish_error_at = 0.0
+        self._capture_deadline = None
+        self._capture_then_start_ready = False
+
+    def initialise(self):
+        super().initialise()
+        # 行为树 Repeat/循环再次进入本节点时必须重新锁定当前抓取的箱体偏移，
+        # 不能沿用上轮 action=capture_start 的完成状态。
+        self._capture_then_start_ready = False
+        self._capture_deadline = None
 
     def update(self):
+        if self.action in ("capture", "snapshot", "lock"):
+            return self._capture_held_box_transform()
+        if self.action in ("capture_start", "lock_start"):
+            if not self._capture_then_start_ready:
+                capture_status = self._capture_held_box_transform()
+                if capture_status != Status.SUCCESS:
+                    return capture_status
+                self._capture_then_start_ready = True
+            # 这两个动作必须作为同一个行为节点完成：避免 capture 成功后树在
+            # 下一个叶子节点才启动 timer，从而出现短暂的可视化断档或配置分叉。
         if self.action in ("stop", "clear", "disable"):
             self._stop_existing_monitor()
             if self.action == "clear" or self._to_bool(self.params.get("clear_on_stop", False)):
@@ -133,9 +167,10 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             )
             return Status.SUCCESS
 
-        if self.action not in ("start", "enable"):
+        if self.action not in ("start", "enable", "capture_start", "lock_start"):
             self.ros_node.get_logger().error(
-                f"[{self.config_label}] unsupported action={self.action!r}, expected start/stop"
+                f"[{self.config_label}] unsupported action={self.action!r}, expected "
+                "capture/capture_start/start/stop"
             )
             return Status.FAILURE
 
@@ -173,6 +208,92 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             f"{self.box_center_offset_y_m:.3f},{self.box_center_offset_z_m:.3f})"
         )
         return Status.SUCCESS
+
+    def _capture_held_box_transform(self):
+        """闭爪后锁定 FP 箱心相对双爪中点的局部偏移。"""
+        if not self.held_box_transform_key:
+            self.ros_node.get_logger().error(f"[{self.config_label}] held_box_transform_key 不能为空")
+            return Status.FAILURE
+        if self._capture_deadline is None:
+            self._capture_deadline = time.monotonic() + self.capture_timeout_sec
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] 开始锁定手中箱体抓取偏移: "
+                f"key={self.held_box_transform_key}, timeout={self.capture_timeout_sec:.1f}s"
+            )
+
+        services = self.blackboard.get(self.services_key) if self.blackboard.exists(self.services_key) else None
+        arm_controller = getattr(services, "arm_controller", None) if services else None
+        detector = getattr(services, "box_detector", None) if services else None
+        claw_pair = self._get_current_claw_pair_base()
+        if arm_controller is None or detector is None or claw_pair is None:
+            return self._capture_wait_or_fail(
+                f"services={'ok' if services is not None else 'missing'}, "
+                f"detector={'ok' if detector is not None else 'missing'}, "
+                f"claw_pair={'ok' if claw_pair is not None else 'missing'}"
+            )
+
+        updater = getattr(detector, "update_latest_grasp_pose", None)
+        if callable(updater) and not updater(
+            arm_controller.get_initial_left_ypr(), arm_controller.get_initial_right_ypr()
+        ):
+            return self._capture_wait_or_fail("等待可解析的 FoundationPose 抓取数据")
+        center_reader = getattr(detector, "get_latest_box_center", None)
+        center = center_reader() if callable(center_reader) else None
+        try:
+            center = np.array(center, dtype=float)
+        except (TypeError, ValueError):
+            center = None
+        if center is None or center.shape != (3,) or not np.all(np.isfinite(center)):
+            return self._capture_wait_or_fail("等待有效 FoundationPose 箱心")
+
+        left, right = claw_pair
+        midpoint = (left + right) * 0.5
+        axis_x = np.array([right[0] - left[0], right[1] - left[1], 0.0], dtype=float)
+        axis_norm = math.hypot(float(axis_x[0]), float(axis_x[1]))
+        if axis_norm <= 1e-6:
+            return self._capture_wait_or_fail("左右夹爪水平连线退化，无法建立抓取局部坐标")
+        axis_x /= axis_norm
+        axis_y = np.array([-axis_x[1], axis_x[0], 0.0], dtype=float)
+        delta = center - midpoint
+        offset_local = np.array(
+            [float(np.dot(delta, axis_x)), float(np.dot(delta, axis_y)), float(delta[2])],
+            dtype=float,
+        )
+        transform = {
+            "frame": "claw_midpoint",
+            "offset_local": {
+                "x": float(offset_local[0]),
+                "y": float(offset_local[1]),
+                "z": float(offset_local[2]),
+            },
+            "captured_box_center_base": self._np_point_to_dict(center),
+            "captured_claw_midpoint_base": self._np_point_to_dict(midpoint),
+            "captured_left_claw_base": self._np_point_to_dict(left),
+            "captured_right_claw_base": self._np_point_to_dict(right),
+            "captured_axis_x_base": self._np_point_to_dict(axis_x),
+            "stamp_monotonic": time.monotonic(),
+            "source": "foundationpose_box_center",
+        }
+        self.blackboard.set(self.held_box_transform_key, transform, overwrite=True)
+        self._capture_deadline = None
+        self.ros_node.get_logger().info(
+            f"\033[1;97;46m[{self.config_label}] 已锁定手中箱体抓取偏移: "
+            f"FP箱心(base)=({center[0]:.3f},{center[1]:.3f},{center[2]:.3f}), "
+            f"双爪中点(base)=({midpoint[0]:.3f},{midpoint[1]:.3f},{midpoint[2]:.3f}), "
+            f"局部偏移=({offset_local[0]:+.3f},{offset_local[1]:+.3f},{offset_local[2]:+.3f}), "
+            f"key={self.held_box_transform_key}\033[0m"
+        )
+        return Status.SUCCESS
+
+    def _capture_wait_or_fail(self, reason):
+        if time.monotonic() <= self._capture_deadline:
+            self._log_throttled(f"锁定手中箱体抓取偏移中: {reason}")
+            return Status.RUNNING
+        self.ros_node.get_logger().error(
+            f"[{self.config_label}] 锁定手中箱体抓取偏移超时: {reason}"
+        )
+        self._capture_deadline = None
+        return Status.FAILURE
 
     def _on_timer(self):
         try:
@@ -354,16 +475,34 @@ class MoveBoxHeldBoxVisualizationMonitor(TimedMockAction):
             x_axis = (math.cos(yaw_rad), math.sin(yaw_rad))
 
         y_axis = (-x_axis[1], x_axis[0])
+        offset_x, offset_y, offset_z = self._active_center_offset()
         center = {
             "x": midpoint["x"]
-            + self.box_center_offset_x_m * x_axis[0]
-            + self.box_center_offset_y_m * y_axis[0],
+            + offset_x * x_axis[0]
+            + offset_y * y_axis[0],
             "y": midpoint["y"]
-            + self.box_center_offset_x_m * x_axis[1]
-            + self.box_center_offset_y_m * y_axis[1],
-            "z": midpoint["z"] + self.box_center_offset_z_m,
+            + offset_x * x_axis[1]
+            + offset_y * y_axis[1],
+            "z": midpoint["z"] + offset_z,
         }
         return center, yaw_deg
+
+    def _active_center_offset(self):
+        """优先读取闭爪后锁定的局部偏移，缺失时兼容 JSON 固定偏移。"""
+        if self.use_captured_transform and self.held_box_transform_key:
+            try:
+                raw = self.blackboard.get(self.held_box_transform_key)
+                offset = raw.get("offset_local", {}) if isinstance(raw, dict) else {}
+                values = (float(offset["x"]), float(offset["y"]), float(offset["z"]))
+                if all(math.isfinite(value) for value in values):
+                    return values
+            except (AttributeError, KeyError, TypeError, ValueError):
+                pass
+        return (
+            self.box_center_offset_x_m,
+            self.box_center_offset_y_m,
+            self.box_center_offset_z_m,
+        )
 
     def _append_box(
         self,

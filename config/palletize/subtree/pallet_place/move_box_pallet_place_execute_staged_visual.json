@@ -1,0 +1,84 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "根据码垛策略执行稳定视觉校正放箱",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "WaitForEnter",
+        "label": "稳定视觉放箱确认",
+        "params": {
+          "message": {
+            "value": "箱体由双爪夹持。按 Enter 后，每个放置阶段会在手臂静止后收集多帧 FoundationPose，取稳定中位数再做受限校正；视觉不稳定或未收敛时保持夹持。",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveBoxPalletClosedLoopPlace",
+        "label": "FoundationPose稳定多帧校正码垛放箱",
+        "params": {
+          "services_key": {"value": "robot_services", "source": "CUSTOM"},
+          "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+          "strategy_key": {"value": "move_box_pallet_place_strategy", "source": "CUSTOM"},
+          "final_box_pose_key": {"value": "move_box_pallet_place_final_box_pose", "source": "CUSTOM"},
+          "pre_box_pose_key": {"value": "move_box_pallet_place_pre_box_pose", "source": "CUSTOM"},
+          "push_direction_key": {"value": "move_box_pallet_place_push_direction", "source": "CUSTOM"},
+          "release_first_side_key": {"value": "move_box_pallet_place_release_first_side", "source": "CUSTOM"},
+          "push_side_key": {"value": "move_box_pallet_place_push_side", "source": "CUSTOM"},
+          "result_key": {"value": "move_box_pallet_staged_visual_result", "source": "CUSTOM"},
+
+          "hover_height_m": {"value": "0.03", "source": "CUSTOM"},
+          "planar_tolerance_m": {"value": "0.030", "source": "CUSTOM"},
+          "z_tolerance_m": {"value": "0.060", "source": "CUSTOM"},
+          "drop_planar_guard_m": {"value": "0.030", "source": "CUSTOM"},
+          "push_tolerance_m": {"value": "0.030", "source": "CUSTOM"},
+          "push_cross_track_tolerance_m": {"value": "0.030", "source": "CUSTOM"},
+          "push_z_tolerance_m": {"value": "0.200", "source": "CUSTOM"},
+
+          "high_align_max_step_xy_m": {"value": "0.030", "source": "CUSTOM"},
+          "max_step_xy_m": {"value": "0.020", "source": "CUSTOM"},
+          "max_step_z_m": {"value": "0.010", "source": "CUSTOM"},
+          "max_push_step_m": {"value": "0.012", "source": "CUSTOM"},
+          "max_push_travel_m": {"value": "0.130", "source": "CUSTOM"},
+          "max_initial_planar_error_m": {"value": "0.150", "source": "CUSTOM"},
+          "max_initial_z_error_m": {"value": "0.300", "source": "CUSTOM"},
+          "max_align_iterations": {"value": "10", "source": "CUSTOM"},
+          "max_drop_iterations": {"value": "3", "source": "CUSTOM"},
+          "max_push_iterations": {"value": "10", "source": "CUSTOM"},
+          "release_lift_clearance_m": {"value": "0.18", "source": "CUSTOM"},
+
+          "post_motion_settle_sec": {"value": "0.80", "source": "CUSTOM"},
+          "frame_timeout_sec": {"value": "5.0", "source": "CUSTOM"},
+          "poll_interval_sec": {"value": "0.15", "source": "CUSTOM"},
+          "measurement_frame_count": {"value": "5", "source": "CUSTOM"},
+          "measurement_max_planar_spread_m": {"value": "0.020", "source": "CUSTOM"},
+          "measurement_max_z_spread_m": {"value": "0.030", "source": "CUSTOM"},
+
+          "open_torque": {"value": "0.0", "source": "CUSTOM"},
+          "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"},
+          "single_step_debug_enabled": {"value": "False", "source": "CUSTOM"},
+          "single_step_key": {"value": "s", "source": "CUSTOM"},
+          "diagnostic_log_enabled": {"value": "True", "source": "CUSTOM"},
+          "visualization_enabled": {"value": "True", "source": "CUSTOM"},
+          "visualization_topic": {"value": "/move_box/pallet_closed_loop_markers", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "稳定视觉放箱完成确认",
+        "params": {
+          "message": {
+            "value": "稳定视觉校正放箱已完成。请检查 /move_box/pallet_staged_visual_markers 与 /move_box/held_box_estimate_markers，按 Enter 继续放箱后验证。",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -150,14 +150,22 @@
               },
               {
                 "name": "MoveBoxHeldBoxVisualizationMonitor",
-                "label": "启动抓箱后手中箱体持续可视化",
+                "label": "锁定抓稳后箱心偏移并启动手中箱体持续可视化",
                 "params": {
                   "action": {
-                    "value": "start",
+                    "value": "capture_start",
                     "source": "CUSTOM"
                   },
                   "services_key": {
                     "value": "robot_services",
+                    "source": "CUSTOM"
+                  },
+                  "held_box_transform_key": {
+                    "value": "move_box_held_box_grasp_transform",
+                    "source": "CUSTOM"
+                  },
+                  "capture_timeout_sec": {
+                    "value": "2.0",
                     "source": "CUSTOM"
                   },
                   "odom_topic": {
@@ -166,6 +174,14 @@
                   },
                   "visualization_topic": {
                     "value": "/move_box/held_box_estimate_markers",
+                    "source": "CUSTOM"
+                  },
+                  "held_box_transform_key": {
+                    "value": "move_box_held_box_grasp_transform",
+                    "source": "CUSTOM"
+                  },
+                  "use_captured_transform": {
+                    "value": "True",
                     "source": "CUSTOM"
                   },
                   "publish_interval_sec": {
@@ -234,10 +250,6 @@
                         0.77
                       ]
                     ],
-                    "source": "CUSTOM"
-                  },
-                  "slot_yaw_deg": {
-                    "value": "0.0",
                     "source": "CUSTOM"
                   },
                   "slot_rows": {
@@ -313,11 +325,11 @@
                     "source": "CUSTOM"
                   },
                   "pre_place_lateral_offset_m": {
-                    "value": "0.06",
+                    "value": "0.03",
                     "source": "CUSTOM"
                   },
                   "push_distance_m": {
-                    "value": "0.06",
+                    "value": "0.03",
                     "source": "CUSTOM"
                   },
                   "claw_lift_clearance_m": {
@@ -524,6 +536,10 @@
                   },
                   "pre_place_safe_retract_m": {
                     "value": "0.08",
+                    "source": "CUSTOM"
+                  },
+                  "pre_place_safe_lateral_only": {
+                    "value": "True",
                     "source": "CUSTOM"
                   },
                   "visualization_enabled": {
@@ -766,10 +782,10 @@
               },
               {
                 "name": "SubTree",
-                "label": "根据码垛策略执行放箱",
+                "label": "开环到动作点后执行稳定视觉校正放箱",
                 "params": {
                   "file": {
-                    "value": "subtree/move_box_pallet_place_execute_closed_loop.json",
+                    "value": "subtree/pallet_place/move_box_pallet_place_execute_open_loop_then_staged_visual.json",
                     "source": "CUSTOM"
                   }
                 }
