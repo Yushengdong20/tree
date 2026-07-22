@@ -8,6 +8,7 @@ import py_trees
 from py_trees.common import Status
 
 from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
 from ..base import TimedMockAction
 
 
@@ -81,6 +82,17 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
             f"plane_z={place_plane_height:.3f}({self.place_plane_frame}), "
             f"plane_z_base={place_plane_height_base:.3f}, pose={target_pose}, "
             f"key={self.target_pose_key}"
+        )
+        write_pallet_place_diagnostic(
+            "torso_target",
+            {
+                "label": self.config_label,
+                "place_plane_z": place_plane_height,
+                "place_plane_frame": self.place_plane_frame,
+                "place_plane_z_base": place_plane_height_base,
+                "height_offset": self.height_offset,
+                "target_pose": target_pose,
+            },
         )
         return Status.SUCCESS
 

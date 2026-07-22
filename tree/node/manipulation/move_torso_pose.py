@@ -13,6 +13,7 @@ import py_trees
 from py_trees.common import Status
 
 from tree.constants import BASE_LINK_FRAME, ROBOT_SERVICES_KEY, WAIST_YAW_LINK_FRAME
+from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
 
 from ..base import TimedMockAction
 
@@ -29,6 +30,9 @@ class MoveTorsoPose(TimedMockAction):
         self.enabled_key = str(params.get("enabled_key", "")).strip()
         self.wait_done = self._to_bool(params.get("wait_done", True))
         self.tf_timeout_sec = float(params.get("tf_timeout_sec", 0.5))
+        self.pallet_place_diagnostic_log_enabled = self._to_bool(
+            params.get("pallet_place_diagnostic_log_enabled", False)
+        )
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         if self.pose_key:
             self.blackboard.register_key(key=self.pose_key, access=py_trees.common.Access.READ)
@@ -180,6 +184,19 @@ class MoveTorsoPose(TimedMockAction):
             f"dpitch={angle_error[1]:.4f}, dyaw={angle_error[2]:.4f}], "
             f"pos_norm={position_norm:.4f}m, angle_norm={angle_norm:.4f}rad"
         )
+        if self.pallet_place_diagnostic_log_enabled:
+            write_pallet_place_diagnostic(
+                "torso_reached",
+                {
+                    "label": self.config_label,
+                    "target_pose": target_pose,
+                    "actual_pose": actual_pose,
+                    "position_error": position_error,
+                    "angle_error": angle_error,
+                    "position_norm_m": position_norm,
+                    "angle_norm_rad": angle_norm,
+                },
+            )
 
     def describe_start(self):
         pose_desc = self.pose if self.pose is not None else f"blackboard:{self.pose_key or '<initial_pose>'}"

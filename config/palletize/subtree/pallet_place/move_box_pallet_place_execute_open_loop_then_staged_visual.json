@@ -58,6 +58,7 @@
                   "pose_frame": {"value": "base_link", "source": "CUSTOM"},
                   "left_point_key": {"value": "move_box_pallet_push_left_claw_point", "source": "CUSTOM"},
                   "right_point_key": {"value": "move_box_pallet_push_right_claw_point", "source": "CUSTOM"},
+                  "pallet_place_diagnostic_log_enabled": {"value": "True", "source": "CUSTOM"},
                   "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
                 }
               }
@@ -84,6 +85,7 @@
                   "pose_frame": {"value": "base_link", "source": "CUSTOM"},
                   "left_point_key": {"value": "move_box_pallet_pre_place_left_claw_point", "source": "CUSTOM"},
                   "right_point_key": {"value": "move_box_pallet_pre_place_right_claw_point", "source": "CUSTOM"},
+                  "pallet_place_diagnostic_log_enabled": {"value": "True", "source": "CUSTOM"},
                   "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
                 }
               }
@@ -110,6 +112,7 @@
                   "pose_frame": {"value": "base_link", "source": "CUSTOM"},
                   "left_point_key": {"value": "move_box_pallet_pre_place_left_claw_point", "source": "CUSTOM"},
                   "right_point_key": {"value": "move_box_pallet_pre_place_right_claw_point", "source": "CUSTOM"},
+                  "pallet_place_diagnostic_log_enabled": {"value": "True", "source": "CUSTOM"},
                   "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
                 }
               }

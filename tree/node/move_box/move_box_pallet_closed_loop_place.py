@@ -30,6 +30,7 @@ from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.base_event import EventS
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
 from tree.utils.geometry import ypr_to_rotation_matrix
+from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
 
 from ..base import TimedMockAction
 from .fp_grasp_visualization import _map_from_odom_message, _point_base_to_map
@@ -322,6 +323,19 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             f"center(map)=({median[0]:.3f},{median[1]:.3f},{median[2]:.3f}), "
             f"planar_spread={planar_spread:.3f}m, z_spread={z_spread:.3f}m"
         )
+        write_pallet_place_diagnostic(
+            "stable_fp_measurement",
+            {
+                "label": self.config_label,
+                "strategy": self.strategy,
+                "stage": self.stage,
+                "iteration": self.stage_iterations,
+                "center_map": median,
+                "frame_count": self.measurement_frame_count,
+                "planar_spread_m": planar_spread,
+                "z_spread_m": z_spread,
+            },
+        )
         self._fp_samples = []
         return median
 
@@ -434,6 +448,19 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             return Status.RUNNING
         if status != EventStatus.SUCCESS:
             return self._fail(f"闭环手臂动作失败: stage={self.stage}, status={status}")
+        claw_pair = self._get_current_claw_pair()
+        write_pallet_place_diagnostic(
+            "closed_loop_arm_reached",
+            {
+                "label": self.config_label,
+                "strategy": self.strategy,
+                "stage": self.stage,
+                "iteration": self.stage_iterations,
+                "left_claw_base": None if claw_pair is None else claw_pair[0],
+                "right_claw_base": None if claw_pair is None else claw_pair[1],
+                "pending_after_arm": self._pending_after_arm,
+            },
+        )
         if self._pending_after_arm == "START_PUSH":
             self.stage = self._STAGE_PUSH
             self.stage_iterations = 0
@@ -709,6 +736,18 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             f"\033[1;97;44m[{self.config_label}] 闭环{action}小步: stage={self.stage}, "
             f"step_map=({step_map[0]:.3f},{step_map[1]:.3f},{step_map[2]:.3f}), "
             f"step_base=({step_base[0]:.3f},{step_base[1]:.3f},{step_base[2]:.3f})\033[0m"
+        )
+        write_pallet_place_diagnostic(
+            "closed_loop_command",
+            {
+                "label": self.config_label,
+                "strategy": self.strategy,
+                "stage": self.stage,
+                "iteration": self.stage_iterations,
+                "action": action,
+                "step_map": step_map,
+                "step_base": step_base,
+            },
         )
 
     def _log_fp_observation(self, actual, goal, error, planar, z_error, along=None, cross=None):

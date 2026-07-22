@@ -74,7 +74,7 @@
         "label": "稳定视觉放箱完成确认",
         "params": {
           "message": {
-            "value": "稳定视觉校正放箱已完成。请检查 /move_box/pallet_staged_visual_markers 与 /move_box/held_box_estimate_markers，按 Enter 继续放箱后验证。",
+            "value": "稳定视觉校正放箱已完成。请检查 /move_box/pallet_closed_loop_markers 与 /move_box/held_box_estimate_markers，按 Enter 继续放箱后验证。",
             "source": "CUSTOM"
           }
         }

@@ -37,6 +37,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from kuavo_humanoid_sdk.kuavo_strategy_v2.common.events.base_event import EventStatus
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY, WAIST_YAW_LINK_FRAME
+from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
 from ..base import TimedMockAction
 
 
@@ -104,6 +105,10 @@ class ArmsToPose(TimedMockAction):
         )
         self.claw_point_diagnostics_error_distance_m = float(
             params.get("claw_point_diagnostics_error_distance_m", 0.08)
+        )
+        # 只在码垛相关 ArmsToPose 配置中显式开启，避免通用手臂动作持续写入文件。
+        self.pallet_place_diagnostic_log_enabled = self._to_bool(
+            params.get("pallet_place_diagnostic_log_enabled", False)
         )
         self.claw_wireframe_visualization_enabled = self._to_bool(
             params.get("claw_wireframe_visualization_enabled", True)
@@ -559,6 +564,17 @@ class ArmsToPose(TimedMockAction):
             if diagnostic_item is not None:
                 diagnostic_items.append(diagnostic_item)
         self._publish_claw_point_diagnostics_visualization(diagnostic_items)
+        if self.pallet_place_diagnostic_log_enabled:
+            write_pallet_place_diagnostic(
+                "arms_to_pose_reached",
+                {
+                    "label": self.config_label,
+                    "pose_frame": self.pose_frame,
+                    "target_type": self.target_type,
+                    "side": self.current_side,
+                    "items": diagnostic_items,
+                },
+            )
         self._diagnostics_logged = True
 
     def _log_single_claw_point_finish_diagnostic(self, side, target):

@@ -21,6 +21,7 @@ import py_trees
 from py_trees.common import Status
 
 from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
 from tree.runtime.http.move_and_grab_flow import Pose2D, transform_global_point_to_base
 from tree.utils.geometry import ypr_to_rotation_matrix
 
@@ -147,6 +148,22 @@ class ComputeMoveBoxPalletPlaceActionPoints(TimedMockAction):
             f"final_left=({final_left[0]:.3f},{final_left[1]:.3f},{final_left[2]:.3f}), "
             f"final_right=({final_right[0]:.3f},{final_right[1]:.3f},{final_right[2]:.3f}), "
             f"lift_clearance={self.claw_lift_clearance_m:.3f}"
+        )
+        write_pallet_place_diagnostic(
+            "place_action_points",
+            {
+                "label": self.config_label,
+                "strategy": strategy,
+                "robot_pose_map": current_pose,
+                "target_claw_z_base": float(target_claw_z),
+                "current_claw_midpoint_base": current_center,
+                "pre_box_center_base": pre_center,
+                "final_box_center_base": final_center,
+                "pre_left_claw_base": pre_left,
+                "pre_right_claw_base": pre_right,
+                "final_left_claw_base": final_left,
+                "final_right_claw_base": final_right,
+            },
         )
         return Status.SUCCESS
 

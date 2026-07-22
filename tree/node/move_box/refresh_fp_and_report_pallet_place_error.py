@@ -19,6 +19,7 @@ from py_trees.common import Status
 from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
 from ..base import TimedMockAction
 from .fp_grasp_visualization import (
     _axis_base_to_map,
@@ -54,6 +55,9 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             params.get("visualization_topic", "/move_box/pallet_place_error_markers")
         ).strip()
         self.text_height_m = float(params.get("text_height_m", 0.35))
+        self.expected_box_size_x = float(params.get("expected_box_size_x", 0.60))
+        self.expected_box_size_y = float(params.get("expected_box_size_y", 0.40))
+        self.expected_box_size_z = float(params.get("expected_box_size_z", 0.34))
 
         self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
@@ -138,6 +142,15 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         if self.result_key:
             self.blackboard.set(self.result_key, result, overwrite=True)
         self._log_result(result)
+        write_pallet_place_diagnostic(
+            "post_place_fp_error",
+            {
+                "label": self.config_label,
+                "expected_box_pose_map": expected_pose,
+                "actual_box": actual,
+                "error": result,
+            },
+        )
         self._publish_visualization(expected_pose, actual, result)
         return Status.SUCCESS
 
@@ -245,6 +258,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         marker_id = 1
         expected = np.array([result["expected"]["x"], result["expected"]["y"], result["expected"]["z"]], dtype=float)
         actual_center = np.array(actual["center_map"], dtype=float)
+        marker_id = self._append_expected_box(marker_array, marker_id, expected_pose)
         marker_id = self._append_sphere(marker_array, marker_id, "expected_box_center", expected, (0.1, 1.0, 0.1, 1.0), 0.08)
         marker_id = self._append_sphere(marker_array, marker_id, "actual_fp_box_center", actual_center, (1.0, 0.1, 0.1, 1.0), 0.08)
         marker_id = self._append_line(marker_array, marker_id, "place_error_vector", expected, actual_center, (1.0, 0.8, 0.0, 1.0), 0.025)
@@ -274,6 +288,31 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             box_marker.points.append(self._point(corners[end_index]))
         marker_array.markers.append(box_marker)
         return marker_id
+
+    def _append_expected_box(self, marker_array, marker_id, expected_pose):
+        """绘制绿色规划箱体，避免误差话题只剩两个箱心而难以判断真实占位。"""
+        yaw_rad = math.radians(float(expected_pose.get("yaw", 0.0)))
+        left_axis = np.array([math.cos(yaw_rad), math.sin(yaw_rad), 0.0], dtype=float)
+        front_axis = np.array([-math.sin(yaw_rad), math.cos(yaw_rad), 0.0], dtype=float)
+        up_axis = np.array([0.0, 0.0, 1.0], dtype=float)
+        center = np.array(
+            [expected_pose["x"], expected_pose["y"], expected_pose.get("z", 0.0)], dtype=float
+        )
+        marker = self._new_marker(marker_id, "expected_box_outline", Marker.LINE_LIST)
+        marker.scale.x = 0.025
+        self._set_color(marker, 0.15, 1.0, 0.25, 0.95)
+        corners = _fp_box_corners(
+            center,
+            left_axis,
+            front_axis,
+            up_axis,
+            (self.expected_box_size_x, self.expected_box_size_y, self.expected_box_size_z),
+        )
+        for start_index, end_index in _box_edge_indices():
+            marker.points.append(self._point(corners[start_index]))
+            marker.points.append(self._point(corners[end_index]))
+        marker_array.markers.append(marker)
+        return marker_id + 1
 
     def _append_sphere(self, marker_array, marker_id, namespace, point, color, scale):
         marker = self._new_marker(marker_id, namespace, Marker.SPHERE)

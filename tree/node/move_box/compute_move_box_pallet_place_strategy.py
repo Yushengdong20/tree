@@ -25,6 +25,7 @@ from py_trees.common import Status
 from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
 from tree.runtime.http.move_and_grab_flow import (
     Pose2D,
     transform_base_point_to_global,
@@ -293,6 +294,25 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             f"release_first={strategy_info['release_first_side']}, push_side={strategy_info['push_side']}, "
             f"action_points={'ready' if action_points is not None else 'unavailable'}, "
             f"topic={self.visualization_topic or '<disabled>'}"
+        )
+        write_pallet_place_diagnostic(
+            "strategy_plan",
+            {
+                "label": self.config_label,
+                "stack_count": stack_count,
+                "layer": layer,
+                "row": row,
+                "col": col,
+                "strategy": strategy_info["strategy"],
+                "slot_pose_map": slot_pose,
+                "navigation_pose_map": navigation_pose,
+                "place_plane_z_map": place_plane_height,
+                "final_box_pose_map": final_box_pose,
+                "pre_box_pose_map": pre_box_pose,
+                "push_direction_map": push_direction,
+                "release_first_side": strategy_info["release_first_side"],
+                "push_side": strategy_info["push_side"],
+            },
         )
         return Status.SUCCESS
 

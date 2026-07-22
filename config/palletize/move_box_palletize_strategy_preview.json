@@ -176,16 +176,16 @@
                     "value": "/move_box/held_box_estimate_markers",
                     "source": "CUSTOM"
                   },
-                  "held_box_transform_key": {
-                    "value": "move_box_held_box_grasp_transform",
-                    "source": "CUSTOM"
-                  },
                   "use_captured_transform": {
                     "value": "True",
                     "source": "CUSTOM"
                   },
                   "publish_interval_sec": {
                     "value": "0.10",
+                    "source": "CUSTOM"
+                  },
+                  "action_points_enabled": {
+                    "value": "False",
                     "source": "CUSTOM"
                   },
                   "box_size_x": {
@@ -411,7 +411,7 @@
                         "source": "CUSTOM"
                       },
                       "navigation_visualization_enabled": {
-                        "value": "True",
+                        "value": "False",
                         "source": "CUSTOM"
                       },
                       "navigation_visualization_topic": {
@@ -461,7 +461,7 @@
                     "source": "CUSTOM"
                   },
                   "navigation_visualization_enabled": {
-                    "value": "True",
+                    "value": "False",
                     "source": "CUSTOM"
                   },
                   "navigation_visualization_topic": {
@@ -543,7 +543,7 @@
                     "source": "CUSTOM"
                   },
                   "visualization_enabled": {
-                    "value": "True",
+                    "value": "False",
                     "source": "CUSTOM"
                   },
                   "visualization_topic": {
@@ -775,6 +775,10 @@
                       "skip_torso_motion": {
                         "value": "False",
                         "source": "CUSTOM"
+                      },
+                      "pallet_place_diagnostic_log_enabled": {
+                        "value": "True",
+                        "source": "CUSTOM"
                       }
                     }
                   }
@@ -828,6 +832,18 @@
                   },
                   "visualization_topic": {
                     "value": "/move_box/pallet_place_error_markers",
+                    "source": "CUSTOM"
+                  },
+                  "expected_box_size_x": {
+                    "value": "0.60",
+                    "source": "CUSTOM"
+                  },
+                  "expected_box_size_y": {
+                    "value": "0.40",
+                    "source": "CUSTOM"
+                  },
+                  "expected_box_size_z": {
+                    "value": "0.34",
                     "source": "CUSTOM"
                   }
                 }
