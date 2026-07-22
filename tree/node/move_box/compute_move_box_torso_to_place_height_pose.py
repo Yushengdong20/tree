@@ -4,6 +4,8 @@
 计算逻辑保留原放箱流程的躯干高度约束。
 """
 
+import math
+
 import py_trees
 from py_trees.common import Status
 
@@ -35,9 +37,29 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         self.target_pose_key = str(
             params.get("target_pose_key", "move_box_place_torso_pose")
         ).strip()
+        # 与 ComputeMoveBoxPalletPlaceActionPoints 共用同一高度参考，确保躯干和
+        # 夹爪不会一个使用实时漂移 z、另一个使用锁定 z。
+        self.height_reference_mode = str(
+            params.get("height_reference_mode", "current_odom")
+        ).strip().lower()
+        if self.height_reference_mode not in ("current_odom", "lock_on_first_use", "fixed"):
+            self.height_reference_mode = "current_odom"
+        self.height_reference_key = str(
+            params.get("height_reference_key", "move_box_pallet_map_base_z_reference")
+        ).strip()
+        self.fixed_height_reference_map_z = float(
+            params.get("fixed_height_reference_map_z", 0.0)
+        )
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         if self.place_plane_height_key:
             self.blackboard.register_key(key=self.place_plane_height_key, access=py_trees.common.Access.READ)
+        if self.height_reference_key:
+            self.blackboard.register_key(
+                key=self.height_reference_key, access=py_trees.common.Access.READ
+            )
+            self.blackboard.register_key(
+                key=self.height_reference_key, access=py_trees.common.Access.WRITE
+            )
         self.blackboard.register_key(key=self.target_pose_key, access=py_trees.common.Access.WRITE)
         self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
@@ -66,7 +88,9 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
         place_plane_height = self._get_place_plane_height()
         if place_plane_height is None:
             return Status.FAILURE
-        place_plane_height_base = self._resolve_place_plane_height_in_base(place_plane_height)
+        place_plane_height_base, height_reference_z, height_reference_source = (
+            self._resolve_place_plane_height_in_base(place_plane_height)
+        )
         if place_plane_height_base is None:
             return Status.FAILURE
 
@@ -81,6 +105,8 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
             f"[{self.config_label}] 已计算放箱前躯干目标: "
             f"plane_z={place_plane_height:.3f}({self.place_plane_frame}), "
             f"plane_z_base={place_plane_height_base:.3f}, pose={target_pose}, "
+            f"height_ref={height_reference_z if height_reference_z is not None else '<n/a>'}"
+            f"({height_reference_source}), "
             f"key={self.target_pose_key}"
         )
         write_pallet_place_diagnostic(
@@ -90,6 +116,8 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
                 "place_plane_z": place_plane_height,
                 "place_plane_frame": self.place_plane_frame,
                 "place_plane_z_base": place_plane_height_base,
+                "height_reference_map_z": height_reference_z,
+                "height_reference_source": height_reference_source,
                 "height_offset": self.height_offset,
                 "target_pose": target_pose,
             },
@@ -120,7 +148,7 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
     def _resolve_place_plane_height_in_base(self, place_plane_height):
         frame = self.place_plane_frame.lower()
         if frame in ("base", "base_link", ""):
-            return float(place_plane_height)
+            return float(place_plane_height), None, "base_link"
 
         if frame in ("map", MAP_FRAME.lower()):
             current_pose = self.odom_transformer.get_current_pose()
@@ -129,15 +157,37 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
                     f"[{self.config_label}] 等待 odom 后才能把 map 放置高度转换到 base_link: "
                     f"odom_topic={self.odom_topic}"
                 )
-                return None
-            base_map_z = float(current_pose[2])
-            return float(place_plane_height) - base_map_z
+                return None, None, "odom_unavailable"
+            base_map_z, reference_source = self._resolve_height_reference_map_z(current_pose)
+            return float(place_plane_height) - base_map_z, base_map_z, reference_source
 
         self.ros_node.get_logger().error(
             f"[{self.config_label}] 不支持的 place_plane_frame={self.place_plane_frame!r}，"
             "仅支持 base_link/map"
         )
-        return None
+        return None, None, "unsupported_frame"
+
+    def _resolve_height_reference_map_z(self, current_pose):
+        """取得与放箱动作点共享的平整地面 map z 参考。"""
+        current_z = float(current_pose[2])
+        if self.height_reference_mode == "current_odom":
+            return current_z, "current_odom"
+        if self.height_reference_mode == "fixed":
+            return self.fixed_height_reference_map_z, "fixed"
+        if self.height_reference_key and self.blackboard.exists(self.height_reference_key):
+            try:
+                reference_z = float(self.blackboard.get(self.height_reference_key))
+                if math.isfinite(reference_z):
+                    return reference_z, "locked_blackboard"
+            except (AttributeError, TypeError, ValueError):
+                pass
+        if self.height_reference_key:
+            self.blackboard.set(self.height_reference_key, current_z, overwrite=True)
+        self.ros_node.get_logger().info(
+            f"\033[1;97;46m[{self.config_label}] 已锁定平整地面码垛高度参考: "
+            f"map_base_z={current_z:.3f}, key={self.height_reference_key}\033[0m"
+        )
+        return current_z, "locked_now"
 
     def describe_start(self):
         return (
@@ -145,5 +195,7 @@ class ComputeMoveBoxTorsoToPlaceHeightPose(TimedMockAction):
             f"place_plane_height={self.place_plane_height:.3f}, "
             f"place_plane_height_key={self.place_plane_height_key or '<static>'}, "
             f"place_plane_frame={self.place_plane_frame}, "
+            f"height_reference_mode={self.height_reference_mode}, "
+            f"height_reference_key={self.height_reference_key or '<disabled>'}, "
             f"target_pose_key={self.target_pose_key}"
         )

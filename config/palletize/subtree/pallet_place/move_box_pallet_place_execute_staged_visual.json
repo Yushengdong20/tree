@@ -46,6 +46,8 @@
           "max_step_z_m": {"value": "0.010", "source": "CUSTOM"},
           "max_push_step_m": {"value": "0.012", "source": "CUSTOM"},
           "max_push_travel_m": {"value": "0.130", "source": "CUSTOM"},
+          "push_hold_contact_height_enabled": {"value": "True", "source": "CUSTOM"},
+          "push_contact_height_warning_m": {"value": "0.010", "source": "CUSTOM"},
           "max_initial_planar_error_m": {"value": "0.150", "source": "CUSTOM"},
           "max_initial_z_error_m": {"value": "0.300", "source": "CUSTOM"},
           "max_align_iterations": {"value": "10", "source": "CUSTOM"},

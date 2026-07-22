@@ -82,6 +82,15 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self.max_step_z_m = max(float(params.get("max_step_z_m", 0.008)), 0.001)
         self.max_push_step_m = max(float(params.get("max_push_step_m", 0.008)), 0.001)
         self.max_push_travel_m = max(float(params.get("max_push_travel_m", 0.09)), self.max_push_step_m)
+        # 单爪推送时不能把“当前实际 z”当作下一步目标 z，否则 IK 或接触造成的微小
+        # 下沉会被逐步继承，最终让箱子被斜向下压。进入 PUSH 时锁定接触高度，后续每
+        # 一步都回到该高度，只沿水平推送方向改变位置。
+        self.push_hold_contact_height_enabled = self._to_bool(
+            params.get("push_hold_contact_height_enabled", True)
+        )
+        self.push_contact_height_warning_m = max(
+            float(params.get("push_contact_height_warning_m", 0.010)), 0.0
+        )
         self.drop_planar_guard_m = max(
             float(params.get("drop_planar_guard_m", 0.020)), self.planar_tolerance_m
         )
@@ -157,6 +166,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self.stage_iterations = 0
         self.safe_align_z = None
         self.push_travel_m = 0.0
+        self.push_contact_claw_z = None
         self._deadline = 0.0
         self._settle_deadline = 0.0
         self._next_poll_at = 0.0
@@ -180,6 +190,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         self.stage_iterations = 0
         self.safe_align_z = None
         self.push_travel_m = 0.0
+        self.push_contact_claw_z = None
         self._deadline = 0.0
         self._settle_deadline = 0.0
         self._next_poll_at = 0.0
@@ -458,6 +469,7 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
                 "iteration": self.stage_iterations,
                 "left_claw_base": None if claw_pair is None else claw_pair[0],
                 "right_claw_base": None if claw_pair is None else claw_pair[1],
+                "push_contact_claw_z": self.push_contact_claw_z,
                 "pending_after_arm": self._pending_after_arm,
             },
         )
@@ -465,6 +477,14 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
             self.stage = self._STAGE_PUSH
             self.stage_iterations = 0
             self.push_travel_m = 0.0
+            if claw_pair is not None and self.push_side in ("left", "right"):
+                pusher_index = 0 if self.push_side == "left" else 1
+                self.push_contact_claw_z = float(claw_pair[pusher_index][2])
+                self.ros_node.get_logger().info(
+                    f"[{self.config_label}] 已锁定{self.push_side}爪推送接触高度: "
+                    f"z={self.push_contact_claw_z:.3f}(base_link), "
+                    f"enabled={self.push_hold_contact_height_enabled}"
+                )
             self._start_wait_new_frame(
                 "避让爪上抬完成，开始单爪闭环推送", settle_after_motion=True
             )
@@ -535,7 +555,17 @@ class MoveBoxPalletClosedLoopPlace(TimedMockAction):
         if current_pose is None or pusher_claw is None or other_pose is None:
             return False
         step_base = self._map_vector_to_base(step_map, current_pose)
-        pusher_eef = self._claw_to_eef(pusher_claw + step_base, self.push_side)
+        target_pusher_claw = np.array(pusher_claw + step_base, dtype=float)
+        if self.push_hold_contact_height_enabled and self.push_contact_claw_z is not None:
+            z_error = float(pusher_claw[2] - self.push_contact_claw_z)
+            target_pusher_claw[2] = self.push_contact_claw_z
+            if abs(z_error) > self.push_contact_height_warning_m:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] {self.push_side}爪推送高度漂移，执行接触高度纠正: "
+                    f"actual_z={pusher_claw[2]:.3f}, target_z={self.push_contact_claw_z:.3f}, "
+                    f"delta={z_error:+.3f}m"
+                )
+        pusher_eef = self._claw_to_eef(target_pusher_claw, self.push_side)
         if pusher_eef is None:
             return False
         other = list(other_pose)
