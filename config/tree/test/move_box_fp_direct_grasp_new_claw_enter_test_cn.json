@@ -1,0 +1,214 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "FoundationPose新夹爪原地直接抓箱逐步测试",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化新夹爪控制与视觉共享服务",
+        "params": {
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "skip_claw_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "initial_left_pose_in_waist": {
+            "value": "[0.351, 0.400, 0.200, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "initial_right_pose_in_waist": {
+            "value": "[0.351, -0.400, 0.200, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "left_claw_translation": {
+            "value": "[-0.110, -0.045, 0.020]",
+            "source": "CUSTOM"
+          },
+          "right_claw_translation": {
+            "value": "[-0.110, 0.045, 0.020]",
+            "source": "CUSTOM"
+          },
+          "left_claw_rotation_rpy_deg": {
+            "value": "[0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_claw_rotation_rpy_deg": {
+            "value": "[0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "foundationpose_axis_convention": {
+            "value": "right_x_front_y_up_z",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认1：开始FP首次定位",
+        "params": {
+          "message": {
+            "value": "确认箱体位于相机视野且双臂周边安全后，按 Enter 使用 FoundationPose 首次定位箱体...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxDetectionReady",
+        "label": "FP首次定位箱体并发布抓取可视化",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "detect_timeout_sec": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "restart_before_wait": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "restart_on_timeout": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "fp_settle_before_refresh_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "fp_settle_before_refresh_sec": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_topic": {
+            "value": "/move_box/fp_grasp_markers",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认2：检查FP箱体与抓取点",
+        "params": {
+          "message": {
+            "value": "请在 /move_box/fp_grasp_markers 确认 FP 箱体轮廓、箱心和抓取方向正确；按 Enter 计算并调整躯干...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxTorsoToBoxCenterPose",
+        "label": "根据FP箱心计算抓箱躯干高度",
+        "params": {
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "preferred_box_center_key": {
+            "value": "move_box_fp_arrival_box_center",
+            "source": "CUSTOM"
+          },
+          "target_pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "knee_origin_z": {
+            "value": "0.1055",
+            "source": "CUSTOM"
+          },
+          "ik_angle_step_deg": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认3：执行抓箱躯干调整",
+        "params": {
+          "message": {
+            "value": "即将按 FP 箱心调整躯干到抓取高度。确认动作范围安全后按 Enter...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "调整躯干到FP抓箱高度",
+        "params": {
+          "pose_key": {
+            "value": "move_box_torso_box_center_pose",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "置位直接抓箱请求",
+        "params": {
+          "key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "true",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "刷新FP后逐步执行新夹爪侧向合拢抓箱",
+        "params": {
+          "file": {
+            "value": "../../palletize/subtree/move_box_new_claw_side_inward_grasp_enter_confirm_cn.json",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认4：保持闭爪状态结束测试",
+        "params": {
+          "message": {
+            "value": "抓取动作已完成，当前保持闭爪，便于检查夹持位置。确认后按 Enter 结束本次测试（不会自动上提或张开夹爪）。",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

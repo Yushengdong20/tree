@@ -30,6 +30,9 @@ class EnsureMoveBoxServices(TimedMockAction):
         self.model_type_key = MODEL_TYPE_KEY
         self.odom_transformer_key = ODOM_POSE_TRANSFORMER_KEY
         self.model_type = str(params.get("model_type", IK_MODEL_MOVE_BOX)).strip() or IK_MODEL_MOVE_BOX
+        self.foundationpose_axis_convention = str(
+            params.get("foundationpose_axis_convention", "right_x_front_y_up_z")
+        ).strip().lower()
         self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
         self.odom_target_frame = str(params.get("odom_target_frame", MAP_FRAME)).strip()
         self.odom_base_frame = str(params.get("odom_base_frame", BASE_LINK_FRAME)).strip()
@@ -97,7 +100,10 @@ class EnsureMoveBoxServices(TimedMockAction):
         if not self._is_move_box_services(services):
             from tree.runtime.move_box.move_box_real import build_robot_services
 
-            services = build_robot_services(model_type=self.model_type)
+            services = build_robot_services(
+                model_type=self.model_type,
+                foundationpose_axis_convention=self.foundationpose_axis_convention,
+            )
             self.blackboard.set(self.services_key, services, overwrite=True)
             self.ros_node.get_logger().info(
                 f"[{self.config_label}] created robot services: services_id={id(services)}"
@@ -106,6 +112,9 @@ class EnsureMoveBoxServices(TimedMockAction):
             self.ros_node.get_logger().info(
                 f"[{self.config_label}] reused robot services: services_id={id(services)}"
             )
+            set_axis_convention = getattr(services.box_detector, "set_axis_convention", None)
+            if callable(set_axis_convention):
+                set_axis_convention(self.foundationpose_axis_convention)
         self.blackboard.set(self.model_type_key, services.model_type, overwrite=True)
         self._ensure_shared_odom_transformer()
         self._prepare_robot(services)
@@ -210,5 +219,6 @@ class EnsureMoveBoxServices(TimedMockAction):
         return (
             f"[{self.config_label}] EnsureMoveBoxServices start: "
             f"key={self.services_key}, odom_key={self.odom_transformer_key}, "
-            f"odom_topic={self.odom_topic}"
+            f"odom_topic={self.odom_topic}, "
+            f"foundationpose_axis_convention={self.foundationpose_axis_convention}"
         )

@@ -38,7 +38,10 @@ class RobotServices:
     model_type: str
 
 
-def build_robot_services(model_type=IK_MODEL_MOVE_BOX) -> RobotServices:
+def build_robot_services(
+    model_type=IK_MODEL_MOVE_BOX,
+    foundationpose_axis_convention=None,
+) -> RobotServices:
     """创建一套可被行为树节点复用的 move_box 真实服务对象。"""
     model_type = str(model_type).strip() or IK_MODEL_MOVE_BOX
     if bool(rospy.get_param("~auto_set_quick_mode", True)):
@@ -47,6 +50,10 @@ def build_robot_services(model_type=IK_MODEL_MOVE_BOX) -> RobotServices:
     detector_type = str(rospy.get_param("~box_detector_type", "foundationpose")).lower()
     marker_topic = rospy.get_param("~marker_topic", "/aruco_single/poses")
     box_pose_topic = rospy.get_param("~box_pose_topic", "/foundationpose/pose")
+    if foundationpose_axis_convention is None:
+        foundationpose_axis_convention = rospy.get_param(
+            "~foundationpose_axis_convention", "right_x_front_y_up_z"
+        )
     yolo_target_poses_topic = rospy.get_param("~yolo_target_poses_topic", "/yolo/target_boxes3d_string")
     target_frame = rospy.get_param("~target_frame", BASE_LINK_FRAME)
     if target_frame != BASE_LINK_FRAME:
@@ -63,7 +70,12 @@ def build_robot_services(model_type=IK_MODEL_MOVE_BOX) -> RobotServices:
         detector_topic = marker_topic
     else:
         detector_type = "foundationpose"
-        box_detector = FPBoxDetector(target_frame, tf_listener, box_pose_topic)
+        box_detector = FPBoxDetector(
+            target_frame,
+            tf_listener,
+            box_pose_topic,
+            axis_convention=foundationpose_axis_convention,
+        )
         detector_topic = box_pose_topic
     yolo_detector = YoloBoxDetector(target_frame, tf_listener, yolo_target_poses_topic)
     rospy.loginfo(

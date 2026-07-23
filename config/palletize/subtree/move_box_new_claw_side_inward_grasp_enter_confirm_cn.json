@@ -1,0 +1,290 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "新夹爪侧向合拢直接抓箱（逐步确认）",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "CheckMoveBoxRequestFlag",
+        "label": "检查抓取请求",
+        "params": {
+          "request_key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认4：刷新FP抓取数据",
+        "params": {
+          "message": {
+            "value": "躯干已到抓取高度。确认相机视野稳定后，按 Enter 刷新 FoundationPose 抓取数据...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "EnsureMoveBoxDetectionReady",
+        "label": "刷新FP新夹爪抓取数据",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "detect_timeout_sec": {
+            "value": "10.0",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "restart_before_wait": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "restart_on_timeout": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "fp_settle_before_refresh_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "fp_settle_before_refresh_sec": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "CheckMoveBoxGraspDataReady",
+        "label": "检查FP新夹爪抓取数据",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "box_center_key": {
+            "value": "move_box_latest_box_center",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ComputeMoveBoxDirectGraspTargets",
+        "label": "计算新夹爪侧向合拢抓取点",
+        "params": {
+          "grasp_pair_key": {
+            "value": "move_box_latest_grasp_pair",
+            "source": "CUSTOM"
+          },
+          "box_axes_key": {
+            "value": "move_box_latest_box_axes",
+            "source": "CUSTOM"
+          },
+          "grasp_mode": {
+            "value": "side_inward_top_clamp",
+            "source": "CUSTOM"
+          },
+          "new_claw_side_pregrasp_offset_m": {
+            "value": "0.06",
+            "source": "CUSTOM"
+          },
+          "new_claw_grasp_from_top_offset_m": {
+            "value": "0.03",
+            "source": "CUSTOM"
+          },
+          "direct_lift_offset": {
+            "value": "0.30",
+            "source": "CUSTOM"
+          },
+          "left_above_key": {
+            "value": "move_box_new_claw_left_pregrasp",
+            "source": "CUSTOM"
+          },
+          "right_above_key": {
+            "value": "move_box_new_claw_right_pregrasp",
+            "source": "CUSTOM"
+          },
+          "left_below_key": {
+            "value": "move_box_new_claw_left_clamp",
+            "source": "CUSTOM"
+          },
+          "right_below_key": {
+            "value": "move_box_new_claw_right_clamp",
+            "source": "CUSTOM"
+          },
+          "left_lift_key": {
+            "value": "move_box_new_claw_left_lift",
+            "source": "CUSTOM"
+          },
+          "right_lift_key": {
+            "value": "move_box_new_claw_right_lift",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "fp_grasp_visualization_topic": {
+            "value": "/move_box/fp_grasp_markers",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认5：移动到箱体两侧外侧预抓位",
+        "params": {
+          "message": {
+            "value": "即将将双臂张开至箱体左右两侧外侧预抓位；请确认不会碰撞，按 Enter 执行...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双爪张开到箱体两侧外侧预抓位",
+        "params": {
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_new_claw_left_pregrasp",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_new_claw_right_pregrasp",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_base_link_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_wireframe_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认6：双臂从两侧向内卡住箱体",
+        "params": {
+          "message": {
+            "value": "即将让双臂从箱体两侧外向内合拢至边缘夹持位；按 Enter 执行...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双臂从两侧向内合拢到箱体边缘",
+        "params": {
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_new_claw_left_clamp",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_new_claw_right_clamp",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_base_link_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_wireframe_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认7：上下闭合夹爪抓住箱体",
+        "params": {
+          "message": {
+            "value": "双臂已卡住箱体两侧。确认夹爪上下闭合范围对准顶部抓手槽后，按 Enter 闭合双夹爪...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "CloseClaw",
+        "label": "上下闭合双夹爪抓箱",
+        "params": {
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          },
+          "torque": {
+            "value": "0.5",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认8：保持新夹爪闭合抓取",
+        "params": {
+          "message": {
+            "value": "新夹爪已闭合。请检查是否卡住箱顶及顶部下方抓手槽；按 Enter 结束子树，当前不会自动抬箱。",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

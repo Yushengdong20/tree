@@ -57,8 +57,10 @@ from tree.ros_interface import create_ros_interface
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_palletize_strategy_preview.json"
 # enter确认版原地抓箱测试。
 # DEFAULT_TREE_FILE_NAME = "palletize/stationary_box_grasp_test.json"
-# 夹爪测试
-DEFAULT_TREE_FILE_NAME = "tree/test/move_box_claw_open_close_enter_loop_test_cn.json"
+# 新夹爪 FoundationPose 原地抓箱测试：FP定位、调整躯干、逐步确认双爪抓取。
+DEFAULT_TREE_FILE_NAME = "tree/test/move_box_fp_direct_grasp_new_claw_enter_test_cn.json"
+# 夹爪开合与姿态测试。
+# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_claw_open_close_enter_loop_test_cn.json"
 
 def parse_main_args(args=None):
     """
