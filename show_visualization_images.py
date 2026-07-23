@@ -38,7 +38,7 @@ def fetch_images(url, timeout_sec):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="192.168.112.17")
+    parser.add_argument("--host", default="192.168.2.107")
     parser.add_argument("--port", type=int, default=13604)
     parser.add_argument("--interval-ms", type=int, default=200)
     parser.add_argument("--timeout-sec", type=float, default=5.0)

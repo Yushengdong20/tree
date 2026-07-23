@@ -1,5 +1,7 @@
 """在 blackboard 上创建或复用 move_box 真实共享服务。"""
 
+import ast
+
 import py_trees
 from py_trees.common import Status
 
@@ -33,10 +35,58 @@ class EnsureMoveBoxServices(TimedMockAction):
         self.odom_base_frame = str(params.get("odom_base_frame", BASE_LINK_FRAME)).strip()
         self.odom_history_duration_sec = float(params.get("odom_history_duration_sec", 10.0))
         self.odom_queue_size = int(params.get("odom_queue_size", 10))
+        # 初始双臂位姿默认由 ArmController 的 ROS 参数提供。这里允许单棵树用 JSON
+        # 覆盖，便于更换夹爪后独立标定抓取预备姿态，不影响未配置该参数的历史流程。
+        self.initial_left_pose_in_waist = self._parse_arm_pose(
+            params.get("initial_left_pose_in_waist"),
+            "initial_left_pose_in_waist",
+        )
+        self.initial_right_pose_in_waist = self._parse_arm_pose(
+            params.get("initial_right_pose_in_waist"),
+            "initial_right_pose_in_waist",
+        )
+        # 可选的新夹爪工具外参，均相对各自 zarm_*_end_effector 坐标系。
+        # 未配置时沿用 StaticTfPublisher 中的 ROS 参数/历史默认值。
+        self.left_claw_translation = self._parse_vector(
+            params.get("left_claw_translation"), "left_claw_translation"
+        )
+        self.right_claw_translation = self._parse_vector(
+            params.get("right_claw_translation"), "right_claw_translation"
+        )
+        self.left_claw_rotation_rpy_deg = self._parse_vector(
+            params.get("left_claw_rotation_rpy_deg"), "left_claw_rotation_rpy_deg"
+        )
+        self.right_claw_rotation_rpy_deg = self._parse_vector(
+            params.get("right_claw_rotation_rpy_deg"), "right_claw_rotation_rpy_deg"
+        )
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.model_type_key, access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key=self.odom_transformer_key, access=py_trees.common.Access.WRITE)
+
+    @staticmethod
+    def _parse_arm_pose(raw_value, parameter_name):
+        """解析可选的 waist_yaw_link 初始手臂位姿。"""
+        if raw_value is None or raw_value == "":
+            return None
+        if isinstance(raw_value, str):
+            raw_value = ast.literal_eval(raw_value)
+        if not isinstance(raw_value, (list, tuple)) or len(raw_value) != 6:
+            raise ValueError(
+                f"{parameter_name} 必须是 [x, y, z, yaw, pitch, roll]，长度为 6"
+            )
+        return [float(value) for value in raw_value]
+
+    @staticmethod
+    def _parse_vector(raw_value, parameter_name):
+        """解析可选的三维平移或 [roll, pitch, yaw] 参数。"""
+        if raw_value is None or raw_value == "":
+            return None
+        if isinstance(raw_value, str):
+            raw_value = ast.literal_eval(raw_value)
+        if not isinstance(raw_value, (list, tuple)) or len(raw_value) != 3:
+            raise ValueError(f"{parameter_name} 必须是长度为 3 的列表")
+        return [float(value) for value in raw_value]
 
     def update(self):
         """若服务不存在则创建，并在同一节点内完成头、腰、手臂的准备动作。"""
@@ -89,7 +139,11 @@ class EnsureMoveBoxServices(TimedMockAction):
 
     def _prepare_robot(self, services):
         """发布静态 TF，并驱动头、腰、手臂进入初始观测和抓取准备状态。"""
-        services.static_tf_publisher.publish_claw_tfs()
+        services.static_tf_publisher.publish_claw_tfs(
+            left_extrinsics=self._get_claw_extrinsics("left"),
+            right_extrinsics=self._get_claw_extrinsics("right"),
+        )
+        self._apply_initial_arm_pose_override(services.arm_controller)
         if self.should_skip_head_motion():
             self.log_skip_head_motion()
         else:
@@ -118,6 +172,38 @@ class EnsureMoveBoxServices(TimedMockAction):
             self.log_skip_torso_motion()
             return
         services.torso_controller.move_to_pose(torso_ready_pose, wait_done=False)
+
+    def _get_claw_extrinsics(self, side):
+        """组装单侧显式外参；全部缺省时返回 None，以保留发布器原有默认来源。"""
+        translation = getattr(self, f"{side}_claw_translation")
+        rotation_rpy_deg = getattr(self, f"{side}_claw_rotation_rpy_deg")
+        if translation is None and rotation_rpy_deg is None:
+            return None
+        result = {}
+        if translation is not None:
+            result["translation"] = list(translation)
+        if rotation_rpy_deg is not None:
+            result["rotation_rpy_deg"] = list(rotation_rpy_deg)
+        return result
+
+    def _apply_initial_arm_pose_override(self, arm_controller):
+        """将树级初始姿态写入控制器，确保 prepare() 与后续默认 YPR 使用同一标定值。"""
+        if self.initial_left_pose_in_waist is None and self.initial_right_pose_in_waist is None:
+            return
+
+        if self.initial_left_pose_in_waist is not None:
+            arm_controller.initial_left_pose_in_waist = list(self.initial_left_pose_in_waist)
+        if self.initial_right_pose_in_waist is not None:
+            arm_controller.initial_right_pose_in_waist = list(self.initial_right_pose_in_waist)
+
+        # 同步 base_link 缓存；claw_point 未显式配置 claw_ypr 时会使用此处的初始 YPR。
+        if hasattr(arm_controller, "refresh_initial_pose_in_base_link"):
+            arm_controller.refresh_initial_pose_in_base_link()
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已应用树级初始双臂位姿(waist_yaw_link): "
+            f"left={arm_controller.initial_left_pose_in_waist}, "
+            f"right={arm_controller.initial_right_pose_in_waist}"
+        )
 
     def describe_start(self):
         """返回节点开始执行时的日志描述。"""

@@ -20,15 +20,123 @@
           "skip_claw_motion": {
             "value": "False",
             "source": "CUSTOM"
+          },
+          "initial_left_pose_in_waist": {
+            "value": "[0.351, 0.400, 0.200, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "initial_right_pose_in_waist": {
+            "value": "[0.351, -0.400, 0.200, 0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "left_claw_translation": {
+            "value": "[-0.110, -0.045, 0.020]",
+            "source": "CUSTOM"
+          },
+          "right_claw_translation": {
+            "value": "[-0.110, 0.045, 0.020]",
+            "source": "CUSTOM"
+          },
+          "left_claw_rotation_rpy_deg": {
+            "value": "[0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_claw_rotation_rpy_deg": {
+            "value": "[0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },
       {
         "name": "WaitForEnter",
-        "label": "初始化完成后暂停",
+        "label": "初始化完成后确认夹爪姿态测试位",
         "params": {
           "message": {
-            "value": "夹爪控制服务已初始化。按 Enter 开始循环测试：闭合 -> 张开...",
+            "value": "夹爪控制服务已初始化。确认双臂周边安全后，按 Enter 移动到可调夹爪姿态测试位...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "设置左夹爪姿态测试空间点",
+        "params": {
+          "key": {
+            "value": "move_box_claw_test_left_point",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": [
+              0.7,
+              0.3,
+              0.75
+            ],
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "设置右夹爪姿态测试空间点",
+        "params": {
+          "key": {
+            "value": "move_box_claw_test_right_point",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": [
+              0.7,
+              -0.3,
+              0.75
+            ],
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双夹爪移动到可调姿态测试位",
+        "params": {
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_claw_test_left_point",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_claw_test_right_point",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_base_link_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_wireframe_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认夹爪姿态后开始开合循环",
+        "params": {
+          "message": {
+            "value": "已到达夹爪姿态测试位。请在 RViz/实机确认夹爪朝向；按 Enter 开始闭合 -> 张开循环。若朝向不合适，修改本树 ArmsToPose.claw_ypr 后重新运行。",
             "source": "CUSTOM"
           }
         }
