@@ -30,11 +30,11 @@
             "source": "CUSTOM"
           },
           "left_claw_translation": {
-            "value": "[-0.110, -0.045, 0.020]",
+            "value": "[0.068, -0.045, 0.111]",
             "source": "CUSTOM"
           },
           "right_claw_translation": {
-            "value": "[-0.110, 0.045, 0.020]",
+            "value": "[0.068, 0.045, 0.111]",
             "source": "CUSTOM"
           },
           "left_claw_rotation_rpy_deg": {
@@ -201,10 +201,192 @@
       },
       {
         "name": "WaitForEnter",
-        "label": "确认4：保持闭爪状态结束测试",
+        "label": "确认9：上提已抓取箱体",
         "params": {
           "message": {
-            "value": "抓取动作已完成，当前保持闭爪，便于检查夹持位置。确认后按 Enter 结束本次测试（不会自动上提或张开夹爪）。",
+            "value": "抓取已完成。确认夹持稳定、上方无障碍后，按 Enter 将箱体垂直上提...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双爪同步上提已抓取箱体",
+        "params": {
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_new_claw_left_lift",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_new_claw_right_lift",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_base_link_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_wireframe_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认10：放回箱体到原抓取高度",
+        "params": {
+          "message": {
+            "value": "箱体已上提。确认下方原抓取位置安全后，按 Enter 将箱体放回原夹持高度...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双爪同步下降放回箱体",
+        "params": {
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_new_claw_left_clamp",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_new_claw_right_clamp",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_base_link_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_wireframe_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认11：张开夹爪释放箱体",
+        "params": {
+          "message": {
+            "value": "箱体已放回原抓取高度。确认箱体已有支撑后，按 Enter 张开双夹爪释放...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "OpenClaw",
+        "label": "张开双夹爪释放箱体",
+        "params": {
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          },
+          "torque": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认12：双臂张开避开箱体",
+        "params": {
+          "message": {
+            "value": "夹爪已张开。确认箱体已释放后，按 Enter 让双臂向两侧张开并避开箱体...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双臂张开回到两侧预抓位",
+        "params": {
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_new_claw_left_pregrasp",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_new_claw_right_pregrasp",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_point_diagnostics_base_link_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "claw_wireframe_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "确认13：双臂回初始化位姿",
+        "params": {
+          "message": {
+            "value": "双臂已避开箱体。确认周边安全后，按 Enter 回到 EnsureMoveBoxServices 配置的初始双臂位姿...",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双臂回初始化位姿",
+        "params": {
+          "target_type": {
+            "value": "eef_pose",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "waist_yaw_link",
             "source": "CUSTOM"
           }
         }

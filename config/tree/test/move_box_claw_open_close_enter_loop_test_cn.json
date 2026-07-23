@@ -30,11 +30,11 @@
             "source": "CUSTOM"
           },
           "left_claw_translation": {
-            "value": "[-0.110, -0.045, 0.020]",
+            "value": "[0.068, -0.045, 0.111]",
             "source": "CUSTOM"
           },
           "right_claw_translation": {
-            "value": "[-0.110, 0.045, 0.020]",
+            "value": "[0.068, 0.045, 0.111]",
             "source": "CUSTOM"
           },
           "left_claw_rotation_rpy_deg": {
