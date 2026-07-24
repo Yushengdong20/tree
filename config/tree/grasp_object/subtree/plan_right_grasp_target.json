@@ -48,6 +48,14 @@
           "selected_grasp_pose_key": {
             "value": "grasp_object_selected_grasp_pose",
             "source": "CUSTOM"
+          },
+          "allowed_arm_side_key": {
+            "value": "grasp_object_allowed_arm_side",
+            "source": "CUSTOM"
+          },
+          "search_remaining_objects_key": {
+            "value": "grasp_object_search_remaining_objects",
+            "source": "CUSTOM"
           }
         },
         "childs": []
@@ -102,6 +110,14 @@
                 "value": "grasp_object_selected_grasp_pose",
                 "source": "CUSTOM"
               },
+              "allowed_arm_side_key": {
+                "value": "grasp_object_allowed_arm_side",
+                "source": "CUSTOM"
+              },
+              "search_remaining_objects_key": {
+                "value": "grasp_object_search_remaining_objects",
+                "source": "CUSTOM"
+              },
               "torso_sample_x_min_m": {
                 "value": "0.0",
                 "source": "CUSTOM"
@@ -111,11 +127,11 @@
                 "source": "CUSTOM"
               },
               "torso_sample_z_min_m": {
-                "value": "0.65",
+                "value": "0.75",
                 "source": "CUSTOM"
               },
               "torso_sample_z_max_m": {
-                "value": "0.95",
+                "value": "1.0",
                 "source": "CUSTOM"
               },
               "torso_sample_step_m": {
@@ -123,7 +139,7 @@
                 "source": "CUSTOM"
               },
               "torso_pitch_abs_max_rad": {
-                "value": "0.05",
+                "value": "0.1",
                 "source": "CUSTOM"
               },
               "torso_sample_check_workers": {
@@ -310,6 +326,14 @@
                   },
                   "selected_grasp_pose_key": {
                     "value": "grasp_object_selected_grasp_pose",
+                    "source": "CUSTOM"
+                  },
+                  "allowed_arm_side_key": {
+                    "value": "grasp_object_allowed_arm_side",
+                    "source": "CUSTOM"
+                  },
+                  "search_remaining_objects_key": {
+                    "value": "grasp_object_search_remaining_objects",
                     "source": "CUSTOM"
                   },
                   "preserve_motion_flags": {

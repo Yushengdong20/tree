@@ -1,6 +1,8 @@
 """ROS1 rospy 适配实现。"""
 
+import os
 import threading
+from datetime import datetime
 
 from tree.ros_interface.base import RosInterface
 from tree.ros_interface.ros1.publisher import Ros1StringPublisher
@@ -19,6 +21,8 @@ class Ros1Interface(RosInterface):
         self._node_name = node_name
         self._spin_thread = None
         self._initialized = False
+        self._log_file_path = None
+        self._file_log_warning_reported = False
 
     def init(self, args=None):
         del args
@@ -26,6 +30,8 @@ class Ros1Interface(RosInterface):
             return
         # ROS1 init_node 只能执行一次，这里由接口层统一管理。
         self._rospy.init_node(self._node_name, anonymous=False)
+        # 关键步骤：每次启动生成独立日志文件，避免多轮任务日志互相覆盖。
+        self._init_file_logger()
         self._initialized = True
 
     def shutdown(self):
@@ -53,12 +59,41 @@ class Ros1Interface(RosInterface):
 
     def info(self, msg: str):
         self._rospy.loginfo(msg)
+        self._write_file_log("INFO", msg)
 
     def warning(self, msg: str):
         self._rospy.logwarn(msg)
+        self._write_file_log("WARN", msg)
 
     def error(self, msg: str):
         self._rospy.logerr(msg)
+        self._write_file_log("ERROR", msg)
+
+    def _init_file_logger(self):
+        """初始化 MercuryTree 独立文件日志路径。"""
+        log_dir = "/mnt/ssd/log"
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        node_name = self._node_name.strip("/") or "mercury_tree"
+        self._log_file_path = os.path.join(
+            log_dir,
+            f"mercury_tree_{node_name}_{timestamp}.log",
+        )
+
+    def _write_file_log(self, level: str, msg: str):
+        """把通过 Ros1Interface 的日志同步追加到独立文件。"""
+        if not self._log_file_path:
+            return
+
+        try:
+            # 关键步骤：实机上 /mnt/ssd/log 可能不存在，这里按需创建。
+            os.makedirs(os.path.dirname(self._log_file_path), exist_ok=True)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            with open(self._log_file_path, "a", encoding="utf-8") as log_file:
+                log_file.write(f"{timestamp} [{level}] [{self._node_name}] {msg}\n")
+        except Exception as exc:
+            if not self._file_log_warning_reported:
+                self._file_log_warning_reported = True
+                self._rospy.logwarn(f"MercuryTree 文件日志写入失败: {exc}")
 
     def get_name(self) -> str:
         return self._rospy.get_name().strip("/") or self._node_name

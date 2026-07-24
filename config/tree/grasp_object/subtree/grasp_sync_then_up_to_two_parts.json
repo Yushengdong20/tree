@@ -1,0 +1,36 @@
+{
+  "tree": {
+    "name": "Selector",
+    "label": "优先同步双抓，失败后顺序抓取",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "SubTree",
+        "label": "尝试同步双手抓取两个零件",
+        "params": {
+          "file": {
+            "value": "grasp_dual_parts_sync.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SubTree",
+        "label": "同步双抓不可用时按原流程顺序抓取",
+        "params": {
+          "file": {
+            "value": "grasp_up_to_two_parts.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

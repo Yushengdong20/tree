@@ -30,9 +30,8 @@ from tree.runtime.http.move_and_grab_flow import (
     Pose2D,
     transform_base_point_to_global,
     transform_global_point_to_base,
+    ypr_to_rotation_matrix,
 )
-from tree.utils.box_map_polygon import is_map_position_in_polygon
-from tree.utils.geometry import ypr_to_rotation_matrix
 from tree.utils.params import parse_param_value
 
 from ..base import TimedMockAction

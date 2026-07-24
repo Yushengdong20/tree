@@ -50,17 +50,24 @@ from tree.ros_interface import create_ros_interface
 # DEFAULT_TREE_FILE_NAME = "depalletize/test/test_05_full_cycle.json"
 # DEFAULT_TREE_FILE_NAME = "tree/grasp_object/grasp_and_place.json"
 # 最终六轮循环树：仅在 01～05 全部通过后启用。
-# DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.json"
+DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.json"
+# 动态托盘标定拆垛测试：YOLO靠近托盘 -> FP识别托盘四角 -> 一轮动态拆垛。
+# DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize_fp_pallet_map_test.json"
+# 对照测试：YOLO class 5 托盘 OBB 直接生成禁入四边形 -> 一轮动态拆垛。
+# DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize_yolo_pallet_map_test.json"
 # 码垛完整流程：等待区抓箱，搬运到垛盘附近并按固定网格码垛。
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_full_direct_grasp_palletize.json"
 # 码垛策略版：动态预估箱体，按直接/左推/右推策略执行真实放箱，每步 Enter 确认。
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_palletize_strategy_preview.json"
+DEFAULT_TREE_FILE_NAME = "tree/grasp_object/grasp_and_place.json"
+# HTTP 本地客户端任务入口由 server_main.py 动态加载 service tree，不在普通 main.py 中启用。
+# DEFAULT_TREE_FILE_NAME = "tree/service/move_box/start_move_box.json"
 # enter确认版原地抓箱测试。
 # DEFAULT_TREE_FILE_NAME = "palletize/stationary_box_grasp_test.json"
 # 新夹爪 FoundationPose 原地抓箱测试：FP定位、调整躯干、逐步确认双爪抓取，放置到指定高度。
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_fp_direct_grasp_new_claw_enter_test_cn.json"
 # 新夹爪 FoundationPose 原地抓箱测试：FP定位、调整躯干、逐步确认双爪抓取，逆向动作点原地放回。
-DEFAULT_TREE_FILE_NAME = "tree/test/move_box_fp_direct_grasp_new_claw_enter_test_cn.json"
+# DEFAULT_TREE_FILE_NAME = "tree/test/move_box_fp_direct_grasp_new_claw_enter_test_cn.json"
 # 夹爪开合与姿态测试。move_box_fp_direct_grasp_new_claw_same_point_place_enter_test_cn
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_claw_open_close_enter_loop_test_cn.json"
 

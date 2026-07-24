@@ -33,6 +33,8 @@ import tf.transformations as tf_trans
 from py_trees.common import Status
 
 from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.chassis_navigation import Pose2D
+from tree.utils.geometry import transform_global_point_to_base
 from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
 from tree.utils.geometry import ypr_to_rotation_matrix
 

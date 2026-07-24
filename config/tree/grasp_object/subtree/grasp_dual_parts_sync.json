@@ -1,0 +1,309 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "同步双手抓取两个零件",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "RequestGraspPoses",
+        "label": "请求同步双抓候选抓取位姿",
+        "params": {
+          "grasp_url": {
+            "value": "http://192.168.26.12:13603/grasp",
+            "source": "CUSTOM"
+          },
+          "target_class_id": {
+            "value": "0",
+            "source": "CUSTOM"
+          },
+          "grasp_mode": {
+            "value": "multi",
+            "source": "CUSTOM"
+          },
+          "reuse_sorted_objects": {
+            "value": "False",
+            "source": "CUSTOM"
+          },
+          "distance_metric": {
+            "value": "horizontal",
+            "source": "CUSTOM"
+          },
+          "max_attempts": {
+            "value": "3",
+            "source": "CUSTOM"
+          },
+          "http_timeout_sec": {
+            "value": "30",
+            "source": "CUSTOM"
+          },
+          "retry_interval_sec": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "request_delay_sec": {
+            "value": "1.0",
+            "source": "CUSTOM"
+          },
+          "no_grasp_object_status": {
+            "value": "failure",
+            "source": "CUSTOM"
+          },
+          "base_grasp_poses_key": {
+            "value": "grasp_object_base_grasp_poses",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SubTree",
+        "label": "规划同步双抓目标",
+        "params": {
+          "file": {
+            "value": "plan_dual_grasp_targets.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "同步双抓规划成功后双臂返回初始位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ComputeDualPreGraspTargets",
+        "label": "执行前复核同步双抓目标并计算预抓取",
+        "params": {
+          "grasp_offset_m": {
+            "value": "0.06",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_min_m": {
+            "value": "0.12",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_max_m": {
+            "value": "0.18",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_samples": {
+            "value": "5",
+            "source": "CUSTOM"
+          },
+          "tf_timeout_sec": {
+            "value": "2.0",
+            "source": "CUSTOM"
+          },
+          "pose_topic": {
+            "value": "/grasp_object/dual_pregrasp_pose",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双臂同时移动到同步预抓取位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_pregrasp_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "grasp_object_right_pregrasp_pose",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双臂同时移动到同步抓取位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "grasp_object_right_grasp_pose",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "CloseClaw",
+        "label": "同时闭合双夹爪抓取两个零件",
+        "params": {
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "同步双抓成功后标记双抓模式",
+        "params": {
+          "key": {
+            "value": "grasp_object_grasp_mode",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "dual",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "AdvanceGraspObjectCursor",
+        "label": "同步双抓成功后消费两个物体",
+        "params": {
+          "count": {
+            "value": "2",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ComputeRelativeEndEffectorPose",
+        "label": "计算左手抓取后上移10厘米位姿",
+        "params": {
+          "input_pose_key": {
+            "value": "grasp_object_left_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "output_pose_key": {
+            "value": "grasp_object_left_shift_pose",
+            "source": "CUSTOM"
+          },
+          "dx": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dy": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dz": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ComputeRelativeEndEffectorPose",
+        "label": "计算右手抓取后上移10厘米位姿",
+        "params": {
+          "input_pose_key": {
+            "value": "grasp_object_right_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "output_pose_key": {
+            "value": "grasp_object_right_shift_pose",
+            "source": "CUSTOM"
+          },
+          "dx": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dy": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dz": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双手同步上移进入搬运姿态",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          },
+          "left_pose_key": {
+            "value": "grasp_object_left_shift_pose",
+            "source": "CUSTOM"
+          },
+          "right_pose_key": {
+            "value": "grasp_object_right_shift_pose",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双手回到安全搬运位并保持夹爪闭合",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

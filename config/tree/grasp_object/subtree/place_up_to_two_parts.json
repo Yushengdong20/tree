@@ -1,0 +1,86 @@
+{
+  "tree": {
+    "name": "Selector",
+    "label": "根据持物数量选择放置流程",
+    "params": {
+      "memory": {
+        "value": "False",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "Sequence",
+        "label": "双手同时放置两个零件",
+        "params": {
+          "memory": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "CheckBlackboardValue",
+            "label": "确认当前为双抓模式",
+            "params": {
+              "key": {
+                "value": "grasp_object_grasp_mode",
+                "source": "CUSTOM"
+              },
+              "expected": {
+                "value": "dual",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "ArmsToPose",
+            "label": "双臂同时伸到镜像放置位姿",
+            "params": {
+              "pose_frame": {
+                "value": "waist_yaw_link",
+                "source": "CUSTOM"
+              },
+              "left_pose": {
+                "value": "[0.451, 0.2, 0.0, -137.78184071244635, 19.271783191119013, 43.138315669808705]",
+                "source": "CUSTOM"
+              },
+              "right_pose": {
+                "value": "[0.451, -0.2, 0.0, 137.78184071244635, 19.271783191119013, -43.138315669808705]",
+                "source": "CUSTOM"
+              },
+              "side": {
+                "value": "both",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "OpenClaw",
+            "label": "同时张开双夹爪释放两个零件",
+            "params": {
+              "side": {
+                "value": "both",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          }
+        ]
+      },
+      {
+        "name": "SubTree",
+        "label": "单手放置一个零件",
+        "params": {
+          "file": {
+            "value": "place_single_part_right_arm.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

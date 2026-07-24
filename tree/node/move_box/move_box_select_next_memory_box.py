@@ -25,11 +25,18 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
         self.valid_box_map_polygon = parse_map_polygon(
             params.get("valid_box_map_polygon", [])
         )
+        self.valid_box_map_polygon_key = str(
+            params.get("valid_box_map_polygon_key", "")
+        ).strip()
         self.valid_box_polygon_required = self._to_bool(
             params.get("valid_box_polygon_required", False)
         )
-        if self.valid_box_polygon_required and not self.valid_box_map_polygon:
-            raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
+        if (
+            self.valid_box_polygon_required
+            and not self.valid_box_map_polygon
+            and not self.valid_box_map_polygon_key
+        ):
+            raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon 或 valid_box_map_polygon_key")
         self.enable_colored_log = self._to_bool(params.get("enable_colored_log", True))
         self.enable_memory_file_log = self._to_bool(
             params.get("enable_memory_file_log", True)
@@ -43,6 +50,11 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
 
         self.blackboard.register_key(key=self.box_memory_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(key=self.box_memory_key, access=py_trees.common.Access.WRITE)
+        if self.valid_box_map_polygon_key:
+            self.blackboard.register_key(
+                key=self.valid_box_map_polygon_key,
+                access=py_trees.common.Access.READ,
+            )
         self.blackboard.register_key(
             key=self.current_box_target_key,
             access=py_trees.common.Access.READ,
@@ -200,8 +212,14 @@ class MoveBoxSelectNextMemoryBox(TimedMockAction):
             return False
         return is_map_position_in_polygon(
             target.get("map_position"),
-            self.valid_box_map_polygon,
+            self._current_valid_box_map_polygon(),
         )
+
+    def _current_valid_box_map_polygon(self):
+        """读取动态有效区域；缺失时回退到 JSON 静态区域。"""
+        if self.valid_box_map_polygon_key and self.blackboard.exists(self.valid_box_map_polygon_key):
+            return parse_map_polygon(self.blackboard.get(self.valid_box_map_polygon_key))
+        return self.valid_box_map_polygon
 
     def _log_finished_targets(self, finished_targets):
         """打印完整已完成箱子列表，便于按 map 坐标复盘放箱顺序。"""

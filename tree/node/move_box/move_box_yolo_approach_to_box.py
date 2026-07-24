@@ -23,25 +23,26 @@ from tree.constants import (
 )
 
 from ..base import TimedMockAction
-from tree.runtime.http.move_and_grab_flow import (
+from tree.utils.chassis_navigation import (
     DEFAULT_CHASSIS_URL,
     DEFAULT_NAVIGATION_TIMEOUT_SEC,
     DEFAULT_POLL_INTERVAL_SEC,
-    DEFAULT_YOLO_TARGET_DISTANCE_M,
     TASK_STATUS_LABELS,
     TASK_STATUS_SUCCEEDED,
     TERMINAL_FAILED_TASK_STATUSES,
     build_chassis_config,
-    build_yolo_approach_pose,
     extract_navigation_task_id,
     extract_task_status,
     get_chassis_current_pose,
     post_chassis_navigation,
     post_navigation_task_status,
-    transform_global_point_to_base,
+)
+from tree.utils.geometry import lookup_transform_matrix, transform_global_point_to_base
+from tree.utils.move_box_approach import (
+    DEFAULT_YOLO_TARGET_DISTANCE_M,
+    build_yolo_approach_pose,
 )
 from tree.utils.box_map_polygon import is_map_position_in_polygon, parse_map_polygon
-from tree.utils.geometry import lookup_transform_matrix
 
 
 class MoveBoxYoloApproachToBox(TimedMockAction):
@@ -67,6 +68,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             params.get("selected_map_point_key", "")
         ).strip()
         self.selected_box_key = str(params.get("selected_box_key", "")).strip()
+        # 与 selected_box_key（上游输入）区分：该 key 用于输出本节点自动选中的
+        # YOLO 目标，供托盘区域标定等后续节点复用完整 size/geometry/map 位姿。
+        self.selected_box_output_key = str(
+            params.get("selected_box_output_key", "")
+        ).strip()
         self.box_map_pose_topic = str(
             params.get("box_map_pose_topic", "/move_box/yolo_box_pose_map")
         ).strip()
@@ -130,11 +136,18 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.valid_box_map_polygon = parse_map_polygon(
             params.get("valid_box_map_polygon", [])
         )
+        self.valid_box_map_polygon_key = str(
+            params.get("valid_box_map_polygon_key", "")
+        ).strip()
         self.valid_box_polygon_required = self._to_bool(
             params.get("valid_box_polygon_required", False)
         )
-        if self.valid_box_polygon_required and not self.valid_box_map_polygon:
-            raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon")
+        if (
+            self.valid_box_polygon_required
+            and not self.valid_box_map_polygon
+            and not self.valid_box_map_polygon_key
+        ):
+            raise ValueError("valid_box_polygon_required=True 时必须配置 valid_box_map_polygon 或 valid_box_map_polygon_key")
         self.excluded_box_map_polygon = parse_map_polygon(
             params.get("excluded_box_map_polygon", [])
         )
@@ -189,6 +202,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         self.blackboard.register_key(key=FINAL_POSE_KEY, access=py_trees.common.Access.WRITE)
         if self.navigation_target_key:
             self.blackboard.register_key(key=self.navigation_target_key, access=py_trees.common.Access.WRITE)
+        if self.valid_box_map_polygon_key:
+            self.blackboard.register_key(
+                key=self.valid_box_map_polygon_key,
+                access=py_trees.common.Access.READ,
+            )
         if self.selected_map_point_key:
             self.blackboard.register_key(
                 key=self.selected_map_point_key,
@@ -198,6 +216,11 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             self.blackboard.register_key(
                 key=self.selected_box_key,
                 access=py_trees.common.Access.READ,
+            )
+        if self.selected_box_output_key:
+            self.blackboard.register_key(
+                key=self.selected_box_output_key,
+                access=py_trees.common.Access.WRITE,
             )
         if self.use_box_memory:
             self.blackboard.register_key(key=self.box_memory_key, access=py_trees.common.Access.READ)
@@ -318,6 +341,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     self._current_box_target
                 )
                 self._box_global_position = self._current_box_target.get("map_position")
+                self._store_selected_box_output()
                 self._publish_box_map_pose(force_log=True)
                 box_distance_m = math.hypot(
                     self._box_global_position["x"] - self._current_pose.x,
@@ -562,7 +586,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
             % (
                 updated,
                 len(raw_detection),
-                bool(self.valid_box_map_polygon),
+                bool(self._current_valid_box_map_polygon()),
                 bool(self.excluded_box_map_polygon),
                 self.min_detected_box_3d_distance_m,
             ),
@@ -725,6 +749,12 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         except (TypeError, ValueError):
             return False
         return class_id in self.allowed_class_ids
+
+    def _current_valid_box_map_polygon(self):
+        """读取动态有效区域；缺失时回退到 JSON 静态区域。"""
+        if self.valid_box_map_polygon_key and self.blackboard.exists(self.valid_box_map_polygon_key):
+            return parse_map_polygon(self.blackboard.get(self.valid_box_map_polygon_key))
+        return self.valid_box_map_polygon
 
     def _build_targets_from_raw_detection(self, services, raw_detection):
         targets = []
@@ -1475,7 +1505,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
 
     def _is_map_position_allowed(self, map_position):
         """判断 map 坐标是否允许参与 YOLO 选择和记忆。"""
-        return is_map_position_in_polygon(map_position, self.valid_box_map_polygon)
+        return is_map_position_in_polygon(map_position, self._current_valid_box_map_polygon())
 
     def _is_map_position_excluded(self, map_position):
         """判断 map 坐标是否落在显式排除区域内；未配置排除区时不排除。"""
@@ -1652,6 +1682,31 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         if not self.navigation_target_key:
             return
         self.blackboard.set(self.navigation_target_key, None, overwrite=True)
+
+    def _store_selected_box_output(self):
+        """写出本节点自动选中的 map YOLO 框，保留原始 size 与 map OBB 几何。"""
+        if not self.selected_box_output_key or self._current_box_target is None:
+            return
+        selected = dict(self._current_box_target.get("box") or {})
+        map_position = dict(self._current_box_target.get("map_position") or {})
+        selected["map_position"] = map_position
+        selected["geometry"] = self._current_box_target.get("geometry")
+        selected["source"] = "move_box_yolo_approach"
+        self.blackboard.set(self.selected_box_output_key, selected, overwrite=True)
+        size = selected.get("size") or []
+        self._log_info(
+            "YOLO选中目标输出",
+            "key=%s class_id=%s map=(%.3f,%.3f,%.3f) size=(%s)"
+            % (
+                self.selected_box_output_key,
+                selected.get("class_id", "?"),
+                float(map_position.get("x", 0.0)),
+                float(map_position.get("y", 0.0)),
+                float(map_position.get("z", 0.0)),
+                ",".join("%.3f" % float(value) for value in size[:3]),
+            ),
+            "cyan",
+        )
 
     def _publish_box_map_pose(self, force_log=False):
         """发布 map 坐标系下的 YOLO 箱体三维框 String。"""

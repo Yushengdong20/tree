@@ -1,0 +1,391 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "YOLO标定托盘区域后执行一轮拆垛（测试）",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "单次初始化抓取所需服务与预备姿态",
+        "params": {
+          "initial_torso_height": {
+            "value": "1.1",
+            "source": "CUSTOM"
+          },
+          "left_claw_translation": {
+            "value": "[-0.11, 0.0, 0.02]",
+            "source": "CUSTOM"
+          },
+          "right_claw_translation": {
+            "value": "[-0.11, 0.0, 0.02]",
+            "source": "CUSTOM"
+          },
+          "left_claw_rotation_rpy_deg": {
+            "value": "[0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_claw_rotation_rpy_deg": {
+            "value": "[0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "初始化后导航到等待区域",
+        "params": {
+          "x": {
+            "value": "0.84",
+            "source": "CUSTOM"
+          },
+          "y": {
+            "value": "4.26",
+            "source": "CUSTOM"
+          },
+          "yaw": {
+            "value": "-105.02",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_topic": {
+            "value": "/move_box/http_navigation_init_wait_markers",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Sequence",
+        "label": "拆垛前YOLO粗靠近并用YOLO OBB标定托盘区域",
+        "params": {
+          "memory": {
+            "value": true,
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "MoveBoxYoloApproachToBox",
+            "label": "YOLO定位托盘并粗靠近到FP可识别距离",
+            "params": {
+              "services_key": {
+                "value": "robot_services",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "target_distance_m": {
+                "value": "1.5",
+                "source": "CUSTOM"
+              },
+              "navigation_target_key": {
+                "value": "move_box_pallet_yolo_navigation_target",
+                "source": "CUSTOM"
+              },
+              "selected_box_output_key": {
+                "value": "move_box_yolo_detected_pallet",
+                "source": "CUSTOM"
+              },
+              "box_map_pose_topic": {
+                "value": "/move_box/yolo_box_pose_map",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_enabled": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_topic": {
+                "value": "/move_box/pallet_yolo_navigation_markers",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              },
+              "keep_running_after_success": {
+                "value": "False",
+                "source": "CUSTOM"
+              },
+              "publish_selected_box_during_navigation": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "selected_box_publish_interval_sec": {
+                "value": "0.5",
+                "source": "CUSTOM"
+              },
+              "use_tf_3d_transform": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "tf_target_frame": {
+                "value": "map",
+                "source": "CUSTOM"
+              },
+              "tf_base_frame": {
+                "value": "base_link",
+                "source": "CUSTOM"
+              },
+              "tf_timeout_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              },
+              "odom_topic": {
+                "value": "melon_odom",
+                "source": "CUSTOM"
+              },
+              "odom_history_duration_sec": {
+                "value": "10.0",
+                "source": "CUSTOM"
+              },
+              "odom_match_time_offset_sec": {
+                "value": "0.0",
+                "source": "CUSTOM"
+              },
+              "odom_match_max_delta_sec": {
+                "value": "0.30",
+                "source": "CUSTOM"
+              },
+              "allowed_class_ids": {
+                "value": [
+                  5
+                ],
+                "source": "CUSTOM"
+              },
+              "valid_box_map_polygon": {
+                "value": [
+                  [
+                    -1.5,
+                    3
+                  ],
+                  [
+                    -1.5,
+                    -1.3
+                  ],
+                  [
+                    1.5,
+                    -1.3
+                  ],
+                  [
+                    1.5,
+                    3
+                  ]
+                ],
+                "source": "CUSTOM"
+              },
+              "valid_box_polygon_required": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "ComputeYoloPalletMapPolygon",
+            "label": "将YOLO托盘OBB转换为map禁入四边形",
+            "params": {
+              "input_box_key": {
+                "value": "move_box_yolo_detected_pallet",
+                "source": "CUSTOM"
+              },
+              "expected_class_id": {
+                "value": "5",
+                "source": "CUSTOM"
+              },
+              "pallet_map_polygon_key": {
+                "value": "move_box_detected_pallet_map_polygon",
+                "source": "CUSTOM"
+              },
+              "pallet_pose_key": {
+                "value": "move_box_detected_pallet_map_pose",
+                "source": "CUSTOM"
+              },
+              "pallet_size_key": {
+                "value": "move_box_detected_pallet_yolo_size",
+                "source": "CUSTOM"
+              },
+              "visualization_enabled": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "visualization_topic": {
+                "value": "/move_box/yolo_pallet_markers",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "SwitchFoundationPoseTarget",
+            "label": "切回FoundationPose箱体模型",
+            "params": {
+              "foundationpose_base_url": {
+                "value": "http://192.168.26.12:13604",
+                "source": "CUSTOM"
+              },
+              "mesh_name": {
+                "value": "large_green",
+                "source": "CUSTOM"
+              },
+              "timeout_sec": {
+                "value": "10.0",
+                "source": "CUSTOM"
+              },
+              "target_key": {
+                "value": "move_box_foundationpose_active_target",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "HttpNavigateToPose",
+            "label": "托盘区域标定后返回等待区域",
+            "params": {
+              "x": {
+                "value": "0.84",
+                "source": "CUSTOM"
+              },
+              "y": {
+                "value": "4.26",
+                "source": "CUSTOM"
+              },
+              "yaw": {
+                "value": "-105.02",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_enabled": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_topic": {
+                "value": "/move_box/http_navigation_return_after_pallet_markers",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "odom_topic": {
+                "value": "melon_odom",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "Repeat",
+        "label": "仅执行一轮动态拆垛测试",
+        "params": {
+          "num_success": {
+            "value": "1",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "单轮高效动态拆垛",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "SubTree",
+                "label": "使用FP动态托盘区域选箱与两级靠近",
+                "params": {
+                  "file": {
+                    "value": "subtree/01_select_and_approach_selected_pose_dynamic_pallet_test.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "唯一确认后执行动态策略抓取",
+                "params": {
+                  "file": {
+                    "value": "subtree/02_auto_grasp.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "搬运到放置点",
+                "params": {
+                  "file": {
+                    "value": "subtree/03_transport_to_place.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "放置箱体",
+                "params": {
+                  "file": {
+                    "value": "subtree/04_place_box.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "返回等待区域并恢复姿态",
+                "params": {
+                  "file": {
+                    "value": "subtree/05_return_and_ready.json",
+                    "source": "CUSTOM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

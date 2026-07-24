@@ -22,6 +22,47 @@ from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, MAP_FRAME, ODOM_POSE_
 _ODOM_POSE_TRANSFORMERS = {}
 
 
+def normalize_angle_deg(angle_deg):
+    """把角度归一化到 [-180, 180) 区间。"""
+    while angle_deg >= 180.0:
+        angle_deg -= 360.0
+    while angle_deg < -180.0:
+        angle_deg += 360.0
+    return angle_deg
+
+
+def normalize_axis_angle_rad(angle_rad):
+    """把“轴向方向角”归一化到 [-pi/2, pi/2)。"""
+    # 关键步骤：箱体长边等轴向目标正反向等价，按 180 度周期归一化。
+    while angle_rad >= math.pi / 2.0:
+        angle_rad -= math.pi
+    while angle_rad < -math.pi / 2.0:
+        angle_rad += math.pi
+    return angle_rad
+
+
+def transform_base_point_to_global(current_pose, base_x, base_y):
+    """将 base_link 下二维点转换到 global/map 坐标系。"""
+    yaw_rad = math.radians(current_pose.yaw)
+    # 关键步骤：base_link 的 x/y 先按当前底盘 yaw 旋到 global，再平移到底盘 global 位置。
+    return {
+        "x": current_pose.x + math.cos(yaw_rad) * base_x - math.sin(yaw_rad) * base_y,
+        "y": current_pose.y + math.sin(yaw_rad) * base_x + math.cos(yaw_rad) * base_y,
+    }
+
+
+def transform_global_point_to_base(current_pose, global_x, global_y):
+    """将 global/map 坐标系下二维点转换到 base_link 坐标系。"""
+    yaw_rad = math.radians(current_pose.yaw)
+    dx = global_x - current_pose.x
+    dy = global_y - current_pose.y
+    # 关键步骤：先减去底盘 global 平移，再乘当前 yaw 的逆旋转，得到 base_link 坐标。
+    return {
+        "x": math.cos(yaw_rad) * dx + math.sin(yaw_rad) * dy,
+        "y": -math.sin(yaw_rad) * dx + math.cos(yaw_rad) * dy,
+    }
+
+
 class OdomPoseTransformer:
     """缓存 odom 位姿，并提供 base/map 坐标转换能力。"""
 

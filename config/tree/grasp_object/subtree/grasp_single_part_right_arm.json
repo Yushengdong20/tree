@@ -68,6 +68,10 @@
             "value": "1.0",
             "source": "CUSTOM"
           },
+          "no_grasp_object_status": {
+            "value": "failure",
+            "source": "CUSTOM"
+          },
           "base_grasp_poses_key": {
             "value": "grasp_object_base_grasp_poses",
             "source": "CUSTOM"
@@ -95,7 +99,7 @@
         "label": "规划抓取目标并计算预抓取，失败后刷新感知重试",
         "params": {
           "memory": {
-            "value": "False",
+            "value": "True",
             "source": "CUSTOM"
           }
         },
@@ -206,6 +210,10 @@
                   },
                   "retry_interval_sec": {
                     "value": "1.0",
+                    "source": "CUSTOM"
+                  },
+                  "no_grasp_object_status": {
+                    "value": "failure",
                     "source": "CUSTOM"
                   },
                   "base_grasp_poses_key": {

@@ -1,0 +1,8 @@
+{
+  "tree": {
+    "name": "IdleRunning",
+    "label": "HTTP server idle",
+    "params": {},
+    "childs": []
+  }
+}

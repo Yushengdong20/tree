@@ -1,0 +1,553 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "优先双抓的零件抓取流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "SetBlackboardValue",
+        "label": "默认按单件抓取模式执行",
+        "params": {
+          "key": {
+            "value": "grasp_object_grasp_mode",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "single",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "第一件保持右手优先",
+        "params": {
+          "key": {
+            "value": "grasp_object_allowed_arm_side",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "both",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "第一件沿用当前单物体规划",
+        "params": {
+          "key": {
+            "value": "grasp_object_search_remaining_objects",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SubTree",
+        "label": "抓取第一个零件",
+        "params": {
+          "file": {
+            "value": "grasp_first_part_no_retreat.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "Selector",
+        "label": "持物后尝试空闲手第二抓",
+        "params": {
+          "memory": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "右手已抓取后尝试左手抓取",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "确认第一件由右手抓取",
+                "params": {
+                  "key": {
+                    "value": "grasp_object_held_arm_side",
+                    "source": "CUSTOM"
+                  },
+                  "expected": {
+                    "value": "right",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "SetBlackboardValue",
+                "label": "第二件只允许左手规划",
+                "params": {
+                  "key": {
+                    "value": "grasp_object_allowed_arm_side",
+                    "source": "CUSTOM"
+                  },
+                  "value": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "SetBlackboardValue",
+                "label": "第二抓跨所有剩余物体搜索",
+                "params": {
+                  "key": {
+                    "value": "grasp_object_search_remaining_objects",
+                    "source": "CUSTOM"
+                  },
+                  "value": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "Selector",
+                "label": "左手第二抓失败时保留右手单件",
+                "params": {
+                  "memory": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "Sequence",
+                    "label": "执行左手第二抓",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "SubTree",
+                        "label": "使用缓存物体执行左手抓取",
+                        "params": {
+                          "file": {
+                            "value": "grasp_second_part_left_arm.json",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "左手无可抓目标时恢复右手单件状态",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "CheckBlackboardValue",
+                        "label": "仅在左夹爪尚未成功闭合时允许降级",
+                        "params": {
+                          "key": {
+                            "value": "grasp_object_grasp_mode",
+                            "source": "CUSTOM"
+                          },
+                          "expected": {
+                            "value": "single",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "SetBlackboardValue",
+                        "label": "恢复右手持物侧别",
+                        "params": {
+                          "key": {
+                            "value": "grasp_object_selected_arm_side",
+                            "source": "CUSTOM"
+                          },
+                          "value": {
+                            "value": "right",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "SetBlackboardValue",
+                        "label": "保持单件运输模式",
+                        "params": {
+                          "key": {
+                            "value": "grasp_object_grasp_mode",
+                            "source": "CUSTOM"
+                          },
+                          "value": {
+                            "value": "single",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Sequence",
+            "label": "左手已抓取后尝试右手抓取",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "CheckBlackboardValue",
+                "label": "确认第一件由左手抓取",
+                "params": {
+                  "key": {
+                    "value": "grasp_object_held_arm_side",
+                    "source": "CUSTOM"
+                  },
+                  "expected": {
+                    "value": "left",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "SetBlackboardValue",
+                "label": "第二件只允许右手规划",
+                "params": {
+                  "key": {
+                    "value": "grasp_object_allowed_arm_side",
+                    "source": "CUSTOM"
+                  },
+                  "value": {
+                    "value": "right",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "SetBlackboardValue",
+                "label": "第二抓跨所有剩余物体搜索",
+                "params": {
+                  "key": {
+                    "value": "grasp_object_search_remaining_objects",
+                    "source": "CUSTOM"
+                  },
+                  "value": {
+                    "value": "True",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "Selector",
+                "label": "右手第二抓失败时保留左手单件",
+                "params": {
+                  "memory": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "Sequence",
+                    "label": "执行右手第二抓",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "SubTree",
+                        "label": "使用缓存物体执行右手抓取",
+                        "params": {
+                          "file": {
+                            "value": "grasp_second_part_right_arm.json",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "右手无可抓目标时恢复左手单件状态",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "CheckBlackboardValue",
+                        "label": "仅在右夹爪尚未成功闭合时允许降级",
+                        "params": {
+                          "key": {
+                            "value": "grasp_object_grasp_mode",
+                            "source": "CUSTOM"
+                          },
+                          "expected": {
+                            "value": "single",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "SetBlackboardValue",
+                        "label": "恢复左手持物侧别",
+                        "params": {
+                          "key": {
+                            "value": "grasp_object_selected_arm_side",
+                            "source": "CUSTOM"
+                          },
+                          "value": {
+                            "value": "left",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "SetBlackboardValue",
+                        "label": "保持单件运输模式",
+                        "params": {
+                          "key": {
+                            "value": "grasp_object_grasp_mode",
+                            "source": "CUSTOM"
+                          },
+                          "value": {
+                            "value": "single",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "SetBlackboardValue",
+            "label": "非预期持物侧别时保持单件模式",
+            "params": {
+              "key": {
+                "value": "grasp_object_grasp_mode",
+                "source": "CUSTOM"
+              },
+              "value": {
+                "value": "single",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          }
+        ]
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "恢复后续默认双手自选",
+        "params": {
+          "key": {
+            "value": "grasp_object_allowed_arm_side",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "both",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "恢复默认单物体规划",
+        "params": {
+          "key": {
+            "value": "grasp_object_search_remaining_objects",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "CalculateRelativePose",
+        "label": "双抓尝试完成后计算后退0.6米目标",
+        "params": {
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "output_key": {
+            "value": "grasp_object_retreat_navigation_target",
+            "source": "CUSTOM"
+          },
+          "dx": {
+            "value": "-0.6",
+            "source": "CUSTOM"
+          },
+          "dy": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dyaw": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "relative_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "timeout_sec": {
+            "value": "5.0",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "Parallel",
+        "label": "双抓尝试完成后并行后退和持物手臂回初始位姿",
+        "params": {
+          "policy": {
+            "value": "SuccessOnAll",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Parallel",
+            "label": "双抓尝试完成后后退0.6米并在剩余0.3米时提前完成",
+            "params": {
+              "policy": {
+                "value": "SuccessOnOne",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "HttpNavigateToPose",
+                "label": "双抓尝试完成后后退0.6米",
+                "params": {
+                  "target_pose_key": {
+                    "value": "grasp_object_retreat_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "chassis_url": {
+                    "value": "http://localhost:8081",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_timeout_sec": {
+                    "value": "600",
+                    "source": "CUSTOM"
+                  },
+                  "poll_interval_sec": {
+                    "value": "0.2",
+                    "source": "CUSTOM"
+                  },
+                  "navigation_target_key": {
+                    "value": "grasp_object_retreat_navigation_target",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "WaitUntilNearNavigationGoal",
+                "label": "后退到离目标0.3米时提前完成",
+                "params": {
+                  "odom_topic": {
+                    "value": "melon_odom",
+                    "source": "CUSTOM"
+                  },
+                  "target_key": {
+                    "value": "grasp_object_retreat_navigation_target",
+                    "source": "CUSTOM"
+                  },
+                  "distance_threshold": {
+                    "value": "0.3",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              }
+            ]
+          },
+          {
+            "name": "ArmsToPose",
+            "label": "双抓尝试完成后选中手臂回到初始位姿并保持夹爪闭合",
+            "params": {
+              "pose_frame": {
+                "value": "waist_yaw_link",
+                "source": "CUSTOM"
+              },
+              "left_pose": {
+                "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "right_pose": {
+                "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "side_key": {
+                "value": "grasp_object_selected_arm_side",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          }
+        ]
+      }
+    ]
+  }
+}

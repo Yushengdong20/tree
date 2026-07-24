@@ -37,12 +37,32 @@ grasp_search_extension = Extension(
     extra_link_args=["-pthread"],
 )
 
+grasp_search_new_ik_extension = Extension(
+    f"{python_package_name}.node.grasp_object._grasp_search_new_ik_cpp",
+    sources=[
+        os.path.join(
+            python_package_name,
+            "node",
+            "grasp_object",
+            "cpp",
+            "grasp_search_new_ik_cpp.cpp",
+        )
+    ],
+    include_dirs=[
+        numpy.get_include(),
+        "/usr/include/eigen3",
+    ],
+    language="c++",
+    extra_compile_args=["-std=c++17", "-O3", "-pthread"],
+    extra_link_args=["-pthread"],
+)
+
 
 setup(
     name=package_name,
     version="0.1.0",
     packages=find_packages(include=[python_package_name, f"{python_package_name}.*"]),
-    ext_modules=[grasp_search_extension],
+    ext_modules=[grasp_search_extension, grasp_search_new_ik_extension],
     data_files=[
         # 这些资源会被安装到 share/ 下，运行时 get_package_share_directory() 就从这里找。
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
@@ -72,8 +92,8 @@ setup(
             glob("config/tree/mock/*.json"),
         ),
         (
-            f"share/{package_name}/config/tree/http",
-            glob("config/tree/http/*.json"),
+            f"share/{package_name}/config/tree/chassis",
+            glob("config/tree/chassis/*.json"),
         ),
         (
             f"share/{package_name}/config/tree/grasp_object",
@@ -82,6 +102,26 @@ setup(
         (
             f"share/{package_name}/config/tree/grasp_object/subtree",
             glob("config/tree/grasp_object/subtree/*.json"),
+        ),
+        (
+            f"share/{package_name}/config/tree/service",
+            glob("config/tree/service/*.json"),
+        ),
+        (
+            f"share/{package_name}/config/tree/service/move_box",
+            glob("config/tree/service/move_box/*.json"),
+        ),
+        (
+            f"share/{package_name}/config/tree/service/move_box/subtree",
+            glob("config/tree/service/move_box/subtree/*.json"),
+        ),
+        (
+            f"share/{package_name}/config/tree/service/grasp_object",
+            glob("config/tree/service/grasp_object/*.json"),
+        ),
+        (
+            f"share/{package_name}/config/tree/service/navigation",
+            glob("config/tree/service/navigation/*.json"),
         ),
         (f"share/{package_name}/launch", glob("launch/*.launch.py")),
         (
@@ -93,7 +133,7 @@ setup(
             ],
         ),
     ],
-    install_requires=["setuptools", "numpy"],
+    install_requires=["setuptools", "numpy", "pydantic>=2", "fastapi", "uvicorn"],
     zip_safe=True,
     maintainer="ysd",
     maintainer_email="ysd@example.com",
@@ -105,7 +145,7 @@ setup(
             "bt_runner = tree.main:main",
             # bt_manual_sender 是外部喂手动结果用的小工具。
             "bt_manual_sender = tree.tools.manual_result_sender:main",
-            # bt_mock_http_server 用于在本地模拟底盘/抓取 HTTP 服务。
+            # bt_mock_http_server 用于在本地模拟底盘 HTTP 服务。
             "bt_mock_http_server = tree.tools.mock_http_server:main",
         ],
     },

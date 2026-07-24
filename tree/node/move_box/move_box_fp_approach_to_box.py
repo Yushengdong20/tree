@@ -19,25 +19,29 @@ from tree.constants import (
 )
 
 from ..base import TimedMockAction
-from tree.runtime.http.move_and_grab_flow import (
+from tree.utils.chassis_navigation import (
     DEFAULT_CHASSIS_URL,
-    DEFAULT_FP_TARGET_DISTANCE_M,
     DEFAULT_NAVIGATION_TIMEOUT_SEC,
     DEFAULT_POLL_INTERVAL_SEC,
     TASK_STATUS_LABELS,
     TASK_STATUS_SUCCEEDED,
     TERMINAL_FAILED_TASK_STATUSES,
     build_chassis_config,
-    build_fp_approach_pose,
     extract_navigation_task_id,
     extract_task_status,
     get_chassis_current_pose,
-    normalize_angle_deg,
     post_chassis_navigation,
     post_navigation_task_status,
+)
+from tree.utils.geometry import (
+    normalize_angle_deg,
+    transform_base_point_to_map_with_pose2d,
     transform_global_point_to_base,
 )
-from tree.utils.geometry import transform_base_point_to_map_with_pose2d
+from tree.utils.move_box_approach import (
+    DEFAULT_FP_TARGET_DISTANCE_M,
+    build_fp_approach_pose,
+)
 
 
 class MoveBoxFpApproachToBox(TimedMockAction):

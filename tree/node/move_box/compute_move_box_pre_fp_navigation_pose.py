@@ -41,6 +41,12 @@ class ComputeMoveBoxPreFpNavigationPose(TimedMockAction):
         self.pallet_map_polygon = parse_map_polygon(
             params.get("pallet_map_polygon", [])
         )
+        self.pallet_map_polygon_key = str(
+            params.get("pallet_map_polygon_key", "")
+        ).strip()
+        self.pallet_polygon_required = self._to_bool(
+            params.get("pallet_polygon_required", False)
+        )
         self.pallet_clearance_m = float(params.get("pallet_clearance_m", 0.0))
 
         self.blackboard.register_key(
@@ -59,11 +65,18 @@ class ComputeMoveBoxPreFpNavigationPose(TimedMockAction):
             key=self.skip_navigation_key,
             access=py_trees.common.Access.WRITE,
         )
+        if self.pallet_map_polygon_key:
+            self.blackboard.register_key(
+                key=self.pallet_map_polygon_key,
+                access=py_trees.common.Access.READ,
+            )
         self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
         )
 
     def update(self):
+        if not self._refresh_pallet_polygon_from_blackboard():
+            return Status.RUNNING
         source_pose = self._load_source_pose()
         selected_box = self._load_selected_box()
         current_pose = self.odom_transformer.get_current_pose()
@@ -133,6 +146,34 @@ class ComputeMoveBoxPreFpNavigationPose(TimedMockAction):
             f"{reason}"
         )
         return Status.SUCCESS
+
+    def _refresh_pallet_polygon_from_blackboard(self):
+        if not self.pallet_map_polygon_key:
+            return True
+        if not self.blackboard.exists(self.pallet_map_polygon_key):
+            if self.pallet_polygon_required:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 等待动态垛盘区域: "
+                    f"key={self.pallet_map_polygon_key}"
+                )
+                return False
+            return True
+        try:
+            polygon = parse_map_polygon(self.blackboard.get(self.pallet_map_polygon_key))
+        except (TypeError, ValueError) as exc:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 动态垛盘区域格式非法: "
+                f"key={self.pallet_map_polygon_key}, error={exc}"
+            )
+            return False
+        if not polygon and self.pallet_polygon_required:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 等待非空动态垛盘区域: "
+                f"key={self.pallet_map_polygon_key}"
+            )
+            return False
+        self.pallet_map_polygon = polygon
+        return True
 
     def _load_source_pose(self):
         if not self.blackboard.exists(self.source_pose_key):

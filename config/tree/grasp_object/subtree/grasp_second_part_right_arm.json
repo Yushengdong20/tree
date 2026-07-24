@@ -1,0 +1,222 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "左手持物后右手抓取第二个零件",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "ArmsToPose",
+        "label": "第二抓前双臂回到安全搬运位",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "SubTree",
+        "label": "先尝试当前位姿，失败后允许横移和调整腰部",
+        "params": {
+          "file": {
+            "value": "plan_right_grasp_target.json",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ComputePreGraspTarget",
+        "label": "到位后复核右手抓取和预抓取位姿",
+        "params": {
+          "grasp_offset_m": {
+            "value": "0.06",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_min_m": {
+            "value": "0.12",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_max_m": {
+            "value": "0.18",
+            "source": "CUSTOM"
+          },
+          "pregrasp_offset_samples": {
+            "value": "5",
+            "source": "CUSTOM"
+          },
+          "tf_timeout_sec": {
+            "value": "2.0",
+            "source": "CUSTOM"
+          },
+          "pose_topic": {
+            "value": "/grasp_object/right_pregrasp_pose",
+            "source": "CUSTOM"
+          },
+          "pregrasp_pose_key": {
+            "value": "grasp_object_pregrasp_pose",
+            "source": "CUSTOM"
+          },
+          "selected_grasp_pose_key": {
+            "value": "grasp_object_selected_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "allowed_arm_side_key": {
+            "value": "grasp_object_allowed_arm_side",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右手移动到预抓取位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          },
+          "pose_key": {
+            "value": "grasp_object_pregrasp_pose",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右手移动到抓取位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          },
+          "pose_key": {
+            "value": "grasp_object_grasp_pose",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "CloseClaw",
+        "label": "闭合右夹爪夹取第二个物体",
+        "params": {
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "AdvanceGraspObjectCursor",
+        "label": "右夹爪闭合成功后消费第二个物体",
+        "params": {},
+        "childs": []
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "右夹爪成功闭合后立即标记双抓",
+        "params": {
+          "key": {
+            "value": "grasp_object_grasp_mode",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "dual",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ComputeRelativeEndEffectorPose",
+        "label": "计算右手抓取后上移10厘米位姿",
+        "params": {
+          "input_pose_key": {
+            "value": "grasp_object_grasp_pose",
+            "source": "CUSTOM"
+          },
+          "output_pose_key": {
+            "value": "grasp_object_right_shift_pose",
+            "source": "CUSTOM"
+          },
+          "dx": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dy": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "dz": {
+            "value": "0.10",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右手上移10厘米进入搬运姿态",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          },
+          "pose_key": {
+            "value": "grasp_object_right_shift_pose",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "右手回到安全搬运位并保持夹爪闭合",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "side": {
+            "value": "right",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      }
+    ]
+  }
+}

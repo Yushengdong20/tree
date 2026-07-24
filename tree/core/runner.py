@@ -10,6 +10,7 @@
 """
 
 import os
+import threading
 from typing import Optional
 
 import py_trees
@@ -49,20 +50,12 @@ class BehaviorTreeRunner:
             defaults=default_config,
         )
 
+        # tree 可能被 server 模式按任务切换，tick 与 reload 必须串行。
+        self._tree_lock = threading.RLock()
         # factory 负责从 JSON 构造 py_trees 运行时对象。
         # 到这里为止，树还只是普通 py_trees 树，并没有 viewer、快照等 ROS 能力。
         self.factory = BehaviorTreeFactory(self)
-        tree = self.factory.load_tree_from_json(self.config.tree_json_file)
-        # 如果开启官方 viewer 支持，这里会在现有树对象外再包一层 py_trees_ros 接口。
-        # 注意：包的是“ROS 通信能力”，不是重建业务树本身。
-        if self.config.enable_py_trees_ros_viewer:
-            tree, viewer_enabled = enable_py_trees_ros_viewer_support(
-                self,
-                tree,
-                snapshot_period=self.config.py_trees_ros_viewer_snapshot_period,
-            )
-            self.config.enable_py_trees_ros_viewer = viewer_enabled
-        self.tree = tree
+        self.tree = None
         self.execution_timing = BehaviorTreeExecutionTiming(
             logger=self.get_logger(),
             enabled=self.config.enable_execution_timing,
@@ -82,6 +75,11 @@ class BehaviorTreeRunner:
         self.tick_count = 0
         self.manual_result_subscriber = None
         self.waiting_nodes_publisher = None
+        self.timer = None
+
+        if self.config.tree_json_file:
+            # 关键步骤：普通 runner 启动时加载默认树；server 模式可传空路径进入待命态。
+            self.tree = self._load_tree_object(self.config.tree_json_file)
 
         self.web_viewer = None
         if self.config.enable_web_viewer:
@@ -138,13 +136,80 @@ class BehaviorTreeRunner:
             self.raw_key_input.start_input_thread()
             self.get_logger().info("Raw key input enabled on main terminal: Enter / s / o")
 
-        # 定时器是整棵树的主循环入口，每次触发就 tick 一次。
-        # 也就是说，这个类不是 while True 主动循环，而是把节奏交给 ROS timer。
+        if self.tree is not None:
+            # 定时器是整棵树的主循环入口，每次触发就 tick 一次。
+            # 也就是说，这个类不是 while True 主动循环，而是把节奏交给 ROS timer。
+            self.timer = self.create_timer(
+                self.config.tick_period_ms / 1000.0,
+                self.tick_tree,
+            )
+            self.get_logger().info(f"Loaded tree: {self.config.tree_json_file}")
+        else:
+            # server 模式启动时没有活动任务，保持 HTTP / Viewer 可用但不空转 tick。
+            self.snapshot_store.set_idle(
+                tick_count=self.tick_count,
+                timing_snapshot=self.execution_timing.get_snapshot(),
+            )
+            self.get_logger().info("No initial tree loaded; runner is idle")
+
+    def _load_tree_object(self, tree_json_file: str):
+        """
+        加载行为树对象。
+        :param tree_json_file: 行为树 JSON 文件绝对路径。
+        :return: 可 tick 的 py_trees 行为树对象。
+        """
+        tree = self.factory.load_tree_from_json(tree_json_file)
+        # 如果开启官方 viewer 支持，这里会在现有树对象外再包一层 py_trees_ros 接口。
+        # 注意：包的是“ROS 通信能力”，不是重建业务树本身。
+        if self.config.enable_py_trees_ros_viewer:
+            tree, viewer_enabled = enable_py_trees_ros_viewer_support(
+                self,
+                tree,
+                snapshot_period=self.config.py_trees_ros_viewer_snapshot_period,
+            )
+            self.config.enable_py_trees_ros_viewer = viewer_enabled
+        return tree
+
+    def reload_tree(self, tree_json_file: str):
+        """
+        运行时切换行为树。
+        :param tree_json_file: 要加载的行为树 JSON 文件绝对路径。
+        :return: (是否成功, 说明文本)。
+        """
+        with self._tree_lock:
+            if not os.path.isfile(tree_json_file):
+                return False, f"行为树配置文件不存在: {tree_json_file}"
+
+            # 关键步骤：server 模式在任务开始前切换 tree，并重置 tick/快照状态。
+            self.tree = self._load_tree_object(tree_json_file)
+            self.config.tree_json_file = tree_json_file
+            self.tick_count = 0
+            self.live_runtime = None
+            self.execution_timing = BehaviorTreeExecutionTiming(
+                logger=self.get_logger(),
+                enabled=self.config.enable_execution_timing,
+            )
+            self.snapshot_store.update(
+                self.tree,
+                tick_count=self.tick_count,
+                timer=self.timer,
+                execution_state="READY",
+                live_runtime=self.live_runtime,
+                timing_snapshot=self.execution_timing.get_snapshot(),
+            )
+            self._ensure_timer_running()
+            self.get_logger().info(f"Reloaded tree: {tree_json_file}")
+            return True, "tree reloaded"
+
+    def _ensure_timer_running(self):
+        """确保 reload 后被终态停掉的定时器重新开始 tick。"""
+        if self.timer is not None and not self.timer.is_canceled():
+            return
+        # 关键步骤：server 单次树终态会停表，下一次 HTTP 任务 reload 后必须恢复主循环。
         self.timer = self.create_timer(
             self.config.tick_period_ms / 1000.0,
             self.tick_tree,
         )
-        self.get_logger().info(f"Loaded tree: {self.config.tree_json_file}")
 
     def get_logger(self):
         """保留原 ROS node 风格日志接口，减少业务节点改动。"""
@@ -261,40 +326,50 @@ class BehaviorTreeRunner:
 
     def tick_tree(self):
         """Advance the tree one step and refresh visualisation snapshots."""
-        # tick 先推进树，再刷新对外展示用快照。
-        # 这是“标准行为树节奏”的核心位置：
-        # 1. tree.tick() 真正推进一次树
-        # 2. tick_count + 1
-        # 3. snapshot_store 记录这次 tick 之后的状态
-        self.execution_timing.before_tick(self.tree)
-        self.tree.tick()
-        self.execution_timing.after_tick(self.tree)
-        self.tick_count += 1
-        self.snapshot_store.update(
-            self.tree,
-            tick_count=self.tick_count,
-            timer=self.timer,
-            live_runtime=self.live_runtime,
-            timing_snapshot=self.execution_timing.get_snapshot(),
-        )
+        with self._tree_lock:
+            if self.tree is None:
+                # 没有活动任务时不推进行为树，只维持对外可见的待命状态。
+                self.snapshot_store.set_idle(
+                    tick_count=self.tick_count,
+                    live_runtime=self.live_runtime,
+                    timing_snapshot=self.execution_timing.get_snapshot(),
+                )
+                return
 
-        root_status = self.tree.root.status
-        if self.config.stop_on_terminal_state and root_status in (
-            py_trees.common.Status.SUCCESS,
-            py_trees.common.Status.FAILURE,
-        ):
-            self.execution_timing.log_summary()
-            # 到达根节点终态后可以选择自动停表，这样树会停在最终状态供观察。
-            self.timer.cancel()
+            # tick 先推进树，再刷新对外展示用快照。
+            # 这是“标准行为树节奏”的核心位置：
+            # 1. tree.tick() 真正推进一次树
+            # 2. tick_count + 1
+            # 3. snapshot_store 记录这次 tick 之后的状态
+            self.execution_timing.before_tick(self.tree)
+            self.tree.tick()
+            self.execution_timing.after_tick(self.tree)
+            self.tick_count += 1
             self.snapshot_store.update(
                 self.tree,
                 tick_count=self.tick_count,
                 timer=self.timer,
-                execution_state="STOPPED",
                 live_runtime=self.live_runtime,
                 timing_snapshot=self.execution_timing.get_snapshot(),
             )
-            self.get_logger().info(f"Tree reached terminal status: {root_status.name}")
+
+            root_status = self.tree.root.status
+            if self.config.stop_on_terminal_state and root_status in (
+                py_trees.common.Status.SUCCESS,
+                py_trees.common.Status.FAILURE,
+            ):
+                self.execution_timing.log_summary()
+                # 到达根节点终态后可以选择自动停表，这样树会停在最终状态供观察。
+                self.timer.cancel()
+                self.snapshot_store.update(
+                    self.tree,
+                    tick_count=self.tick_count,
+                    timer=self.timer,
+                    execution_state="STOPPED",
+                    live_runtime=self.live_runtime,
+                    timing_snapshot=self.execution_timing.get_snapshot(),
+                )
+                self.get_logger().info(f"Tree reached terminal status: {root_status.name}")
 
     def get_snapshot(self):
         """Expose the latest snapshot to the custom web viewer."""

@@ -1,0 +1,88 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "服务专用按 C/H 放置箱体流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "ComputeMoveBoxPlaceTargets",
+        "label": "根据 C/H 计算双夹爪放置下降目标",
+        "params": {
+          "place_plane_height": {
+            "value": "0.7",
+            "source": "CUSTOM"
+          },
+          "place_plane_height_key": {
+            "value": "move_box_height_place_plane",
+            "source": "CUSTOM"
+          },
+          "place_plane_frame": {
+            "value": "map",
+            "source": "CUSTOM"
+          },
+          "box_size_z": {
+            "value": "0.34",
+            "source": "CUSTOM"
+          },
+          "expected_box_pose_key": {
+            "value": "move_box_box_pose_place_center",
+            "source": "CUSTOM"
+          },
+          "align_xy_to_expected_box": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "left_target_key": {
+            "value": "move_box_place_left_lower_claw_point",
+            "source": "CUSTOM"
+          },
+          "right_target_key": {
+            "value": "move_box_place_right_lower_claw_point",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双夹爪同步下降到放置高度（通用手臂节点）",
+        "params": {
+          "target_type": {
+            "value": "claw_point",
+            "source": "CUSTOM"
+          },
+          "pose_frame": {
+            "value": "base_link",
+            "source": "CUSTOM"
+          },
+          "left_point_key": {
+            "value": "move_box_place_left_lower_claw_point",
+            "source": "CUSTOM"
+          },
+          "right_point_key": {
+            "value": "move_box_place_right_lower_claw_point",
+            "source": "CUSTOM"
+          },
+          "claw_ypr": {
+            "value": "[0.0, -60.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "OpenClaw",
+        "label": "张开双夹爪释放箱体",
+        "params": {
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

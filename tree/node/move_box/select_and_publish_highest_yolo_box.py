@@ -159,6 +159,22 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self.pallet_map_polygon = parse_map_polygon(
             params.get("pallet_map_polygon", [])
         )
+        # 允许由前置 FoundationPose 托盘检测写入 blackboard。每轮 update 都读取
+        # 当前值，使接近站位规划使用真实垛盘禁入区而不是写死的 map 四边形。
+        self.pallet_map_polygon_key = str(
+            params.get("pallet_map_polygon_key", "")
+        ).strip()
+        self.pallet_polygon_required = self._to_bool(
+            params.get("pallet_polygon_required", False)
+        )
+        if (
+            self.pallet_polygon_required
+            and not self.pallet_map_polygon
+            and not self.pallet_map_polygon_key
+        ):
+            raise ValueError(
+                "pallet_polygon_required=True 时必须配置 pallet_map_polygon 或 pallet_map_polygon_key"
+            )
         # 候选站位即使不落在垛盘内，也需要和垛盘边界保持最小安全间隙，
         # 否则机器人底盘 footprint 仍可能压到垛盘或在局部规划中不可达。
         self.approach_pallet_clearance_m = float(
@@ -287,6 +303,7 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
         self._frozen_generation = 0
         self._last_no_target_log_time = 0.0
         self._last_reject_log_time = 0.0
+        self._last_logged_pallet_polygon_signature = None
         self.tf_listener = tf.TransformListener()
         self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
@@ -341,6 +358,50 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 key=self.services_key,
                 access=py_trees.common.Access.READ,
             )
+        if self.pallet_map_polygon_key:
+            self.blackboard.register_key(
+                key=self.pallet_map_polygon_key,
+                access=py_trees.common.Access.READ,
+            )
+
+    def _refresh_pallet_polygon_from_blackboard(self):
+        """刷新动态垛盘禁入区域；未配置动态 key 时保留原静态配置。"""
+        if not self.pallet_map_polygon_key:
+            return True
+        if not self.blackboard.exists(self.pallet_map_polygon_key):
+            if self.pallet_polygon_required:
+                self._log_no_target(
+                    f"[{self.config_label}] 等待 FoundationPose 垛盘区域: "
+                    f"key={self.pallet_map_polygon_key}"
+                )
+                return False
+            return True
+        try:
+            polygon = parse_map_polygon(self.blackboard.get(self.pallet_map_polygon_key))
+        except (TypeError, ValueError) as exc:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 动态垛盘区域格式非法: "
+                f"key={self.pallet_map_polygon_key}, error={exc}"
+            )
+            return False
+        if not polygon and self.pallet_polygon_required:
+            self._log_no_target(
+                f"[{self.config_label}] 等待非空 FoundationPose 垛盘区域: "
+                f"key={self.pallet_map_polygon_key}"
+            )
+            return False
+        self.pallet_map_polygon = polygon
+        signature = tuple(
+            (round(float(point["x"]), 4), round(float(point["y"]), 4))
+            for point in polygon
+        )
+        if signature != self._last_logged_pallet_polygon_signature:
+            self._last_logged_pallet_polygon_signature = signature
+            self.ros_node.get_logger().info(
+                f"\033[1;96m[{self.config_label}] 已加载动态托盘 map 禁入区: "
+                f"key={self.pallet_map_polygon_key}, polygon={polygon}\033[0m"
+            )
+        return True
 
     @staticmethod
     def _optional_float(value):
@@ -394,6 +455,9 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
     def update(self):
         if self.should_use_mock_execution():
             return self.update_mock_result()
+
+        if not self._refresh_pallet_polygon_from_blackboard():
+            return Status.RUNNING
 
         # 阶段0：读取共享 detector 的最新一帧原始 YOLO boxes。
         boxes = self._get_latest_boxes()

@@ -9,7 +9,8 @@ import numpy as np
 import py_trees
 from py_trees.common import Status
 
-from tree.runtime.http.move_and_grab_flow import Pose2D, transform_global_point_to_base
+from tree.utils.chassis_navigation import Pose2D
+from tree.utils.geometry import transform_global_point_to_base
 from tree.utils.geometry import ypr_to_rotation_matrix
 
 from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
@@ -119,9 +120,19 @@ class ComputeMoveBoxPlaceTargets(TimedMockAction):
         current_box_center_base = (lower_left + lower_right) * 0.5
         target_box_center_base = self._get_expected_box_center_base(target_claw_z)
         if self.align_xy_to_expected_box and target_box_center_base is not None:
-            delta = target_box_center_base - current_box_center_base
+            # 关键步骤：C 点只决定箱底中心 x/y；最终 z 必须严格由 H + box_size_z 决定。
+            delta = np.array(
+                [
+                    target_box_center_base[0] - current_box_center_base[0],
+                    target_box_center_base[1] - current_box_center_base[1],
+                    0.0,
+                ],
+                dtype=float,
+            )
             lower_left += delta
             lower_right += delta
+            lower_left[2] = target_claw_z
+            lower_right[2] = target_claw_z
             align_text = (
                 f", align_expected_box=True, current_box_center_base="
                 f"({current_box_center_base[0]:.3f}, {current_box_center_base[1]:.3f}, {current_box_center_base[2]:.3f}), "

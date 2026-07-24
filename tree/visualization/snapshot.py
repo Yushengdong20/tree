@@ -66,7 +66,11 @@ class BehaviorTreeSnapshotStore:
         with self._lock:
             self._snapshot = {
                 "execution_state": execution_state
-                or ("RUNNING" if not timer.is_canceled() else "STOPPED"),
+                or (
+                    "RUNNING"
+                    if timer is not None and not timer.is_canceled()
+                    else "STOPPED"
+                ),
                 "root_status": tree.root.status.name,
                 "node_count": len(flat_nodes),
                 "tick_count": tick_count,
@@ -76,6 +80,27 @@ class BehaviorTreeSnapshotStore:
                 "timing": timing_snapshot or {"enabled": False, "nodes": {}},
                 "tree": tree_state,
                 "nodes": flat_nodes,
+            }
+
+    def set_idle(
+        self,
+        tick_count: int = 0,
+        live_runtime: Optional[Dict[str, Any]] = None,
+        timing_snapshot: Optional[Dict[str, Any]] = None,
+    ):
+        """把快照切到没有活动行为树的待命状态。"""
+        with self._lock:
+            self._snapshot = {
+                "execution_state": "IDLE",
+                "root_status": "INVALID",
+                "node_count": 0,
+                "tick_count": tick_count,
+                "last_tick_interval": None,
+                "generated_at": time.time(),
+                "live_runtime": dict(live_runtime) if live_runtime else None,
+                "timing": timing_snapshot or {"enabled": False, "nodes": {}},
+                "tree": None,
+                "nodes": {},
             }
 
     def refresh_live_runtime(self, live_runtime: Optional[Dict[str, Any]]):
@@ -95,6 +120,7 @@ class BehaviorTreeSnapshotStore:
         label = getattr(node, "json_label", node.name)
         node_type = getattr(node, "node_type_raw", node.__class__.__name__)
         bt_id = str(node.id)
+        feedback_message = str(getattr(node, "feedback_message", "") or "")
         previous = self._node_history.get(path, {})
 
         last_active_status = previous.get("last_active_status")
@@ -129,6 +155,7 @@ class BehaviorTreeSnapshotStore:
             "timestamp": time.time(),
             "last_active_status": last_active_status,
             "last_terminal_status": last_terminal_status,
+            "feedback_message": feedback_message,
             "timing": timing_nodes.get(bt_id),
             "children": children,
         }
@@ -150,6 +177,7 @@ class BehaviorTreeSnapshotStore:
             "timestamp": node_info["timestamp"],
             "last_active_status": node_info["last_active_status"],
             "last_terminal_status": node_info["last_terminal_status"],
+            "feedback_message": node_info.get("feedback_message", ""),
             "timing": node_info.get("timing"),
         }
         for child in node_info["children"]:

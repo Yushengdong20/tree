@@ -1,0 +1,501 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "HTTP grasp_and_place 单次任务流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureGraspObjectServices",
+        "label": "创建抓取任务共享服务",
+        "params": {},
+        "childs": []
+      },
+      {
+        "name": "OpenClaw",
+        "label": "启动时张开双夹爪",
+        "params": {
+          "side": {
+            "value": "both",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveBoxHeadToPose",
+        "label": "启动时头部下俯20度",
+        "params": {
+          "yaw": {
+            "value": "0.0",
+            "source": "CUSTOM"
+          },
+          "pitch": {
+            "value": "20.0",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "MoveTorsoPose",
+        "label": "启动时腰部回到预备位姿",
+        "params": {
+          "pose": {
+            "value": "[0.1, 0.000, 0.926, 0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "wait_done": {
+            "value": "True",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "启动时双臂回到预备位姿",
+        "params": {
+          "pose_frame": {
+            "value": "waist_yaw_link",
+            "source": "CUSTOM"
+          },
+          "left_pose": {
+            "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_pose": {
+            "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": []
+      },
+      {
+        "name": "RepeatUntilBlackboardNumber",
+        "label": "循环抓放直到数量达到目标",
+        "params": {
+          "left_key": {
+            "value": "grasp_and_place_done_count",
+            "source": "CUSTOM"
+          },
+          "operator": {
+            "value": ">=",
+            "source": "CUSTOM"
+          },
+          "right_key": {
+            "value": "grasp_and_place_target_count",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "grasp_and_place 单轮抓放流程",
+            "params": {
+              "memory": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": [
+              {
+                "name": "ArmsToPose",
+                "label": "前往A点前双臂返回初始位姿",
+                "params": {
+                  "pose_frame": {
+                    "value": "waist_yaw_link",
+                    "source": "CUSTOM"
+                  },
+                  "left_pose": {
+                    "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+                    "source": "CUSTOM"
+                  },
+                  "right_pose": {
+                    "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "Parallel",
+                "label": "并行导航到A点并提升腰部到抓取高度",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到A点抓取区",
+                    "params": {
+                      "target_pose_key": {
+                        "value": "grasp_object_pick_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "grasp_object_pick_navigation_target_runtime",
+                        "source": "CUSTOM"
+                      },
+                      "coarse": {
+                        "value": "False",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": []
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "计算并移动腰部到零件抓取高度",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                        "label": "根据抓取平面高度计算腰部目标",
+                        "params": {
+                          "place_plane_height_key": {
+                            "value": "grasp_object_height_grasp_plane",
+                            "source": "CUSTOM"
+                          },
+                          "place_plane_frame": {
+                            "value": "base_link",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_height_offset": {
+                            "value": "0.0",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_min_height": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_max_height": {
+                            "value": "1.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_x": {
+                            "value": "0.117",
+                            "source": "CUSTOM"
+                          },
+                          "target_pose_key": {
+                            "value": "grasp_object_grasp_torso_pose",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "MoveTorsoPose",
+                        "label": "腰部移动到零件抓取高度",
+                        "params": {
+                          "pose_key": {
+                            "value": "grasp_object_grasp_torso_pose",
+                            "source": "CUSTOM"
+                          },
+                          "wait_done": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "SubTree",
+                "label": "能双抓就双抓，否则单抓",
+                "params": {
+                  "file": {
+                    "value": "../../grasp_object/subtree/grasp_sync_then_up_to_two_parts.json",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "Parallel",
+                "label": "前往B点并调整腰部到放置高度",
+                "params": {
+                  "policy": {
+                    "value": "SuccessOnAll",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到B点放置区",
+                    "params": {
+                      "target_pose_key": {
+                        "value": "grasp_object_place_navigation_target",
+                        "source": "CUSTOM"
+                      },
+                      "chassis_url": {
+                        "value": "http://localhost:8081",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_timeout_sec": {
+                        "value": "600",
+                        "source": "CUSTOM"
+                      },
+                      "poll_interval_sec": {
+                        "value": "0.2",
+                        "source": "CUSTOM"
+                      },
+                      "navigation_target_key": {
+                        "value": "grasp_object_place_navigation_target_runtime",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": []
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "接近B点后调整腰部到台面高度",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "WaitUntilNearNavigationGoal",
+                        "label": "监听接近B点放置区",
+                        "params": {
+                          "odom_topic": {
+                            "value": "melon_odom",
+                            "source": "CUSTOM"
+                          },
+                          "target_key": {
+                            "value": "grasp_object_place_navigation_target",
+                            "source": "CUSTOM"
+                          },
+                          "distance_threshold": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                        "label": "根据放置平面高度计算腰部目标",
+                        "params": {
+                          "place_plane_height_key": {
+                            "value": "grasp_object_height_place_plane",
+                            "source": "CUSTOM"
+                          },
+                          "place_plane_frame": {
+                            "value": "base_link",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_height_offset": {
+                            "value": "0.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_min_height": {
+                            "value": "0.6",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_max_height": {
+                            "value": "1.4",
+                            "source": "CUSTOM"
+                          },
+                          "place_torso_x": {
+                            "value": "0.3",
+                            "source": "CUSTOM"
+                          },
+                          "target_pose_key": {
+                            "value": "grasp_object_place_torso_pose",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "MoveTorsoPose",
+                        "label": "腰部移动到零件放置高度",
+                        "params": {
+                          "pose_key": {
+                            "value": "grasp_object_place_torso_pose",
+                            "source": "CUSTOM"
+                          },
+                          "wait_done": {
+                            "value": "True",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "SubTree",
+                "label": "根据持物数量放置零件",
+                "params": {
+                  "file": {
+                    "value": "../../grasp_object/subtree/place_up_to_two_parts.json",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": []
+              },
+              {
+                "name": "Selector",
+                "label": "按本轮持物模式更新完成数量",
+                "params": {
+                  "memory": {
+                    "value": "False",
+                    "source": "CUSTOM"
+                  }
+                },
+                "childs": [
+                  {
+                    "name": "Sequence",
+                    "label": "双抓完成数量加二",
+                    "params": {
+                      "memory": {
+                        "value": "True",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": [
+                      {
+                        "name": "CheckBlackboardValue",
+                        "label": "确认本轮为双抓模式",
+                        "params": {
+                          "key": {
+                            "value": "grasp_object_grasp_mode",
+                            "source": "CUSTOM"
+                          },
+                          "expected": {
+                            "value": "dual",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      },
+                      {
+                        "name": "IncrementBlackboardValue",
+                        "label": "双抓完成数量加二",
+                        "params": {
+                          "key": {
+                            "value": "grasp_and_place_done_count",
+                            "source": "CUSTOM"
+                          },
+                          "step": {
+                            "value": "2",
+                            "source": "CUSTOM"
+                          },
+                          "default_value": {
+                            "value": "0",
+                            "source": "CUSTOM"
+                          }
+                        },
+                        "childs": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "IncrementBlackboardValue",
+                    "label": "单抓完成数量加一",
+                    "params": {
+                      "key": {
+                        "value": "grasp_and_place_done_count",
+                        "source": "CUSTOM"
+                      },
+                      "step": {
+                        "value": "1",
+                        "source": "CUSTOM"
+                      },
+                      "default_value": {
+                        "value": "0",
+                        "source": "CUSTOM"
+                      }
+                    },
+                    "childs": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Parallel",
+        "label": "任务完成后并行回到预备姿态",
+        "params": {
+          "policy": {
+            "value": "SuccessOnAll",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "ArmsToPose",
+            "label": "任务完成后双臂回到预备位姿",
+            "params": {
+              "pose_frame": {
+                "value": "waist_yaw_link",
+                "source": "CUSTOM"
+              },
+              "left_pose": {
+                "value": "[0.301, 0.3, 0.2, 0.0, -100.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "right_pose": {
+                "value": "[0.301, -0.3, 0.2, 0.0, -100.0, 0.0]",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          },
+          {
+            "name": "MoveTorsoPose",
+            "label": "任务完成后腰部回到预备位姿",
+            "params": {
+              "pose": {
+                "value": "[0.1, 0.000, 0.926, 0.0, 0.0, 0.0]",
+                "source": "CUSTOM"
+              },
+              "wait_done": {
+                "value": "True",
+                "source": "CUSTOM"
+              }
+            },
+            "childs": []
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -120,6 +120,22 @@ class BehaviorTreeFactory:
                 child=child,
                 num_success=int(node_params.get("num_success", -1)),
             )
+        elif node_name == "RepeatUntilBlackboardNumber":
+            if len(children) != 1:
+                raise ValueError("RepeatUntilBlackboardNumber 节点必须且只能有一个子节点")
+            # 关键步骤：grasp_and_place 需要按动态 targetCount 循环，不能用静态 Repeat 次数。
+            from tree.node.common.repeat_until_blackboard_number import (
+                RepeatUntilBlackboardNumber,
+            )
+
+            child = self._build_tree_recursive(children[0], source_dir=source_dir)
+            node = RepeatUntilBlackboardNumber(
+                name=node_label,
+                child=child,
+                config_label=node_label,
+                ros_node=self.ros_node,
+                params=node_params,
+            )
         else:
             # 其余节点视为业务叶子节点，按约定去 pytrees_ros2.node 下动态加载。
             node = self._create_leaf(node_name=node_name, node_label=node_label, params=node_params)
@@ -128,7 +144,7 @@ class BehaviorTreeFactory:
         node.node_type_raw = node_name
         node.json_label = node_label
 
-        if hasattr(node, "add_child") and node_name != "Repeat":
+        if hasattr(node, "add_child") and node_name not in ("Repeat", "RepeatUntilBlackboardNumber"):
             # 组合节点继续递归构建子树，叶子节点则没有 children。
             for child_config in children:
                 node.add_child(self._build_tree_recursive(child_config, source_dir=source_dir))
@@ -167,14 +183,14 @@ class BehaviorTreeFactory:
         """Load one leaf node class from known node subpackages.
 
         当前约定是：
-        - 真实 HTTP 节点放在 `tree.node.http`
+        - 底盘节点放在 `tree.node.chassis`
         - 纯 mock 示例节点放在 `tree.node.mock`
         - `tree.node` 根目录只保留公共基类等共享文件
 
         这样目录可以分层，但 JSON 里的节点名字和旧配置都不需要改。
         """
         candidate_modules = [
-            f"tree.node.http.{module_name}",
+            f"tree.node.chassis.{module_name}",
             f"tree.node.{module_name}",
             f"tree.node.common.{module_name}",
             f"tree.node.manipulation.{module_name}",

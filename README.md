@@ -1,365 +1,445 @@
-# mercurytree
+# MercuryTree
 
-`mercurytree` 是一个基于 `py_trees` 的行为树调度工程，当前主要用于：
+`MercuryTree` 是基于 `py_trees` 的机器人行为树调度工程，当前主要用于在 ROS1 环境下运行搬箱、导航、抓取放置等任务。
+
+核心能力：
 
 - 从 JSON 配置构建行为树
-- 在 ROS1/ROS2 环境中运行行为树
-- 通过自定义 Web Viewer 观察树状态
-- 用 blackboard 在节点之间共享运行参数
-- 在真实节点和 mock 节点之间切换测试
+- 通过 blackboard 在节点之间共享任务输入和运行状态
+- 支持真实机器人节点和 mock/manual 节点
+- 提供 Web Viewer 查看行为树 tick 状态
+- 提供 HTTP server 模式，按接口触发单次任务
 
-当前这份代码里，`tree/` 是实际的 Python 包，ROS 包名是 `mercurytree`。
+当前 Python 包目录是 `tree/`，ROS 包名是 `mercurytree`。
 
-## 当前目录结构
+## 目录结构
 
 ```text
-src/
-├── README.md
-├── setup.py
-├── package.xml
-├── launch/
-│   └── run.launch.py
+src/MercuryTree/
 ├── config/
 │   ├── blackboard/
-│   │   └── blackboard.json
+│   ├── depalletize/
+│   ├── palletize/
 │   └── tree/
-│       ├── box/
-│       │   └── move_box_full_direct_grasp_place_turn.json
-│       ├── demo/
-│       ├── http/
-│       └── mock/
-└── tree/
-    ├── main.py
-    ├── core/
-    │   ├── blackboard_bootstrap.py
-    │   ├── manual_input.py
-    │   ├── runner.py
-    │   ├── runner_config.py
-    │   └── tree_factory.py
-    ├── node/
-    │   ├── base.py
-    │   ├── common/
-    │   ├── http/
-    │   ├── manipulation/
-    │   └── mock/
-    ├── runtime/
-    │   ├── http/
-    │   ├── manipulation/
-    │   ├── mock/
-    │   └── move_box/
-    ├── ros_interface/
-    ├── tools/
-    ├── utils/
-    └── visualization/
+│       ├── grasp_object/
+│       ├── move_box/
+│       └── service/
+├── launch/
+├── test/
+├── tools/
+│   └── build_grasp_search_cpp.sh
+├── tree/
+│   ├── core/
+│   ├── node/
+│   ├── runtime/
+│   ├── ros_interface/
+│   └── visualization/
+├── SERVICE.MD
+└── start_server.sh
 ```
 
-## 运行入口
+## 推荐启动方式
 
-- [tree/main.py](tree/main.py)
-  入口文件，只负责：
-  - 选择默认树 JSON
-  - 读取 `config/blackboard/blackboard.json`
-  - 启动 `BehaviorTreeRunner`
-- [tree/core/runner.py](tree/core/runner.py)
-  行为树运行中枢，负责：
-  - 加载树
-  - 周期性 tick
-  - 维护快照
-  - 启动 web viewer
-- [tree/core/tree\_factory.py](tree/core/tree_factory.py)
-  把 JSON 转成 `py_trees` 运行时对象。
+抓取放置专用 server 推荐直接使用脚本：
 
-## 节点加载顺序
+```bash
+cd src/MercuryTree
+./start_server.sh
+```
 
-当前 `tree_factory.py` 的叶子节点加载顺序是：
+脚本会依次执行：
 
-1. `tree.node.http.*`
-2. `tree.node.*`
-3. `tree.node.common.*`
-4. `tree.node.manipulation.*`
-5. `tree.node.move_box.*`
-6. `tree.node.mock.*`
+```bash
+source ../scripts/source_kuavo_sdk_pythonpath.sh
+bash tools/build_grasp_search_cpp.sh
+python3 -m tree.server_main --preload-services grasp_object
+```
 
-这意味着：
+`--preload-services grasp_object` 会在 server 启动时预初始化抓取任务需要的机器人 SDK services，避免收到任务后机器人原地等待 SDK 初始化。
 
-- 真实业务节点优先
-- mock 节点只在真实实现不存在时才兜底
+## Server 模式
 
-例如 JSON 里写 `MoveClaw` 时，现在会优先命中：
+入口：
 
-- [tree/node/manipulation/move\_claw.py](tree/node/manipulation/move_claw.py)
+```bash
+python3 -m tree.server_main
+```
 
-而不是：
-
-- [tree/node/mock/move\_claw.py](tree/node/mock/move_claw.py)
-
-## Blackboard 机制
-
-启动时会自动读取：
-
-- [config/blackboard/blackboard.json](config/blackboard/blackboard.json)
-
-并通过：
-
-- [tree/core/blackboard\_bootstrap.py](tree/core/blackboard_bootstrap.py)
-
-把其中的顶层 key 写入全局 `py_trees` blackboard。
-
-当前常用的 blackboard key 包括：
-
-- `arm_target`
-- `arm_target_a`
-- `arm_target_b`
-
-`ArmEventWrapper` 当前的取参顺序是：
-
-1. 先读 blackboard
-2. blackboard 没值时回退到节点自身 `params`
-
-## 当前常用测试树
-
-### 1. `ros1_smoke_test.json`
-
-- [config/tree/mock/ros1\_smoke\_test.json](config/tree/mock/ros1_smoke_test.json)
-
-用途：
-
-- 验证 runner/timer/logging/tree tick 主链路
-- 主要走 mock 节点
-
-### 2. `move_arm_target_pose_from_params_demo.json`
-
-- [config/tree/demo/move\_arm\_target\_pose\_from\_params\_demo.json](config/tree/demo/move_arm_target_pose_from_params_demo.json)
-
-用途：
-
-- 验证 `ArmEventWrapper` 从节点自身 `params` 读取目标
-- 通过把 `blackboard_*_key` 指到不存在的 key，避免 blackboard 抢占参数来源
-
-### 3. `move_arm_target_pose_from_blackboard_demo.json`
-
-- [config/tree/demo/move\_arm\_target\_pose\_from\_blackboard\_demo.json](config/tree/demo/move_arm_target_pose_from_blackboard_demo.json)
-
-用途：
-
-- 验证 `ArmEventWrapper` 从 blackboard 读取目标
-
-### 4. `move_arm_repeat_until_enter_demo.json`
-
-- [config/tree/demo/move\_arm\_repeat\_until\_enter\_demo.json](config/tree/demo/move_arm_repeat_until_enter_demo.json)
-
-用途：
-
-- 让手臂在 `arm_target_a` 和 `arm_target_b` 两组目标之间持续来回运动
-- 直到终端按下 Enter 后，树根返回 `SUCCESS`
-
-结构大致是：
+常用参数：
 
 ```text
-cd /home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree
-
-PYTHONPATH=/home/lab/leju_wbc/src/kuavo_humanoid_sdk:/home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree:$PYTHONPATH \
-python3 -m tree.main
+--task-host          任务 HTTP 服务监听地址，默认 127.0.0.1
+--task-port          任务 HTTP 服务监听端口，默认 8766
+--initial-tree       可选启动预加载树；默认不加载树、不启动 tick
+--preload-services   可选 none/grasp_object/move_box，默认 none
 ```
 
-### 5. `move_claw_test.json`
-
-- [config/tree/demo/move\_claw\_test.json](config/tree/demo/move_claw_test.json)
-
-用途：
-
-- 单独测试真实 `MoveClaw`
-- 先张开夹爪
-- 等终端按 Enter
-- 再闭合夹爪
-
-说明：
-
-- 这份测试树和真实 `move_claw.py` 已经接入当前项目
-- `move_claw_test.json` 已完成实机测试验证
-
-## 当前默认入口配置
-
-截至当前版本，[tree/main.py](tree/main.py) 默认是：
-
-- `tree_file_name = "tree/box/move_box_full_direct_grasp_place_turn.json"`
-- `tick_period_ms = 200`
-- `enable_web_viewer = True`
-- `web_viewer_host = "0.0.0.0"`
-- `web_viewer_port = 8765`
-- `stop_on_terminal_state = True`
-- `manual_result_mode = True`
-- `enable_manual_result_input = True`
-- `enable_py_trees_ros_viewer = False`
-
-这意味着当前默认行为是：
-
-- 启动后加载 `blackboard.json`
-- 执行 `move_box` 真机测试树
-- 在关键步骤停下等待人工输入确认
-
-## 运行方式
-
-### 推荐：直接按 Python 包运行
+示例：
 
 ```bash
-cd /home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree
-
-PYTHONPATH=/home/lab/leju_wbc/src/kuavo_humanoid_sdk:/home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree:$PYTHONPATH \
-python3 -m tree.main
+python3 -m tree.server_main --preload-services grasp_object
+python3 -m tree.server_main --preload-services move_box
+python3 -m tree.server_main --task-host 0.0.0.0 --task-port 8766
 ```
 
-### ROS 包方式
+server 默认启动后处于待命态：不加载 idle tree，也不启动行为树 tick。收到任务 POST 后才 reload 对应 service tree，执行到 `SUCCESS` 或 `FAILURE` 后停止 tick，等待下一次任务。
+
+## HTTP 接口
+
+默认地址：
+
+```text
+http://127.0.0.1:8766
+```
+
+接口：
+
+```text
+GET  /health
+GET  /api/task_status?taskId=<taskId>
+POST /api/start_grasp_and_place
+POST /api/start_move_box
+POST /api/start_navigation
+```
+
+完整接口文档见 [SERVICE.MD](SERVICE.MD)。server 内部链路和新增任务开发规范见 [SERVER_DEVELOPMENT.MD](SERVER_DEVELOPMENT.MD)。
+
+查询任务状态：
 
 ```bash
-cd MercuryTree
-colcon build --packages-select mercurytree
-source ../install/setup.bash
-ros2 run mercurytree bt_runner
+curl -s "http://127.0.0.1:8766/api/task_status?taskId=<taskId>"
 ```
 
-如果是 ROS1 环境，也建议优先直接使用：
+健康检查：
 
 ```bash
-cd /home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree
-
-PYTHONPATH=/home/lab/leju_wbc/src/kuavo_humanoid_sdk:/home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree:$PYTHONPATH \
-python3 -m tree.main
+curl -s "http://127.0.0.1:8766/health"
 ```
+
+server 一次只允许运行一个任务。当前任务处于 `QUEUED` 或 `RUNNING` 时，新任务会被拒绝，并返回当前正在运行的 `taskId`。
+
+任务历史记录保存在当前 server 进程内存中，默认最多保留 1000 条。server 重启后历史记录不会保留。
+
+## grasp_and_place Server 行为
+
+service 树：
+
+```text
+config/tree/service/grasp_object/start_grasp_and_place.json
+```
+
+主要行为：
+
+- 接口入参写入 blackboard 后 reload 单次 service tree
+- A 点导航和腰部上升并行执行
+- 抓取平面和放置平面高度按 `base_link` 参考系处理
+- torso 采样 z 范围按 `heightGraspPlane - 0.37614321` 到 `heightGraspPlane - 0.37614321 + 0.4` 动态设置
+- 没有检测到物体时任务失败退出，并返回失败原因
+- 检测到物体但没有可达抓取目标时，缓存规划失败后只刷新感知重试一次；仍失败则退出
+- 达到目标数量后，双臂和腰部会并行回到预备姿态
+
+预备姿态：
+
+```text
+torso = [0.1, 0.000, 0.926, 0.0, 0.0, 0.0]
+left  = [0.301, 0.3, 0.2, 0.0, -100.0, 0.0]
+right = [0.301, -0.3, 0.2, 0.0, -100.0, 0.0]
+```
+
+## move_box Server 行为
+
+service 树：
+
+```text
+config/tree/service/move_box/start_move_box.json
+```
+
+HTTP 入口：
+
+```text
+POST /api/start_move_box
+```
+
+主要行为：
+
+- 接口入参写入 blackboard 后 reload 单次 service tree
+- 导航到 A 点搜索箱子
+- 通过 YOLO/FP 流程靠近箱体并完成底盘对齐
+- 置位抓取请求，执行双臂直接抓箱
+- 上提箱体与预导航到 B 点并行执行
+- 根据 C 点箱体放置中心反算最终放置导航站位
+- 导航到最终放置站位后，按 C 点和 `heightPlacePlane` 放置箱体
+
+接口入参对应的 blackboard key：
+
+```text
+naviPoseFindBox     -> move_box_navi_pose_find_box
+validPolygon        -> move_box_valid_polygon
+naviPosePlaceBox    -> move_box_navi_pose_place_box
+boxPosePlaceCenter  -> move_box_box_pose_place_center
+heightPlacePlane    -> move_box_height_place_plane
+```
+
+`--preload-services move_box` 会在 server 启动时预初始化搬箱视觉与控制实例，ArmController 的 `target_frame` 为 `base_link`。
+
+## 码垛任务
+
+主树：
+
+```text
+config/palletize/move_box_palletize_strategy_preview.json
+```
+
+码垛当前是普通行为树流程，不是独立 HTTP endpoint。当前 server `TaskRegistry` 注册的任务只有 `move_box`、`grasp_and_place` 和 `navigation`。
+
+主要行为：
+
+- 初始化 move_box 视觉与控制实例
+- 初始化 `move_box_pallet_stack_count`
+- 导航到等待区域后循环执行四格码垛
+- 抓箱前通过 YOLO/FP 完成靠近与底盘对齐
+- 抓箱并上提箱体
+- 根据垛盘 polygon、slot 参考点和当前 `stack_count` 计算本轮槽位、导航站位、放箱策略和动作点
+- 导航到垛盘码垛站位，必要时先执行高位安全预落位
+- 根据已选策略执行直接放箱或推箱放箱
+- 放箱后刷新 FoundationPose 并报告实际箱心与目标箱心偏差
+- 码垛成功后推进 `move_box_pallet_stack_count` 并返回等待区
+
+关键子树：
+
+```text
+config/palletize/subtree/move_box_pallet_place_execute_strategy.json
+```
+
+关键节点：
+
+```text
+ComputeMoveBoxPalletPlaceStrategy
+ComputeMoveBoxPalletPrePlaceSafeTargets
+ComputeMoveBoxPalletPlaceActionPoints
+RefreshFpAndReportPalletPlaceError
+```
+
+## 拆垛任务
+
+主树：
+
+```text
+config/depalletize/move_box_full_dynamic_auto_depalletize.json
+```
+
+拆垛当前也是普通行为树流程，不是独立 HTTP endpoint。配置说明见：
+
+```text
+config/depalletize/README.md
+```
+
+单轮流程拆成五个阶段：
+
+```text
+subtree/01_select_and_approach_selected_pose.json  动态选箱与两级靠近
+subtree/02_auto_grasp.json                         按黑板策略执行抓取
+subtree/03_transport_to_place.json                 搬运到放置点
+subtree/04_place_box.json                          放置箱体
+subtree/05_return_and_ready.json                   返回等待区并恢复姿态
+```
+
+主树默认循环执行六轮动态拆垛。流程会先读取 YOLO 最近箱并粗靠近，再在更完整视野下重新选择最高层最近箱和抓取策略，随后执行锁定目标的 YOLO/FP 靠近、抓取、搬运、放置和回等待区。
+
+## 服务预加载
+
+`--preload-services` 用于指定 server 启动时预初始化哪类机器人服务：
+
+```text
+none          不预加载
+grasp_object 预加载抓取放置服务，ArmController target_frame 为 waist_yaw_link
+move_box     预加载搬箱服务，ArmController target_frame 为 base_link
+```
+
+当前 `robot_services` blackboard key 仍是共享 key，因此同一个 server 进程只支持预加载一种服务。实际部署中建议一台机器人负责一类任务，并指定对应 preload 类型。
+
+## 日志
+
+任务启动接口会记录调用信息：
+
+```text
+Task API request: endpoint=..., method=POST, client=<ip>:<port>, user_agent='...', payload={...}
+```
+
+参数校验失败会记录：
+
+```text
+Task API rejected: endpoint=..., method=POST, client=<ip>:<port>, error=..., payload=...
+```
+
+`/health` 和 `/api/task_status` 默认不打印访问日志，避免轮询刷屏。
 
 ## Web Viewer
 
-当前自定义 Web Viewer 默认地址：
+默认地址：
 
 ```text
 http://127.0.0.1:8765
 ```
 
-如果要让同一局域网的其他电脑访问，运行机上的 `main.py` 里已经配置为：
-
-```python
-web_viewer_host = "0.0.0.0"
-```
-
-所以其他机器可以直接访问：
+server/main 当前配置为：
 
 ```text
-http://运行机IP:8765
+web_viewer_host = 0.0.0.0
+web_viewer_port = 8765
 ```
 
-## 行为树 JSON 静态可视化
+局域网访问：
 
-项目提供了一个离线 JSON 可视化工具：
+```text
+http://<机器人IP>:8765
+```
 
-- [tree/visualization/tree\_json\_vis.py](tree/visualization/tree_json_vis.py)
+## 普通行为树入口
+
+非 server 模式入口：
+
+```bash
+python3 -m tree.main
+```
+
+`tree.main` 会读取 `config/blackboard/blackboard.json`，加载默认树并启动 runner。它更适合本地调试、mock/manual 流程或单棵树验证。
+
+## Blackboard
+
+启动时会读取：
+
+```text
+config/blackboard/blackboard.json
+```
+
+并通过 `tree/core/blackboard_bootstrap.py` 写入全局 `py_trees` blackboard。
+
+常见运行时 key：
+
+```text
+robot_services
+model_type
+grasp_and_place_active_task_id
+grasp_and_place_done_count
+grasp_and_place_target_count
+grasp_object_pick_navigation_target
+grasp_object_place_navigation_target
+grasp_object_height_grasp_plane
+grasp_object_height_place_plane
+grasp_object_sorted_grasp_objects
+grasp_object_next_grasp_object_index
+grasp_object_grasp_mode
+grasp_object_torso_sample_z_min_m
+grasp_object_torso_sample_z_max_m
+move_box_active_task_id
+move_box_navi_pose_find_box
+move_box_valid_polygon
+move_box_navi_pose_place_box
+move_box_box_pose_place_center
+move_box_height_place_plane
+move_box_pallet_stack_count
+move_box_pallet_stack_navigation_target
+move_box_pallet_stack_place_plane_height
+move_box_pallet_stack_slot_pose
+move_box_pallet_stack_expected_box_pose
+move_box_pallet_place_strategy
+move_box_pallet_place_final_box_pose
+```
+
+## 行为树配置
+
+常用 service tree：
+
+```text
+config/tree/service/grasp_object/start_grasp_and_place.json
+config/tree/service/move_box/start_move_box.json
+config/tree/service/navigation/start_navigation.json
+```
+
+普通抓放树：
+
+```text
+config/tree/grasp_object/grasp_and_place.json
+config/tree/grasp_object/grasp_and_place_table.json
+config/tree/grasp_object/grasp_and_place_stay.json
+```
+
+抓放子树：
+
+```text
+config/tree/grasp_object/subtree/
+```
+
+搬箱 service tree：
+
+```text
+config/tree/service/move_box/start_move_box.json
+```
+
+搬箱普通树和子树：
+
+```text
+config/tree/move_box/
+config/tree/service/move_box/subtree/
+```
+
+码垛树：
+
+```text
+config/palletize/move_box_palletize_strategy_preview.json
+config/palletize/subtree/
+```
+
+拆垛树：
+
+```text
+config/depalletize/move_box_full_dynamic_auto_depalletize.json
+config/depalletize/subtree/
+config/depalletize/test/
+```
+
+## C++ 抓取搜索扩展
+
+抓取搜索 C++ 扩展构建脚本：
+
+```bash
+cd src/MercuryTree
+bash tools/build_grasp_search_cpp.sh
+```
+
+`start_server.sh` 会在启动 server 前自动执行该脚本。
+
+## 离线 JSON 可视化
+
+工具：
+
+```text
+tree/visualization/tree_json_vis.py
+```
 
 用途：
 
-- 不启动 ROS、不运行行为树时，直接查看 JSON 配置里的树结构
-- 自动按 `SubTree.params.file` 递归展开子树
-- 生成 `.png` 图片和 `.dot` 文件，便于检查完整流程
+- 不启动 ROS 时查看 JSON 树结构
+- 递归展开 `SubTree.params.file`
+- 生成 `.dot` 和图片输出到 `tree/visualization/output/`
 
-从项目根目录运行：
+运行：
 
 ```bash
-cd MercuryTree
+cd src/MercuryTree
 python3 tree/visualization/tree_json_vis.py
 ```
 
-也可以在工具目录直接运行：
+## 代码阅读入口
 
-```bash
-cd tree/visualization
-python3 tree_json_vis.py
-```
+建议按这个顺序看：
 
-默认会可视化：
-
-```text
-config/tree/box/move_box_full_direct_grasp_place_turn.json
-```
-
-并输出到：
-
-```text
-tree/visualization/output/
-```
-
-指定其他树：
-
-```bash
-cd /home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree
-
-PYTHONPATH=/home/lab/leju_wbc/src/kuavo_humanoid_sdk:/home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree:$PYTHONPATH \
-python3 -m tree.main
-```
-
-常用参数：
-
-```bash
-cd MercuryTree
-colcon build --packages-select mercurytree
-source ../install/setup.bash
-ros2 run mercurytree bt_runner
-```
-
-说明：
-
-- 这个工具是离线结构图，用来检查 JSON 配置和子树展开结果
-- Web Viewer 是运行时状态观察工具，用来查看 tick 过程和节点状态
-
-## 手动 / mock 模式
-
-`TimedMockAction` 基类支持 `manual_result_mode`，用于：
-
-- 软件验证树结构
-- 不直接访问真实服务/真实硬件
-
-在 `main.py` 中如果设置：
-
-```python
-manual_result_mode = True
-enable_manual_result_input = True
-```
-
-则终端支持：
-
-```text
-cd /home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree
-
-PYTHONPATH=/home/lab/leju_wbc/src/kuavo_humanoid_sdk:/home/lab/leju_wbc/src/kuavo_humanoid_sdk/mercurytree:$PYTHONPATH \
-python3 -m tree.main
-```
-
-## 这轮新增或重构过的节点
-
-- [tree/node/manipulation/arm\_event\_wrapper.py](tree/node/manipulation/arm_event_wrapper.py)
-- [tree/node/manipulation/arm\_event\_wrapper.py](tree/node/manipulation/arm_event_wrapper.py)
-  - 支持 blackboard 优先 / params 回退
-  - 支持双臂目标结构
-- [tree/node/manipulation/move\_claw.py](tree/node/manipulation/move_claw.py)
-  - 已适配当前项目
-  - 真实夹爪命令通过 `rospy.Publisher` 发布
-- [tree/node/common/wait\_for\_enter.py](tree/node/common/wait_for_enter.py)
-  - 阻塞式等待 Enter
-- [tree/node/common/wait\_for\_enter\_async.py](tree/node/common/wait_for_enter_async.py)
-  - 非阻塞等待 Enter，适合并行停止树
-
-## 公共工具
-
-- [tree/utils/params.py](tree/utils/params.py)
-  - 公共参数解析
-- [tree/utils/arm\_target.py](tree/utils/arm_target.py)
-  - 机械臂目标结构判断与 wrench 归一化
-
-## 阅读建议
-
-建议按这个顺序看代码：
-
-1. [tree/main.py](tree/main.py)
-2. [tree/core/runner.py](tree/core/runner.py)
-3. [tree/core/tree\_factory.py](tree/core/tree_factory.py)
-4. [tree/core/blackboard\_bootstrap.py](tree/core/blackboard_bootstrap.py)
-5. [tree/node/base.py](tree/node/base.py)
-6. 当前正在调的那棵树对应的 JSON
-7. 对应的业务节点实现
+1. `tree/server_main.py`
+2. `tree/runtime/http_service/task_http_server.py`
+3. `tree/runtime/http_service/task_manager.py`
+4. `tree/runtime/http_service/task_adapters/`
+5. `tree/core/runner.py`
+6. `tree/core/tree_factory.py`
+7. 当前任务对应的 service tree JSON
+8. 对应 `tree/node/` 里的业务节点

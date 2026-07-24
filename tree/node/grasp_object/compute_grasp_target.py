@@ -1,58 +1,26 @@
 """在当前腰部位姿下计算双手最优抓取目标。"""
 
-import py_trees
-from py_trees.common import Status
-
-from .grasp_target_utils import GraspTargetComputer
-from ..base import TimedMockAction
+from .helper.grasp_compute_base import GraspComputeBase
 
 
-class ComputeGraspTarget(TimedMockAction):
+class ComputeGraspTarget(GraspComputeBase):
     """只使用当前腰部位姿选择双手抓取目标，不做腰部采样。"""
 
-    def __init__(self, name, config_label, ros_node, params):
-        super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
-        self.blackboard = py_trees.blackboard.Client(name=name)
-        self.computer = GraspTargetComputer(
-            config_label=config_label,
-            ros_node=ros_node,
-            blackboard=self.blackboard,
-            params=params,
-        )
+    runtime_code = "GRASP_COMPUTE"
+    runtime_message = "Computing dual-arm grasp target with current torso"
 
-    def update(self):
-        if self.should_use_mock_execution():
-            return self.update_mock_result()
-        if self.should_skip_arm_motion():
-            self.log_skip_arm_motion()
-            return Status.SUCCESS
+    def run_grasp_compute(self):
+        return self.computer.compute_current_torso_target()
 
-        try:
-            self.ros_node.set_live_runtime(
-                self.config_label,
-                "GRASP_COMPUTE",
-                "Computing dual-arm grasp target with current torso",
-            )
-            selected = self.computer.compute_current_torso_target()
-        except Exception as exc:
-            self.feedback_message = str(exc)
-            self.ros_node.clear_live_runtime()
-            self.ros_node.get_logger().error(
-                f"[{self.config_label}] 当前腰部下计算双手抓取目标失败: {exc}"
-            )
-            return Status.FAILURE
-
-        self.ros_node.clear_live_runtime()
+    def log_grasp_success(self, selected):
         sample = selected["sample"]
         self.ros_node.get_logger().info(
             f"[{self.config_label}] 已计算当前腰部双手抓取目标: "
             f"side={selected['arm_side']}, torso={sample['label']}, grasp={selected['grasp_target']}"
         )
-        return Status.SUCCESS
 
-    def terminate(self, new_status):
-        self.ros_node.clear_live_runtime()
-        super().terminate(new_status)
+    def failure_message(self, exc):
+        return f"当前腰部下计算双手抓取目标失败: {exc}"
 
     def describe_start(self):
         return (

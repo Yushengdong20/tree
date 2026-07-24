@@ -75,6 +75,8 @@ struct SearchContext {
   double pregrasp_offset_min_m = 0.12;
   double pregrasp_offset_max_m = 0.18;
   int pregrasp_offset_samples = 5;
+  int arm_begin = 0;
+  int arm_end = 2;
 };
 
 double Clip(double value, double lower, double upper) {
@@ -542,8 +544,9 @@ SearchResult SearchSampleRange(const SearchContext& context,
         fixed_knee_from_waist.inverse() * context.fixed_knee_from_base;
     const Eigen::Matrix4d base_from_map = MatrixAt(context.sample_base, sample_index);
 
-    // 关键步骤：同一 sample 下先穷尽右手候选，再检查左手。
-    for (int arm_priority = 0; arm_priority < 2; ++arm_priority) {
+    // 关键步骤：可按业务阶段限制单侧手臂，both 模式仍保持右手优先。
+    for (int arm_priority = context.arm_begin; arm_priority < context.arm_end;
+         ++arm_priority) {
       for (npy_intp grasp_index = 0; grasp_index < context.grasp_count; ++grasp_index) {
         Eigen::Matrix4d source_grasp_pose = MatrixAt(context.grasp_poses, grasp_index);
         Eigen::Matrix4d base_grasp_pose =
@@ -782,6 +785,7 @@ PyObject* FindGraspTarget(PyObject*, PyObject* args, PyObject* kwargs) {
   int pregrasp_offset_samples = 5;
   int cpp_search_workers = 1;
   int cpp_search_batch_size = 0;
+  const char* allowed_arm_side_c = "both";
 
   static const char* keywords[] = {
       "sample_fixed_knee_from_waist",
@@ -800,16 +804,18 @@ PyObject* FindGraspTarget(PyObject*, PyObject* args, PyObject* kwargs) {
       "pregrasp_offset_samples",
       "cpp_search_workers",
       "cpp_search_batch_size",
+      "allowed_arm_side",
       nullptr,
   };
   if (!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "OOOOOsOdsdd|ddiii", const_cast<char**>(keywords),
+          args, kwargs, "OOOOOsOdsdd|ddiiis", const_cast<char**>(keywords),
           &sample_fixed_obj, &sample_base_obj, &sample_enabled_obj, &sample_chassis_obj,
           &grasp_poses_obj, &poses_frame, &fixed_knee_obj, &grasp_offset_m,
           &model_type_c, &pos_threshold, &angle_threshold,
           &pregrasp_offset_min_m, &pregrasp_offset_max_m, &pregrasp_offset_samples,
           &cpp_search_workers,
-          &cpp_search_batch_size)) {
+          &cpp_search_batch_size,
+          &allowed_arm_side_c)) {
     return nullptr;
   }
 
@@ -871,6 +877,16 @@ PyObject* FindGraspTarget(PyObject*, PyObject* args, PyObject* kwargs) {
     context.pregrasp_offset_min_m = pregrasp_offset_min_m;
     context.pregrasp_offset_max_m = pregrasp_offset_max_m;
     context.pregrasp_offset_samples = pregrasp_offset_samples;
+    const std::string allowed_arm_side(allowed_arm_side_c);
+    if (allowed_arm_side == "right") {
+      context.arm_begin = 0;
+      context.arm_end = 1;
+    } else if (allowed_arm_side == "left") {
+      context.arm_begin = 1;
+      context.arm_end = 2;
+    } else if (allowed_arm_side != "both" && !allowed_arm_side.empty()) {
+      throw std::runtime_error("allowed_arm_side must be right, left or both");
+    }
 
     // 关键步骤：多线程只做纯 C++ 搜索，Python 对象构造保持在主线程。
     const SearchResult search_result =

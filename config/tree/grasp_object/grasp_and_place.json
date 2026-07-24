@@ -193,10 +193,10 @@
               },
               {
                 "name": "SubTree",
-                "label": "抓取单个零件并进入搬运姿态",
+                "label": "优先抓取两个零件并进入搬运姿态",
                 "params": {
                   "file": {
-                    "value": "subtree/grasp_single_part_right_arm.json",
+                    "value": "subtree/grasp_sync_then_up_to_two_parts.json",
                     "source": "CUSTOM"
                   }
                 },
@@ -297,10 +297,10 @@
               },
               {
                 "name": "SubTree",
-                "label": "放置单个零件并复位",
+                "label": "根据持物数量放置零件",
                 "params": {
                   "file": {
-                    "value": "subtree/place_single_part_right_arm.json",
+                    "value": "subtree/place_up_to_two_parts.json",
                     "source": "CUSTOM"
                   }
                 },

@@ -21,7 +21,7 @@ class BehaviorTreeRunnerConfig:
     main.py 会先构造一份默认配置，再由 runner 用它来声明/读取实际参数。
     """
 
-    tree_json_file: str
+    tree_json_file: Optional[str]
     tick_period_ms: int
     enable_web_viewer: bool
     web_viewer_host: str
@@ -71,7 +71,11 @@ class BehaviorTreeRunnerConfig:
     ) -> "BehaviorTreeRunnerConfig":
         """创建一份既能当默认值、又能当运行配置的配置对象。"""
         return cls(
-            tree_json_file=tree_json_file or cls.default_tree_file(ros=ros),
+            tree_json_file=(
+                tree_json_file
+                if tree_json_file is not None
+                else cls.default_tree_file(ros=ros)
+            ),
             tick_period_ms=tick_period_ms,
             enable_web_viewer=enable_web_viewer,
             web_viewer_host=web_viewer_host,

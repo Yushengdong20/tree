@@ -1,0 +1,232 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "HTTP move_box 单次任务流程",
+    "params": {
+      "memory": {
+        "value": "True",
+        "source": "CUSTOM"
+      }
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化 move_box 视觉与控制实例",
+        "params": {
+          "skip_torso_motion": {
+            "value": "False",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "导航到 A 点搜索箱子",
+        "params": {
+          "target_pose_key": {
+            "value": "move_box_navi_pose_find_box",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_topic": {
+            "value": "/move_box/http_navigation_search_markers",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          },
+          "navigation_target_key": {
+            "value": "move_box_navi_pose_find_box_runtime",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "抓箱前导航与底盘对齐",
+        "params": {
+          "file": {
+            "value": "subtree/move_box_yolo_fp_approach.json",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "置位抓取请求",
+        "params": {
+          "key": {
+            "value": "move_box_grasp_requested",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "true",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "直接抓取箱体到闭爪",
+        "params": {
+          "file": {
+            "value": "subtree/move_box_direct_grasp_before_lift.json",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "Parallel",
+        "label": "上提箱体同时预导航到 B",
+        "params": {
+          "policy": {
+            "value": "SuccessOnAll",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "HttpNavigateToPose",
+            "label": "预导航到 B 点",
+            "params": {
+              "target_pose_key": {
+                "value": "move_box_navi_pose_place_box",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_enabled": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_topic": {
+                "value": "/move_box/http_navigation_place_pre_markers",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "odom_topic": {
+                "value": "melon_odom",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              },
+              "navigation_target_key": {
+                "value": "move_box_navi_pose_place_box_runtime",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "SubTree",
+            "label": "上提箱体并回位",
+            "params": {
+              "file": {
+                "value": "subtree/move_box_direct_grasp_lift_restore.json",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "ComputeMoveBoxPlaceNavigationTarget",
+        "label": "根据 C 反算最终放置导航位姿",
+        "params": {
+          "place_bottom_center_key": {
+            "value": "move_box_box_pose_place_center",
+            "source": "CUSTOM"
+          },
+          "target_pose_key": {
+            "value": "move_box_place_navigation_target",
+            "source": "CUSTOM"
+          },
+          "place_standoff_m": {
+            "value": "0.5",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "导航到 C 反算的最终放置站位",
+        "params": {
+          "target_pose_key": {
+            "value": "move_box_place_navigation_target",
+            "source": "CUSTOM"
+          },
+          "chassis_url": {
+            "value": "http://localhost:8081",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_enabled": {
+            "value": "True",
+            "source": "CUSTOM"
+          },
+          "navigation_visualization_topic": {
+            "value": "/move_box/http_navigation_place_final_markers",
+            "source": "CUSTOM"
+          },
+          "navigation_timeout_sec": {
+            "value": "600",
+            "source": "CUSTOM"
+          },
+          "odom_topic": {
+            "value": "melon_odom",
+            "source": "CUSTOM"
+          },
+          "poll_interval_sec": {
+            "value": "0.2",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "置位放置请求",
+        "params": {
+          "key": {
+            "value": "move_box_place_requested",
+            "source": "CUSTOM"
+          },
+          "value": {
+            "value": "true",
+            "source": "CUSTOM"
+          }
+        }
+      },
+      {
+        "name": "SubTree",
+        "label": "按 C/H 放置箱体",
+        "params": {
+          "file": {
+            "value": "subtree/move_box_place_request_flow.json",
+            "source": "CUSTOM"
+          }
+        }
+      }
+    ]
+  }
+}

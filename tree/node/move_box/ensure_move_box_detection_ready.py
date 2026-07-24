@@ -12,7 +12,7 @@ from tree.constants import MAP_FRAME
 from tree.constants import ROBOT_SERVICES_KEY
 from ..base import TimedMockAction
 from .fp_grasp_visualization import clear_marker_array, publish_fp_box_and_targets
-from tree.runtime.http.move_and_grab_flow import post_json
+from tree.utils.chassis_navigation import post_json
 
 
 FOUNDATIONPOSE_RESET_URL = "http://192.168.26.12:13604/foundationpose/reset"

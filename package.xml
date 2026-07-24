@@ -11,6 +11,9 @@
 
   <exec_depend>python3</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend version_gte="2.0">python3-pydantic</exec_depend>
+  <exec_depend>python3-fastapi</exec_depend>
+  <exec_depend>python3-uvicorn</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>py_trees</exec_depend>
   <exec_depend>py_trees_ros</exec_depend>

@@ -1,14 +1,15 @@
 """在执行前复核选中手臂并计算预抓取目标。"""
 
 import py_trees
-from py_trees.common import Status
 
-from .grasp_target_utils import GraspTargetComputer
-from ..base import TimedMockAction
+from .helper.grasp_compute_base import GraspComputeBase
 
 
-class ComputePreGraspTarget(TimedMockAction):
+class ComputePreGraspTarget(GraspComputeBase):
     """基于最终抓取目标计算预抓取目标。"""
+
+    runtime_code = "PREGRASP_COMPUTE"
+    runtime_message = "Computing selected-arm pregrasp target from final grasp target"
 
     def __init__(self, name, config_label, ros_node, params):
         super().__init__(name=name, config_label=config_label, ros_node=ros_node, params=params)
@@ -17,16 +18,9 @@ class ComputePreGraspTarget(TimedMockAction):
         ).strip()
         if not self.pregrasp_pose_key:
             raise ValueError("pregrasp_pose_key 不能为空")
-        self.blackboard = py_trees.blackboard.Client(name=name)
         self.blackboard.register_key(
             key=self.pregrasp_pose_key,
             access=py_trees.common.Access.WRITE,
-        )
-        self.computer = GraspTargetComputer(
-            config_label=config_label,
-            ros_node=ros_node,
-            blackboard=self.blackboard,
-            params=params,
         )
         self.blackboard.register_key(
             key=self.computer.selected_grasp_pose_key,
@@ -49,35 +43,12 @@ class ComputePreGraspTarget(TimedMockAction):
             access=py_trees.common.Access.READ,
         )
 
-    def update(self):
-        if self.should_use_mock_execution():
-            return self.update_mock_result()
-        if self.should_skip_arm_motion():
-            self.log_skip_arm_motion()
-            return Status.SUCCESS
+    def run_grasp_compute(self):
+        self.computer.refresh_selected_grasp_target()
+        return self.computer.compute_pregrasp_target(self.pregrasp_pose_key)
 
-        try:
-            self.ros_node.set_live_runtime(
-                self.config_label,
-                "PREGRASP_COMPUTE",
-                "Computing selected-arm pregrasp target from final grasp target",
-            )
-            self.computer.refresh_selected_grasp_target()
-            self.computer.compute_pregrasp_target(self.pregrasp_pose_key)
-        except Exception as exc:
-            self.feedback_message = str(exc)
-            self.ros_node.clear_live_runtime()
-            self.ros_node.get_logger().error(
-                f"[{self.config_label}] 计算选中手臂预抓取目标失败: {exc}"
-            )
-            return Status.FAILURE
-
-        self.ros_node.clear_live_runtime()
-        return Status.SUCCESS
-
-    def terminate(self, new_status):
-        self.ros_node.clear_live_runtime()
-        super().terminate(new_status)
+    def failure_message(self, exc):
+        return f"计算选中手臂预抓取目标失败: {exc}"
 
     def describe_start(self):
         return (
