@@ -16,6 +16,22 @@
           "skip_torso_motion": {
             "value": "False",
             "source": "CUSTOM"
+          },
+          "left_claw_translation": {
+            "value": "[-0.11, 0.0, 0.02]",
+            "source": "CUSTOM"
+          },
+          "right_claw_translation": {
+            "value": "[-0.11, 0.0, 0.02]",
+            "source": "CUSTOM"
+          },
+          "left_claw_rotation_rpy_deg": {
+            "value": "[0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
+          },
+          "right_claw_rotation_rpy_deg": {
+            "value": "[0.0, 0.0, 0.0]",
+            "source": "CUSTOM"
           }
         }
       },

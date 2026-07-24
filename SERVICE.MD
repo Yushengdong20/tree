@@ -124,6 +124,7 @@ curl http://127.0.0.1:8766/health
   "message": "task server running",
   "endpoints": [
     "/api/start_grasp_and_place",
+    "/api/start_move_box_direct_grasp_place_memory",
     "/api/start_navigation",
     "/api/start_move_box"
   ]
@@ -131,6 +132,44 @@ curl http://127.0.0.1:8766/health
 ```
 
 Endpoint 列表按服务端注册表排序返回，客户端不应依赖固定顺序。
+
+## POST /api/start_move_box_direct_grasp_place_memory
+
+启动 YOLO 记忆版直接抓箱放箱任务。该任务以
+`tree/staring/move_box_full_direct_grasp_place_memory.json` 为业务基线：
+导航到找箱等待区、YOLO/FP 对齐并直接抓取、导航至放置点、按高度放置、
+返回等待区；重复直至达到 `targetCount`。服务树没有 Enter 暂停节点。
+
+启动服务时应使用 `--preload-services move_box`。
+
+### 请求
+
+```http
+POST /api/start_move_box_direct_grasp_place_memory
+Content-Type: application/json
+```
+
+```json
+{
+  "naviPoseFindBox": {"x": 0.84, "y": 4.26, "yaw": -105.02},
+  "validPolygon": [[-1.5, 3.0], [-1.5, -1.3], [3.0, -1.3], [3.0, 3.0]],
+  "naviPosePlaceBox": {"x": 1.84, "y": 4.26, "yaw": 6.3},
+  "heightPlacePlane": 0.7,
+  "targetCount": 1
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `naviPoseFindBox` | Pose2D | 是 | 初始找箱等待区，也是每轮放置后的返回位姿。 |
+| `validPolygon` | PolygonPoint[] | 是 | map 系下允许选择待抓箱的区域，至少 3 点。 |
+| `naviPosePlaceBox` | Pose2D | 是 | 抓箱后导航到的放置站位。 |
+| `heightPlacePlane` | number | 是 | 放置平面高度，按 `base_link` 系解释。 |
+| `targetCount` | integer | 否 | 本次任务完成的箱子数量，默认 `1`，必须不小于 `1`。 |
+
+该接口不使用 `boxPosePlaceCenter`：它保持记忆版树的“到 B 点后原位下降放置”逻辑；若需要 C 点精确反算站位，请使用既有 `/api/start_move_box`。
 
 字段说明：
 

@@ -59,7 +59,7 @@ DEFAULT_TREE_FILE_NAME = "depalletize/move_box_full_dynamic_auto_depalletize.jso
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_full_direct_grasp_palletize.json"
 # 码垛策略版：动态预估箱体，按直接/左推/右推策略执行真实放箱，每步 Enter 确认。
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_palletize_strategy_preview.json"
-DEFAULT_TREE_FILE_NAME = "tree/grasp_object/grasp_and_place.json"
+# DEFAULT_TREE_FILE_NAME = "tree/grasp_object/grasp_and_place.json"
 # HTTP 本地客户端任务入口由 server_main.py 动态加载 service tree，不在普通 main.py 中启用。
 # DEFAULT_TREE_FILE_NAME = "tree/service/move_box/start_move_box.json"
 # enter确认版原地抓箱测试。

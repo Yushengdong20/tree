@@ -63,6 +63,7 @@ python3 -m tree.server_main --preload-services move_box
 
 ```text
 /api/start_move_box
+/api/start_move_box_direct_grasp_place_memory
 /api/start_grasp_and_place
 /api/start_navigation
 ```

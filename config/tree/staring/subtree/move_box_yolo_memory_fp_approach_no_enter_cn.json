@@ -147,7 +147,10 @@
                     ],
                     "source": "CUSTOM"
                   },
-                    
+                  "valid_box_map_polygon_key": {
+                    "value": "move_box_valid_polygon",
+                    "source": "CUSTOM"
+                  },
                   "valid_box_polygon_required": {
                     "value": "False",
                     "source": "CUSTOM"

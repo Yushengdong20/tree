@@ -11,6 +11,9 @@ from tree.ros_interface import create_ros_interface
 from tree.runtime.http_service.task_adapters.grasp_and_place import (
     GraspAndPlaceTaskAdapter,
 )
+from tree.runtime.http_service.task_adapters.direct_grasp_place_memory import (
+    DirectGraspPlaceMemoryTaskAdapter,
+)
 from tree.runtime.http_service.task_adapters.move_box import MoveBoxTaskAdapter
 from tree.runtime.http_service.task_adapters.navigation import NavigationTaskAdapter
 from tree.runtime.http_service.task_http_server import TaskHttpServer
@@ -82,6 +85,10 @@ def build_task_registry(project_root):
         project_root,
         "tree/service/move_box/start_move_box.json",
     )
+    direct_grasp_place_memory_tree = resolve_config_file(
+        project_root,
+        "tree/service/move_box/start_move_box_direct_grasp_place_memory.json",
+    )
     grasp_and_place_tree = resolve_config_file(
         project_root,
         "tree/service/grasp_object/start_grasp_and_place.json",
@@ -98,6 +105,15 @@ def build_task_registry(project_root):
             tree_file=move_box_tree,
             adapter=MoveBoxTaskAdapter(),
             root_label="HTTP move_box 单次任务流程",
+        )
+    )
+    registry.register(
+        TaskDefinition(
+            name="move_box_direct_grasp_place_memory",
+            endpoint="/api/start_move_box_direct_grasp_place_memory",
+            tree_file=direct_grasp_place_memory_tree,
+            adapter=DirectGraspPlaceMemoryTaskAdapter(),
+            root_label="HTTP YOLO记忆直接抓箱放箱单次任务流程",
         )
     )
     registry.register(

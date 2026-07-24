@@ -1,0 +1,210 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "HTTP YOLO记忆直接抓箱放箱单次任务流程",
+    "params": {
+      "memory": {"value": "True", "source": "CUSTOM"}
+    },
+    "childs": [
+      {
+        "name": "EnsureMoveBoxServices",
+        "label": "初始化旧夹爪 move_box 视觉与控制实例",
+        "params": {
+          "skip_torso_motion": {"value": "False", "source": "CUSTOM"},
+          "left_claw_translation": {"value": "[-0.11, 0.0, 0.02]", "source": "CUSTOM"},
+          "right_claw_translation": {"value": "[-0.11, 0.0, 0.02]", "source": "CUSTOM"},
+          "left_claw_rotation_rpy_deg": {"value": "[0.0, 0.0, 0.0]", "source": "CUSTOM"},
+          "right_claw_rotation_rpy_deg": {"value": "[0.0, 0.0, 0.0]", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "HttpNavigateToPose",
+        "label": "导航到 HTTP 指定等待区搜索箱子",
+        "params": {
+          "target_pose_key": {"value": "move_box_navi_pose_find_box", "source": "CUSTOM"},
+          "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
+          "navigation_visualization_enabled": {"value": "True", "source": "CUSTOM"},
+          "navigation_visualization_topic": {"value": "/move_box/http_navigation_direct_memory_find_markers", "source": "CUSTOM"},
+          "navigation_timeout_sec": {"value": "600", "source": "CUSTOM"},
+          "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+          "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
+          "navigation_target_key": {"value": "move_box_direct_memory_find_navigation_target", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "RepeatUntilBlackboardNumber",
+        "label": "循环直接抓箱放箱直到 HTTP 指定数量",
+        "params": {
+          "left_key": {"value": "move_box_direct_memory_done_count", "source": "CUSTOM"},
+          "operator": {"value": ">=", "source": "CUSTOM"},
+          "right_key": {"value": "move_box_direct_memory_target_count", "source": "CUSTOM"}
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "YOLO记忆单轮直接抓箱放箱",
+            "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+            "childs": [
+              {
+                "name": "SubTree",
+                "label": "YOLO记忆粗靠近与 FoundationPose 精靠近",
+                "params": {"file": {"value": "../../staring/subtree/move_box_yolo_memory_fp_approach_no_enter_cn.json", "source": "CUSTOM"}}
+              },
+              {
+                "name": "SetBlackboardValue",
+                "label": "置位直接抓取请求",
+                "params": {
+                  "key": {"value": "move_box_grasp_requested", "source": "CUSTOM"},
+                  "value": {"value": true, "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "SubTree",
+                "label": "直接抓取箱体到闭爪",
+                "params": {"file": {"value": "../../staring/subtree/move_box_direct_grasp_before_lift_no_enter_memory_cn.json", "source": "CUSTOM"}}
+              },
+              {
+                "name": "Parallel",
+                "label": "上提箱体同时前往 HTTP 指定放置点",
+                "params": {"policy": {"value": "SuccessOnAll", "source": "CUSTOM"}},
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "导航到 HTTP 指定放置点",
+                    "params": {
+                      "target_pose_key": {"value": "move_box_navi_pose_place_box", "source": "CUSTOM"},
+                      "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
+                      "navigation_visualization_enabled": {"value": "True", "source": "CUSTOM"},
+                      "navigation_visualization_topic": {"value": "/move_box/http_navigation_direct_memory_place_markers", "source": "CUSTOM"},
+                      "navigation_timeout_sec": {"value": "600", "source": "CUSTOM"},
+                      "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+                      "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
+                      "navigation_target_key": {"value": "move_box_direct_memory_place_navigation_target", "source": "CUSTOM"}
+                    }
+                  },
+                  {
+                    "name": "SubTree",
+                    "label": "上提箱体并回位",
+                    "params": {"file": {"value": "../../staring/subtree/move_box_direct_grasp_lift_restore_no_enter_cn.json", "source": "CUSTOM"}}
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "接近放置点后调整躯干到 HTTP 放置高度",
+                    "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+                    "childs": [
+                      {
+                        "name": "WaitUntilNearNavigationGoal",
+                        "label": "监听接近 HTTP 放置点",
+                        "params": {
+                          "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+                          "target_key": {"value": "move_box_direct_memory_place_navigation_target", "source": "CUSTOM"},
+                          "distance_threshold": {"value": "0.6", "source": "CUSTOM"}
+                        }
+                      },
+                      {
+                        "name": "ComputeMoveBoxTorsoToPlaceHeightPose",
+                        "label": "根据 HTTP 放置平面计算躯干目标",
+                        "params": {
+                          "place_plane_height_key": {"value": "move_box_height_place_plane", "source": "CUSTOM"},
+                          "place_plane_frame": {"value": "base_link", "source": "CUSTOM"},
+                          "place_torso_height_offset": {"value": "0.4", "source": "CUSTOM"},
+                          "place_torso_min_height": {"value": "0.6", "source": "CUSTOM"},
+                          "place_torso_max_height": {"value": "1.4", "source": "CUSTOM"},
+                          "place_torso_x": {"value": "0.5", "source": "CUSTOM"},
+                          "target_pose_key": {"value": "move_box_direct_memory_place_torso_pose", "source": "CUSTOM"}
+                        }
+                      },
+                      {
+                        "name": "MoveTorsoPose",
+                        "label": "调整躯干到放置高度",
+                        "params": {
+                          "pose_key": {"value": "move_box_direct_memory_place_torso_pose", "source": "CUSTOM"},
+                          "wait_done": {"value": "True", "source": "CUSTOM"},
+                          "skip_torso_motion": {"value": "False", "source": "CUSTOM"}
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "ComputeMoveBoxPlaceTargets",
+                "label": "根据 HTTP 放置平面计算双夹爪下降目标",
+                "params": {
+                  "place_plane_height_key": {"value": "move_box_height_place_plane", "source": "CUSTOM"},
+                  "place_plane_frame": {"value": "base_link", "source": "CUSTOM"},
+                  "box_size_z": {"value": "0.34", "source": "CUSTOM"},
+                  "left_target_key": {"value": "move_box_direct_memory_place_left_lower_claw_point", "source": "CUSTOM"},
+                  "right_target_key": {"value": "move_box_direct_memory_place_right_lower_claw_point", "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "ArmsToPose",
+                "label": "双夹爪下降到 HTTP 放置高度",
+                "params": {
+                  "target_type": {"value": "claw_point", "source": "CUSTOM"},
+                  "pose_frame": {"value": "base_link", "source": "CUSTOM"},
+                  "left_point_key": {"value": "move_box_direct_memory_place_left_lower_claw_point", "source": "CUSTOM"},
+                  "right_point_key": {"value": "move_box_direct_memory_place_right_lower_claw_point", "source": "CUSTOM"},
+                  "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "OpenClaw",
+                "label": "张开双夹爪释放箱体",
+                "params": {"side": {"value": "both", "source": "CUSTOM"}}
+              },
+              {
+                "name": "IncrementBlackboardValue",
+                "label": "HTTP 已完成搬箱数量加一",
+                "params": {
+                  "key": {"value": "move_box_direct_memory_done_count", "source": "CUSTOM"},
+                  "step": {"value": "1", "source": "CUSTOM"},
+                  "default_value": {"value": "0", "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "Parallel",
+                "label": "回 HTTP 等待区并恢复抓取预备姿态",
+                "params": {"policy": {"value": "SuccessOnAll", "source": "CUSTOM"}},
+                "childs": [
+                  {
+                    "name": "HttpNavigateToPose",
+                    "label": "回 HTTP 指定等待区",
+                    "params": {
+                      "target_pose_key": {"value": "move_box_navi_pose_find_box", "source": "CUSTOM"},
+                      "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
+                      "navigation_visualization_enabled": {"value": "True", "source": "CUSTOM"},
+                      "navigation_visualization_topic": {"value": "/move_box/http_navigation_direct_memory_return_markers", "source": "CUSTOM"},
+                      "navigation_timeout_sec": {"value": "600", "source": "CUSTOM"},
+                      "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+                      "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
+                      "navigation_target_key": {"value": "move_box_direct_memory_return_navigation_target", "source": "CUSTOM"}
+                    }
+                  },
+                  {
+                    "name": "SubTree",
+                    "label": "回抓取预备姿态",
+                    "params": {"file": {"value": "../../staring/subtree/move_box_return_to_grasp_ready_common_memory_cn.json", "source": "CUSTOM"}}
+                  }
+                ]
+              },
+              {
+                "name": "MoveBoxSelectNextMemoryBox",
+                "label": "选择下一记忆箱子",
+                "params": {
+                  "box_memory_key": {"value": "move_box_box_memory", "source": "CUSTOM"},
+                  "current_box_target_key": {"value": "move_box_current_box_target", "source": "CUSTOM"},
+                  "finished_box_targets_key": {"value": "move_box_finished_box_targets", "source": "CUSTOM"},
+                  "valid_box_map_polygon_key": {"value": "move_box_valid_polygon", "source": "CUSTOM"},
+                  "valid_box_polygon_required": {"value": "True", "source": "CUSTOM"},
+                  "enable_colored_log": {"value": "True", "source": "CUSTOM"}
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

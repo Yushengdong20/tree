@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from tree.runtime.http_service.models import (
+    DirectGraspPlaceMemoryRequestModel,
     GraspAndPlaceRequestModel,
     HealthResponseModel,
     MoveBoxRequestModel,
@@ -225,6 +226,27 @@ class TaskHttpServer:
                     "/api/start_move_box",
                     payload.model_dump(),
                 )
+            except Exception as exc:
+                return StartTaskResponseModel(
+                    success=False,
+                    taskId="",
+                    status="REJECTED",
+                    message=str(exc),
+                )
+
+        @app.post(
+            "/api/start_move_box_direct_grasp_place_memory",
+            response_model=StartTaskResponseModel,
+        )
+        async def start_move_box_direct_grasp_place_memory(
+            request: Request,
+            payload: DirectGraspPlaceMemoryRequestModel,
+        ):
+            """启动基于 YOLO 记忆的有限次数直接抓箱放箱任务。"""
+            endpoint = "/api/start_move_box_direct_grasp_place_memory"
+            try:
+                _log_task_api_request(task_manager, request, endpoint, payload)
+                return task_manager.start_task_by_endpoint(endpoint, payload.model_dump())
             except Exception as exc:
                 return StartTaskResponseModel(
                     success=False,

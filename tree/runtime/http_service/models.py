@@ -109,6 +109,50 @@ class MoveBoxRequestModel(BaseModel):
         return value
 
 
+class DirectGraspPlaceMemoryRequestModel(BaseModel):
+    """基于 YOLO 记忆的直接抓箱放箱 HTTP 请求模型。
+
+    与 ``MoveBoxRequestModel`` 的 C 点精确放置不同，此任务沿用
+    ``move_box_full_direct_grasp_place_memory`` 的业务逻辑：机器人从 A 点
+    搜箱、通过 YOLO/FP 对齐直接抓取，再导航到 B 点按指定高度放置，并
+    返回 A 点继续下一轮。
+    """
+
+    naviPoseFindBox: Pose2DModel
+    validPolygon: List[PolygonPointModel]
+    naviPosePlaceBox: Pose2DModel
+    heightPlacePlane: float
+    targetCount: int = 1
+
+    @field_validator("heightPlacePlane", mode="before")
+    @classmethod
+    def validate_height_place_plane(cls, value):
+        return parse_number(value, "heightPlacePlane")
+
+    @field_validator("targetCount", mode="before")
+    @classmethod
+    def validate_target_count(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("targetCount must be an integer")
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            raise ValueError("targetCount must be an integer")
+        if not numeric.is_integer() or numeric < 1:
+            raise ValueError("targetCount must be greater than or equal to 1")
+        return int(numeric)
+
+    @field_validator("validPolygon", mode="before")
+    @classmethod
+    def normalize_valid_polygon(cls, value):
+        return MoveBoxRequestModel.normalize_valid_polygon(value)
+
+    @field_validator("validPolygon")
+    @classmethod
+    def validate_valid_polygon(cls, value):
+        return MoveBoxRequestModel.validate_valid_polygon(value)
+
+
 class GraspAndPlaceRequestModel(BaseModel):
     """start_grasp_and_place 请求模型。"""
 

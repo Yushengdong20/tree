@@ -105,6 +105,14 @@
                   "valid_box_polygon_required": {
                     "value": "True",
                     "source": "CUSTOM"
+                  },
+                  "allowed_class_ids": {
+                    "value": [
+                      0,
+                      1,
+                      2
+                    ],
+                    "source": "CUSTOM"
                   }
                 }
               }

@@ -99,6 +99,7 @@ GET  /health
 GET  /api/task_status?taskId=<taskId>
 POST /api/start_grasp_and_place
 POST /api/start_move_box
+POST /api/start_move_box_direct_grasp_place_memory
 POST /api/start_navigation
 ```
 
@@ -181,6 +182,25 @@ heightPlacePlane    -> move_box_height_place_plane
 ```
 
 `--preload-services move_box` 会在 server 启动时预初始化搬箱视觉与控制实例，ArmController 的 `target_frame` 为 `base_link`。
+
+## move_box 记忆版直接抓放 Server 行为
+
+service 树：
+
+```text
+config/tree/service/move_box/start_move_box_direct_grasp_place_memory.json
+```
+
+HTTP 入口：
+
+```text
+POST /api/start_move_box_direct_grasp_place_memory
+```
+
+该服务以 `tree/staring/move_box_full_direct_grasp_place_memory.json` 为基线，
+由 HTTP 指定找箱/返回位姿、有效选箱区域、放置站位、放置平面高度与有限执行数量。
+它保留 YOLO 记忆、YOLO/FP 两级靠近、直接抓取、上提、放置和回等待区流程，
+但移除了测试用 Enter 暂停和无限循环。协议见 `SERVICE.MD`。
 
 ## 码垛任务
 
