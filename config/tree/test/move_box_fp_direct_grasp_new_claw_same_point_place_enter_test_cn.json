@@ -1,7 +1,7 @@
 {
   "tree": {
     "name": "Sequence",
-    "label": "FoundationPose新夹爪原地直接抓箱逐步测试",
+    "label": "FoundationPose新夹爪原地抓取原点放回逐步测试",
     "params": {
       "memory": {
         "value": "True",
@@ -252,40 +252,18 @@
         }
       },
       {
-        "name": "ComputeMoveBoxPlaceTargets",
-        "label": "计算双夹爪放置下降目标",
-        "params": {
-          "place_plane_height": {
-            "value": "0.7",
-            "source": "CUSTOM"
-          },
-          "box_size_z": {
-            "value": "0.34",
-            "source": "CUSTOM"
-          },
-          "left_target_key": {
-            "value": "move_box_place_left_lower_claw_point",
-            "source": "CUSTOM"
-          },
-          "right_target_key": {
-            "value": "move_box_place_right_lower_claw_point",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
         "name": "WaitForEnter",
-        "label": "确认10：下降到给定放置高度",
+        "label": "确认10：回原抓取夹持点放回箱体",
         "params": {
           "message": {
-            "value": "箱体已上提。确认放置平面安全后，按 Enter 按给定高度下降放置...",
+            "value": "箱体已上提。确认原抓取位置安全后，按 Enter 回到原夹持点放回箱体...",
             "source": "CUSTOM"
           }
         }
       },
       {
         "name": "ArmsToPose",
-        "label": "双爪同步下降到放置高度",
+        "label": "双爪同步下降回原抓取夹持点",
         "params": {
           "target_type": {
             "value": "claw_point",
@@ -296,11 +274,11 @@
             "source": "CUSTOM"
           },
           "left_point_key": {
-            "value": "move_box_place_left_lower_claw_point",
+            "value": "move_box_new_claw_left_clamp",
             "source": "CUSTOM"
           },
           "right_point_key": {
-            "value": "move_box_place_right_lower_claw_point",
+            "value": "move_box_new_claw_right_clamp",
             "source": "CUSTOM"
           },
           "claw_ypr": {
@@ -323,10 +301,10 @@
       },
       {
         "name": "WaitForEnter",
-        "label": "确认11：张开夹爪释放箱体",
+        "label": "确认11：原位张开夹爪释放箱体",
         "params": {
           "message": {
-            "value": "箱体已下降到给定放置高度。确认箱体已有支撑后，按 Enter 张开双夹爪释放...",
+            "value": "箱体已回到原夹持点。确认箱体已有支撑后，按 Enter 张开双夹爪释放...",
             "source": "CUSTOM"
           }
         }
@@ -346,40 +324,18 @@
         }
       },
       {
-        "name": "ComputeMoveBoxNewClawReleaseTargets",
-        "label": "按当前实际夹爪位置计算松爪后侧向避让点",
-        "params": {
-          "grasp_pair_key": {
-            "value": "move_box_latest_grasp_pair",
-            "source": "CUSTOM"
-          },
-          "new_claw_release_retract_offset_m": {
-            "value": "0.06",
-            "source": "CUSTOM"
-          },
-          "left_target_key": {
-            "value": "move_box_new_claw_left_release_retract",
-            "source": "CUSTOM"
-          },
-          "right_target_key": {
-            "value": "move_box_new_claw_right_release_retract",
-            "source": "CUSTOM"
-          }
-        }
-      },
-      {
         "name": "WaitForEnter",
-        "label": "确认12：双臂张开避开箱体",
+        "label": "确认12：双臂退回两侧预抓位",
         "params": {
           "message": {
-            "value": "夹爪已张开。确认箱体已释放后，按 Enter 让双臂向两侧张开并避开箱体...",
+            "value": "夹爪已张开。确认箱体已释放后，按 Enter 让双臂退回两侧预抓位...",
             "source": "CUSTOM"
           }
         }
       },
       {
         "name": "ArmsToPose",
-        "label": "双臂张开回到两侧预抓位",
+        "label": "双臂退回两侧预抓位",
         "params": {
           "target_type": {
             "value": "claw_point",
@@ -390,11 +346,11 @@
             "source": "CUSTOM"
           },
           "left_point_key": {
-            "value": "move_box_new_claw_left_release_retract",
+            "value": "move_box_new_claw_left_pregrasp",
             "source": "CUSTOM"
           },
           "right_point_key": {
-            "value": "move_box_new_claw_right_release_retract",
+            "value": "move_box_new_claw_right_pregrasp",
             "source": "CUSTOM"
           },
           "claw_ypr": {
@@ -470,3 +426,4 @@
     ]
   }
 }
+
