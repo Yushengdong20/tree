@@ -262,7 +262,7 @@
           "box_size_z": {"value": "0.34", "source": "CUSTOM"},
           "slot_gap_x": {"value": "0.00", "source": "CUSTOM"},
           "slot_gap_y": {"value": "0.00", "source": "CUSTOM"},
-          "place_clearance_z": {"value": "-0.08", "source": "CUSTOM"},
+          "place_clearance_z": {"value": "-0.12", "source": "CUSTOM"},
           "place_box_forward_offset_m": {"value": "0.90", "source": "CUSTOM"},
           "navigation_approach_mode": {"value": "two_sided_feasible", "source": "CUSTOM"},
           "navigation_pallet_clearance_m": {"value": "0.10", "source": "CUSTOM"},
@@ -328,7 +328,7 @@
       {
         "name": "SubTree",
         "label": "逐步确认按码垛策略执行放箱",
-        "params": {"file": {"value": "subtree/pallet_place/move_box_pallet_place_execute_strategy.json", "source": "CUSTOM"}}
+        "params": {"file": {"value": "subtree/pallet_place/move_box_pallet_place_execute_direct_fp_xy_yaw_repeat.json", "source": "CUSTOM"}}
       },
       {
         "name": "RefreshFpAndReportPalletPlaceError",
