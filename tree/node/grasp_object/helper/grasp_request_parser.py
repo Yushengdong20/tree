@@ -6,8 +6,8 @@ import numpy as np
 
 from tree.constants import BASE_LINK_FRAME
 from tree.utils.geometry import (
-    lookup_base_from_map_via_chassis,
-    lookup_map_from_source_via_chassis,
+    base_from_map_matrix_via_melon_odom,
+    map_from_source_matrix_via_melon_odom,
     lookup_transform_matrix,
 )
 from .grasp_request_errors import NoGraspObjectError
@@ -59,38 +59,39 @@ class GraspObjectPayloadParser:
         return target_grasp_poses
 
     def _lookup_target_from_source(self, target_frame, source_frame):
-        """查询 target_frame<-source_frame；map/base 关系统一通过 melon_odom 中转。"""
+        """查询 target_frame<-source_frame；map/base 关系统一通过 melon_odom topic。"""
         if target_frame == source_frame:
             return np.eye(4)
         if target_frame == self.map_frame:
-            return lookup_map_from_source_via_chassis(
+            odom_msg = self._latest_odom_for_map_base_transform()
+            return map_from_source_matrix_via_melon_odom(
                 self._get_tf_listener(),
                 self.ros_node,
+                odom_msg,
                 source_frame,
                 map_frame=self.map_frame,
                 base_frame=BASE_LINK_FRAME,
-                chassis_frame=self.chassis_frame,
                 timeout=self.tf_timeout_sec,
             )
         if target_frame == BASE_LINK_FRAME and source_frame == self.map_frame:
-            return lookup_base_from_map_via_chassis(
-                self._get_tf_listener(),
-                self.ros_node,
+            odom_msg = self._latest_odom_for_map_base_transform()
+            return base_from_map_matrix_via_melon_odom(
+                odom_msg,
                 map_frame=self.map_frame,
-                chassis_frame=self.chassis_frame,
-                timeout=self.tf_timeout_sec,
+                base_frame=BASE_LINK_FRAME,
             )
         return self._lookup_transform_matrix(target_frame, source_frame)
 
     def _convert_grasp_poses_to_map_frame(self, camera_grasp_poses, source_frame):
-        """通过 melon_odom 分段构造 map 抓取位姿，避免直接查询 map 到 base_link 的整链 TF。"""
-        map_from_source = lookup_map_from_source_via_chassis(
+        """通过 melon_odom topic 分段构造 map 抓取位姿，避免直接查询 map 到 base_link 的整链 TF。"""
+        odom_msg = self._latest_odom_for_map_base_transform()
+        map_from_source = map_from_source_matrix_via_melon_odom(
             self._get_tf_listener(),
             self.ros_node,
+            odom_msg,
             source_frame,
             map_frame=self.map_frame,
             base_frame=BASE_LINK_FRAME,
-            chassis_frame=self.chassis_frame,
             timeout=self.tf_timeout_sec,
         )
         map_grasp_poses = []
@@ -98,17 +99,24 @@ class GraspObjectPayloadParser:
             map_grasp_pose = map_from_source @ grasp_pose
             source_position = grasp_pose[:3, 3]
             map_position = map_grasp_pose[:3, 3]
-            # 关键步骤：map 下位姿按 map<-melon_odom 与 base_link<-source_frame 分段组合得到。
+            # 关键步骤：map 下位姿按 odom topic 的 map<-base_link 与 base_link<-source_frame 分段组合得到。
             self.ros_node.get_logger().info(
                 f"[{self.config_label}] 第 {index + 1} 个 map grasp pose: "
                 f"{source_frame}(x={source_position[0]:.4f}, "
                 f"y={source_position[1]:.4f}, z={source_position[2]:.4f}), "
                 f"{self.map_frame}(x={map_position[0]:.4f}, "
                 f"y={map_position[1]:.4f}, z={map_position[2]:.4f}), "
-                f"via={self.chassis_frame}"
+                f"via_odom_topic={self.odom_topic}"
             )
             map_grasp_poses.append(map_grasp_pose)
         return map_grasp_poses
+
+    def _latest_odom_for_map_base_transform(self):
+        """读取最新 odom 消息，所有 map/base 世界位姿转换都依赖 melon_odom topic。"""
+        odom_msg = self.odom_transformer.get_latest_odom()
+        if odom_msg is None:
+            raise RuntimeError(f"等待 odom 数据: topic={self.odom_topic}")
+        return odom_msg
 
     def _build_sorted_grasp_objects(self, payload, source_frame):
         objects = payload.get("objects")
@@ -297,4 +305,3 @@ class GraspObjectPayloadParser:
         if tf_listener is None:
             raise RuntimeError(f"services 中没有可用的 tf_listener: key={self.services_key}")
         return tf_listener
-

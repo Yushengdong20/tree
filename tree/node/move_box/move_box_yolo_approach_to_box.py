@@ -1119,7 +1119,7 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
                     "yellow",
                 )
                 return None
-        map_from_base = self._map_from_odom_message(odom_msg)
+        map_from_base = self._map_from_base_matrix_via_melon_odom(odom_msg)
         return base_from_source, tf_trans.concatenate_matrices(map_from_base, base_from_source)
 
     def _lookup_transform_matrix(self, target_frame, source_frame):
@@ -1147,7 +1147,8 @@ class MoveBoxYoloApproachToBox(TimedMockAction):
         return [float(transformed[0]), float(transformed[1]), float(transformed[2])]
 
     @staticmethod
-    def _map_from_odom_message(odom_msg):
+    def _map_from_base_matrix_via_melon_odom(odom_msg):
+        """从 melon_odom msg 的 base_link pose 构造 ``map <- base_link`` 矩阵。"""
         odom_position = odom_msg.pose.pose.position
         odom_orientation = odom_msg.pose.pose.orientation
         return tf_trans.concatenate_matrices(

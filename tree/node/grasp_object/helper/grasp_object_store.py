@@ -397,7 +397,7 @@ class GraspObjectStore:
                 BASE_LINK_FRAME,
                 WAIST_YAW_LINK_FRAME,
             )
-            base_from_map = self._lookup_base_from_map_via_chassis()
+            base_from_map = self._base_from_map_matrix_via_melon_odom()
             # 关键步骤：用当前真实腰部 TF 构造 sample，只重选当前物体候选，不推进物体游标。
             current_fixed_knee_from_waist = fixed_knee_from_base @ base_from_waist
             current_sample = self._current_torso_sample(current_fixed_knee_from_waist)
@@ -707,4 +707,3 @@ class GraspObjectStore:
         selected["pregrasp_target"] = pregrasp_target
         selected["pregrasp_offset_m"] = pregrasp_offset_m
         return True
-

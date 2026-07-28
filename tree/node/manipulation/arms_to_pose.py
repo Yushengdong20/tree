@@ -1157,32 +1157,18 @@ class ArmsToPose(TimedMockAction):
 
         odom_msg = self.odom_transformer.get_latest_odom()
         if odom_msg is not None:
-            map_from_base = self._map_from_odom_message(odom_msg)
+            map_from_base = self._map_from_base_matrix_via_melon_odom(odom_msg)
             return self._transform_pose_by_matrix(map_from_base, pose)
 
-        if self.arm_controller is None:
-            return None
-        try:
-            translation, quaternion = self.arm_controller.tf_listener.lookupTransform(
-                MAP_FRAME,
-                BASE_LINK_FRAME,
-                rospy.Time(0),
-            )
-        except Exception as exc:
-            self.ros_node.get_logger().warning(
-                f"[{self.config_label}] 夹爪诊断无法转换 {BASE_LINK_FRAME}->{MAP_FRAME}: {exc}"
-            )
-            return None
-
-        transform = tf_trans.concatenate_matrices(
-            tf_trans.translation_matrix(translation),
-            tf_trans.quaternion_matrix(quaternion),
+        self.ros_node.get_logger().warning(
+            f"[{self.config_label}] 夹爪诊断等待 odom 数据，无法转换 "
+            f"{BASE_LINK_FRAME}->{MAP_FRAME}: topic={self.odom_topic}"
         )
-        return self._transform_pose_by_matrix(transform, pose)
+        return None
 
     @staticmethod
-    def _map_from_odom_message(odom_msg):
-        """从 odom.pose 构造 ``map <- base_link``，与选箱节点保持一致。"""
+    def _map_from_base_matrix_via_melon_odom(odom_msg):
+        """从 melon_odom msg 的 base_link pose 构造 ``map <- base_link`` 矩阵。"""
         odom_position = odom_msg.pose.pose.position
         odom_orientation = odom_msg.pose.pose.orientation
         return tf_trans.concatenate_matrices(

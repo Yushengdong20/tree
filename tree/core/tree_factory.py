@@ -199,14 +199,26 @@ class BehaviorTreeFactory:
             f"tree.node.mock.{module_name}",
         ]
         last_error = None
+        # 不能只保留最后一个候选模块的异常：若真正业务模块存在、但其内部依赖
+        # 导入失败，后续 mock 候选的“模块不存在”会把关键信息覆盖掉。
+        meaningful_errors = []
         for module_path in candidate_modules:
             try:
                 module = importlib.import_module(module_path)
                 return getattr(module, class_name)
             except (ImportError, AttributeError) as exc:
                 last_error = exc
+                if isinstance(exc, ModuleNotFoundError) and exc.name == module_path:
+                    # 这是正常的候选目录不存在，继续尝试下一目录。
+                    continue
+                meaningful_errors.append((module_path, exc))
+        if meaningful_errors:
+            module_path, error = meaningful_errors[0]
+            detail = f"actual import error in {module_path}: {error}"
+        else:
+            detail = str(last_error)
         raise ImportError(
-            f"Unable to load leaf node {class_name} from {candidate_modules}: {last_error}"
+            f"Unable to load leaf node {class_name} from {candidate_modules}: {detail}"
         )
 
     @staticmethod

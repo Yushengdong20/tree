@@ -24,7 +24,7 @@ from kuavo_humanoid_sdk.common.yolo_boxes import (
 )
 
 from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
-from tree.utils.geometry import lookup_target_from_source_via_chassis
+from tree.utils.geometry import lookup_transform_matrix_via_melon_odom
 
 from ..base import TimedMockAction
 
@@ -117,6 +117,12 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         self.debug_frame = str(params.get("debug_frame", "")).strip()
         # melon_odom 是底盘在 map 下的实时位姿；默认认为 melon_odom 与 base_link 重合。
         self.chassis_frame = str(params.get("chassis_frame", CHASSIS_FRAME)).strip()
+        self.odom_topic = str(params.get("odom_topic", self.chassis_frame)).strip()
+        self.odom_transformer = self.get_odom_pose_transformer(
+            odom_topic=self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame=BASE_LINK_FRAME,
+        )
 
         # ROS 订阅只缓存最新消息，不在回调线程里做 TF 查询或真机控制。
         self.latest_msg = None
@@ -328,7 +334,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         source_point_msg = self._build_target_point_msg(nearest_pose, source_frame)
         if self.control_frame == MAP_FRAME and source_frame == head_controller.head_frame:
             # 关键路径：camera 点 -> map 点。
-            # 不直接查 map->camera 整链 TF，而是分段组合 map->melon_odom 与 base_link->camera。
+            # 不直接查 map->camera 整链 TF，而是用 odom topic 的 map<-base 加本体 TF 的 base<-camera。
             target_to_head = self._build_split_tf_target_to_head(
                 head_controller,
                 self.control_frame,
@@ -630,20 +636,23 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         )
 
     def _sample_chassis_yaw_rate(self, head_controller):
-        """采样底盘在 control_frame 下的 yaw 速率，用于判断是否降低锁点更新 alpha。
+        """从 odom topic 采样底盘 yaw 速率，用于判断是否降低锁点更新 alpha。
 
-        这里只关心底盘是否正在快速转向，不参与头部角度求解。若 TF 查询失败，
+        这里只关心底盘是否正在快速转向，不参与头部角度求解。若 odom 暂无数据，
         返回 None，锁点更新会继续依赖 residual 门控。
         """
-        chassis_matrix = self._lookup_transform_matrix(
-            head_controller,
-            target_frame=self.control_frame,
-            source_frame=self.chassis_frame,
-        )
-        if chassis_matrix is None:
+        odom_msg = self.odom_transformer.get_latest_odom()
+        if odom_msg is None:
             return None
 
-        yaw_deg = math.degrees(tf_trans.euler_from_matrix(chassis_matrix)[2])
+        orientation = odom_msg.pose.pose.orientation
+        quaternion = [
+            float(orientation.x),
+            float(orientation.y),
+            float(orientation.z),
+            float(orientation.w),
+        ]
+        yaw_deg = math.degrees(tf_trans.euler_from_quaternion(quaternion)[2])
         now = time.monotonic()
         if self._last_chassis_yaw_deg is None or self._last_chassis_yaw_time is None:
             self._last_chassis_yaw_deg = yaw_deg
@@ -682,7 +691,7 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
 
         注意：这里不参与头部控制，只读取与控制同源的 YOLO 目标和实机 TF。
         可视化默认画在 YOLO source_frame 下；如果配置 debug_frame=map，
-        则会优先按 map<-melon_odom 与 base_link<-camera 分段组合显示，
+        则会优先按 odom topic 的 map<-base 与 base_link<-camera 分段组合显示，
         避免直接依赖不稳定或不连通的 map<-camera 整链 TF。
         """
         if not self.debug_enabled:
@@ -803,41 +812,48 @@ class MoveBoxTrackHeadToYoloBox(TimedMockAction):
         )
 
     def _build_split_tf_target_to_head(self, head_controller, target_frame):
-        """分段构造 T_target_head，用于稳定获得 camera/head_frame 在 target_frame 下的位姿。
+        """用 odom topic 分段构造 T_target_head，获得 camera/head_frame 在 target_frame 下的位姿。
 
         camera 到 map 不能直接连通或 latest 时间不一致时，直接 transformPoint
-        会失败或跳变。这里复用盯 map 点节点的思路，避开整链 TF 的时间戳问题：
-        1. 查 T_map_melon_odom：底盘在 map 下的实时位姿。
+        会失败或跳变。这里避开整链 TF 的时间戳问题：
+        1. 从 melon_odom topic 读取 T_map_base：底盘在 map 下的实时位姿。
         2. 查 T_base_link_camera：camera 相对机器人本体 base_link 的姿态。
-        3. 假设 melon_odom 与 base_link 重合，组合：
-           T_map_camera = T_map_melon_odom * T_base_link_camera
+        3. 组合 T_map_camera = T_map_base * T_base_link_camera
 
         该矩阵会用于两处：
         - control_mode=latched_map_target 时，把锁定的 map 目标重投影到当前 camera 下控制头部。
         - RViz Marker 中，在 map 下画出目标点、camera 原点、camera x 轴和连线。
         """
+        odom_msg = self.odom_transformer.get_latest_odom()
+        if odom_msg is None:
+            self._log_throttled(
+                "failure",
+                f"[{self.config_label}] 等待 odom 数据，无法构造 {target_frame} <- "
+                f"{head_controller.head_frame}: topic={self.odom_topic}",
+            )
+            return None
         try:
-            return lookup_target_from_source_via_chassis(
+            return lookup_transform_matrix_via_melon_odom(
                 head_controller.tf_listener,
                 self.ros_node,
+                odom_msg,
                 target_frame,
                 head_controller.head_frame,
+                map_frame=MAP_FRAME,
                 base_frame=head_controller.base_frame,
-                chassis_frame=self.chassis_frame,
                 timeout=head_controller.tf_timeout,
             )
         except Exception as err:
             self._log_throttled(
                 "failure",
-                f"[{self.config_label}] 分段查询 {head_controller.head_frame} -> "
+                f"[{self.config_label}] 通过 odom topic 分段转换 {head_controller.head_frame} -> "
                 f"{target_frame} 失败: {err}",
             )
             return None
 
     def _lookup_transform_matrix(self, head_controller, target_frame, source_frame):
         """查询 T_target_source 矩阵，将 source_frame 下的点转换到 target_frame。"""
-        # rospy.Time(0) 表示取 TF 缓存中最新可用变换；这里为了避开整链时间戳不齐，
-        # 只查短链 map->melon_odom 和 base_link->camera。
+        # 关键步骤：这里仅用于本体内部短链或非默认兼容路径，默认 map/base 世界位姿由 odom topic 提供。
         latest_tf_time = self.ros_node.zero_time()
         try:
             head_controller.tf_listener.waitForTransform(

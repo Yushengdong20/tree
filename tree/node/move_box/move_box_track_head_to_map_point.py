@@ -10,7 +10,7 @@ from py_trees.common import Status
 from visualization_msgs.msg import Marker
 
 from tree.constants import CHASSIS_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
-from tree.utils.geometry import lookup_target_from_source_via_chassis
+from tree.utils.geometry import lookup_transform_matrix_via_melon_odom
 
 from ..base import TimedMockAction
 
@@ -20,8 +20,8 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
 
     控制链路有两种模式：
     - tf: 直接复用 HeadController.turn_to_target()，由 TF 查询 target_frame -> camera。
-    - split_tf: 分开查询 target_frame -> chassis_frame 与 base_frame -> camera，
-      再自己组合成 target_frame -> camera，避开整条 TF 链 latest 时间不一致导致的跳变。
+    - split_tf: 用 odom topic 提供 target_frame <- base_frame，TF 只查 base_frame <- camera，
+      再自己组合成 target_frame <- camera，避开整条 TF 链 latest 时间不一致导致的跳变。
 
     RViz 调试只读取实机 TF，不重复实现头部控制算法：
     - 橙色球：目标点。
@@ -42,6 +42,11 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         self.target_point_key = str(params.get("target_point_key", "")).strip()
         self.target_point = self._parse_point(params.get("target_point", [2.0, 1.0, 1.0]))
         self.chassis_frame = str(params.get("chassis_frame", CHASSIS_FRAME)).strip()
+        self.odom_topic = str(params.get("odom_topic", self.chassis_frame)).strip()
+        self.odom_transformer = self.get_odom_pose_transformer(
+            odom_topic=self.odom_topic,
+            target_frame=MAP_FRAME,
+        )
         # 不在节点内部限流，头部控制频率直接跟随行为树 tick。
         # tick_debug 日志仍可用于确认并行流程里本节点是否被持续 tick。
         self.failure_log_interval_sec = float(params.get("failure_log_interval_sec", 1.0))
@@ -395,34 +400,42 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         )
 
     def _build_split_tf_target_in_head(self, head_controller, target_point):
-        """方案 A：分段组合 TF，再把 map 目标点转换到 camera/head_frame。
+        """方案 A：用 odom topic 分段组合，再把 map 目标点转换到 camera/head_frame。
 
         旧链路直接查询 target_frame -> head_frame，TF 会自行拼完整链路：
             target_frame -> melon_odom -> base_link -> ... -> head_frame
 
         在各段 TF 时间戳不一致时，这条完整 latest 查询可能出现跳变。
-        split_tf 模式改为显式分两段查询：
-            1. target_frame -> chassis_frame，使用底盘世界位姿。
+        split_tf 模式改为显式分两段：
+            1. 从 melon_odom topic 读取 target_frame <- base_frame 的底盘世界位姿。
             2. base_frame -> head_frame，使用本体内部 TF。
-        然后认为 chassis_frame 与 base_frame 重合，自行组合：
-            T_target_head = T_target_chassis * T_base_head
+        然后自行组合：
+            T_target_head = T_target_base * T_base_head
 
         最终仍把目标点转到 head_frame，复用 HeadController.turn_to_head_frame_point()
         进行 yaw/pitch 解算和发布。
         """
+        odom_msg = self.odom_transformer.get_latest_odom()
+        if odom_msg is None:
+            self._log_failure(
+                f"[{self.config_label}] 等待 odom 数据，无法构造 {self.target_frame} <- "
+                f"{head_controller.head_frame}: topic={self.odom_topic}"
+            )
+            return None, None
         try:
-            target_to_head = lookup_target_from_source_via_chassis(
+            target_to_head = lookup_transform_matrix_via_melon_odom(
                 head_controller.tf_listener,
                 self.ros_node,
+                odom_msg,
                 self.target_frame,
                 head_controller.head_frame,
+                map_frame=MAP_FRAME,
                 base_frame=head_controller.base_frame,
-                chassis_frame=self.chassis_frame,
                 timeout=head_controller.tf_timeout,
             )
         except Exception as err:
             self._log_failure(
-                f"[{self.config_label}] 分段查询 {head_controller.head_frame} -> "
+                f"[{self.config_label}] 通过 odom topic 分段转换 {head_controller.head_frame} -> "
                 f"{self.target_frame} 失败: {err}",
             )
             return None, None
@@ -447,7 +460,7 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         # 注意这里 frame_id=head_frame，是因为 point 已经在 camera/head_frame 下。
         target_in_head = PointStamped()
         target_in_head.header.stamp = self.ros_node.zero_time()
-        target_in_head.header.frame_id = head_frame
+        target_in_head.header.frame_id = head_controller.head_frame
         target_in_head.point.x = float(target_xyz_in_head[0])
         target_in_head.point.y = float(target_xyz_in_head[1])
         target_in_head.point.z = float(target_xyz_in_head[2])
@@ -575,6 +588,6 @@ class MoveBoxTrackHeadToMapPoint(TimedMockAction):
         return (
             f"[{self.config_label}] 开始头部持续跟踪固定点: "
             f"mode={self.tracking_mode}, frame={self.target_frame}, "
-            f"point={self.target_point}, chassis_frame={self.chassis_frame}, "
+            f"point={self.target_point}, odom_topic={self.odom_topic}, "
             f"debug_marker_topic={self.debug_marker_topic if self.debug_enabled else 'disabled'}"
         )

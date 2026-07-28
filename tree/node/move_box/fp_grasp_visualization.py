@@ -56,7 +56,7 @@ def publish_fp_box_and_targets(
     if odom_msg is None:
         ros_node.get_logger().warning(f"[{config_label}] FP可视化跳过: 尚未获得 map 下底盘位姿")
         return
-    map_from_base = _map_from_odom_message(odom_msg)
+    map_from_base = _map_from_base_matrix_via_melon_odom(odom_msg)
 
     left_axis_base = _normalize(
         left_axis_base - np.dot(left_axis_base, up_axis_base) * up_axis_base
@@ -395,8 +395,8 @@ def _parse_box_size(raw_size):
     return size
 
 
-def _map_from_odom_message(odom_msg):
-    """从 odom.pose 构造 ``map <- base_link``，与选箱节点保持一致。"""
+def _map_from_base_matrix_via_melon_odom(odom_msg):
+    """从 melon_odom msg 的 base_link pose 构造 ``map <- base_link`` 矩阵。"""
     odom_position = odom_msg.pose.pose.position
     odom_orientation = odom_msg.pose.pose.orientation
     return tf_trans.concatenate_matrices(

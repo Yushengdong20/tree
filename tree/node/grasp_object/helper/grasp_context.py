@@ -4,13 +4,16 @@ import numpy as np
 
 from tree.constants import (
     BASE_LINK_FRAME,
+    CHASSIS_FRAME,
     FIXED_KNEE_FRAME,
     KNEE_LINK_FRAME,
     MAP_FRAME,
+    ODOM_POSE_TRANSFORMER_KEY,
     WAIST_YAW_LINK_FRAME,
 )
 from tree.utils.geometry import (
-    lookup_base_from_map_via_chassis,
+    base_from_map_matrix_via_melon_odom,
+    get_shared_odom_pose_transformer,
     lookup_transform_matrix,
 )
 
@@ -23,7 +26,7 @@ class GraspContext:
         self._ensure_runtime_context()
         fixed_knee_from_base = self._lookup_fixed_knee_from_base()
         base_from_waist = self._lookup_transform_matrix(BASE_LINK_FRAME, WAIST_YAW_LINK_FRAME)
-        base_from_map = self._lookup_base_from_map_via_chassis()
+        base_from_map = self._base_from_map_matrix_via_melon_odom()
         # 关键步骤：fixed_knee 是计算用虚拟坐标系，原点跟随 knee_link，坐标轴保持与 base_link 对齐。
         current_fixed_knee_from_waist = fixed_knee_from_base @ base_from_waist
         arm_targets = {}
@@ -65,6 +68,16 @@ class GraspContext:
         self._torso_controller = getattr(services, "torso_controller", None)
         if self._torso_controller is None:
             raise RuntimeError("services 中没有 torso_controller")
+        if getattr(self, "_odom_transformer", None) is None:
+            self._odom_transformer = get_shared_odom_pose_transformer(
+                self.blackboard,
+                self.ros_node,
+                odom_topic=getattr(self, "odom_topic", CHASSIS_FRAME),
+                target_frame=MAP_FRAME,
+                base_frame=BASE_LINK_FRAME,
+                history_duration_sec=getattr(self, "odom_history_duration_sec", 10.0),
+                key=ODOM_POSE_TRANSFORMER_KEY,
+            )
 
     def _get_current_torso_pose(self):
         pose = list(getattr(self._torso_controller, "current_pose", []))
@@ -93,13 +106,15 @@ class GraspContext:
             timeout=self.tf_timeout_sec,
         )
 
-    def _lookup_base_from_map_via_chassis(self):
-        return lookup_base_from_map_via_chassis(
-            self._tf_listener,
-            self.ros_node,
+    def _base_from_map_matrix_via_melon_odom(self):
+        """用 melon_odom topic 的最新消息构造 base_link<-map。"""
+        odom_msg = self._odom_transformer.get_latest_odom()
+        if odom_msg is None:
+            raise RuntimeError(f"等待 odom 数据: topic={self.odom_topic}")
+        return base_from_map_matrix_via_melon_odom(
+            odom_msg,
             map_frame=MAP_FRAME,
-            chassis_frame=self.chassis_frame,
-            timeout=self.tf_timeout_sec,
+            base_frame=BASE_LINK_FRAME,
         )
 
     def _lookup_fixed_knee_from_base(self):
@@ -117,4 +132,3 @@ class GraspContext:
             f"rotation=identity"
         )
         return fixed_knee_from_base
-

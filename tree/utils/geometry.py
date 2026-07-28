@@ -346,80 +346,6 @@ def lookup_transform_matrix(tf_listener, ros_node, target_frame, source_frame, t
     )
 
 
-def lookup_target_from_source_via_chassis(
-    tf_listener,
-    ros_node,
-    target_frame,
-    source_frame,
-    base_frame=BASE_LINK_FRAME,
-    chassis_frame=CHASSIS_FRAME,
-    timeout=0.5,
-):
-    """通过 target<-chassis 与 base<-source 分段组合，返回 target_frame<-source_frame。"""
-    if target_frame == source_frame:
-        return tf_trans.identity_matrix()
-
-    target_from_chassis = lookup_transform_matrix(
-        tf_listener,
-        ros_node,
-        target_frame,
-        chassis_frame,
-        timeout=timeout,
-    )
-    if source_frame in (base_frame, chassis_frame):
-        return target_from_chassis
-
-    base_from_source = lookup_transform_matrix(
-        tf_listener,
-        ros_node,
-        base_frame,
-        source_frame,
-        timeout=timeout,
-    )
-    # 关键步骤：底盘世界位姿使用 target<-chassis，本体内部姿态使用 base<-source，避免直接查 target<-source 整链。
-    return tf_trans.concatenate_matrices(target_from_chassis, base_from_source)
-
-
-def lookup_map_from_source_via_chassis(
-    tf_listener,
-    ros_node,
-    source_frame,
-    map_frame=MAP_FRAME,
-    base_frame=BASE_LINK_FRAME,
-    chassis_frame=CHASSIS_FRAME,
-    timeout=0.5,
-):
-    """通过 map<-chassis 与 base<-source 分段组合，返回 map_frame<-source_frame。"""
-    return lookup_target_from_source_via_chassis(
-        tf_listener,
-        ros_node,
-        map_frame,
-        source_frame,
-        base_frame=base_frame,
-        chassis_frame=chassis_frame,
-        timeout=timeout,
-    )
-
-
-def lookup_base_from_map_via_chassis(
-    tf_listener,
-    ros_node,
-    map_frame=MAP_FRAME,
-    chassis_frame=CHASSIS_FRAME,
-    timeout=0.5,
-):
-    """通过 map<-chassis 推出 base_link<-map，项目约定 chassis_frame 与 base_link 重合。"""
-    map_from_chassis = lookup_transform_matrix(
-        tf_listener,
-        ros_node,
-        map_frame,
-        chassis_frame,
-        timeout=timeout,
-    )
-    # 关键步骤：chassis_frame 与 base_link 按项目约定重合，因此 base_link<-map 可由 map<-chassis 取逆得到。
-    return tf_trans.inverse_matrix(map_from_chassis)
-
-
 def transform_point(tf_listener, ros_node, point_xyz, source_frame, target_frame, timeout=0.2):
     """等待 TF 并将三维点转换到目标坐标系。"""
     if source_frame == target_frame:
@@ -459,6 +385,33 @@ def transform_base_point_to_map_with_odom(
     base_frame=BASE_LINK_FRAME,
 ):
     """使用 odom 中的 base_link 位姿，将 base_link 三维点转换到 map/odom 坐标系。"""
+    map_from_base = base_link_pose_matrix_from_melon_odom_msg(
+        odom_msg,
+        target_frame=target_frame,
+        base_frame=base_frame,
+    )
+    # 关键步骤：odom.pose 表示 base_link 在 map/odom 下的位姿，这里用完整 3D 位姿做 base -> map。
+    transformed = map_from_base.dot(
+        [
+            float(base_position["x"]),
+            float(base_position["y"]),
+            float(base_position.get("z", 0.0)),
+            1.0,
+        ]
+    )
+    return {
+        "x": float(transformed[0]),
+        "y": float(transformed[1]),
+        "z": float(transformed[2]),
+    }
+
+
+def base_link_pose_matrix_from_melon_odom_msg(
+    odom_msg,
+    target_frame=MAP_FRAME,
+    base_frame=BASE_LINK_FRAME,
+):
+    """使用 melon_odom topic 消息里的 base_link pose 构造 target_frame <- base_frame 矩阵。"""
     odom_frame = getattr(getattr(odom_msg, "header", None), "frame_id", "")
     if target_frame and odom_frame and odom_frame != target_frame:
         raise RuntimeError(
@@ -483,20 +436,95 @@ def transform_base_point_to_map_with_odom(
             ]
         ),
     )
-    # 关键步骤：odom.pose 表示 base_link 在 map/odom 下的位姿，这里用完整 3D 位姿做 base -> map。
-    transformed = transform_matrix.dot(
-        [
-            float(base_position["x"]),
-            float(base_position["y"]),
-            float(base_position.get("z", 0.0)),
-            1.0,
-        ]
+    return transform_matrix
+
+
+def map_from_source_matrix_via_melon_odom(
+    tf_listener,
+    ros_node,
+    odom_msg,
+    source_frame,
+    map_frame=MAP_FRAME,
+    base_frame=BASE_LINK_FRAME,
+    timeout=0.5,
+):
+    """用 odom topic 做 map<-base，用 TF 只查 base<-source，返回 map<-source。"""
+    if source_frame == map_frame:
+        return tf_trans.identity_matrix()
+    map_from_base = base_link_pose_matrix_from_melon_odom_msg(
+        odom_msg,
+        target_frame=map_frame,
+        base_frame=base_frame,
     )
-    return {
-        "x": float(transformed[0]),
-        "y": float(transformed[1]),
-        "z": float(transformed[2]),
-    }
+    if source_frame == base_frame:
+        return map_from_base
+    # 关键步骤：TF 只用于机器人本体内部链路，底盘世界位姿只来自 odom topic。
+    base_from_source = lookup_transform_matrix(
+        tf_listener,
+        ros_node,
+        base_frame,
+        source_frame,
+        timeout=timeout,
+    )
+    return tf_trans.concatenate_matrices(map_from_base, base_from_source)
+
+
+def base_from_map_matrix_via_melon_odom(
+    odom_msg,
+    map_frame=MAP_FRAME,
+    base_frame=BASE_LINK_FRAME,
+):
+    """用 odom topic 消息构造 base_frame <- map_frame 的 4x4 矩阵。"""
+    map_from_base = base_link_pose_matrix_from_melon_odom_msg(
+        odom_msg,
+        target_frame=map_frame,
+        base_frame=base_frame,
+    )
+    # 关键步骤：base<-map 必须由 odom topic 的 map<-base 取逆得到，避免走 TF 中的 melon_odom frame。
+    return tf_trans.inverse_matrix(map_from_base)
+
+
+def lookup_transform_matrix_via_melon_odom(
+    tf_listener,
+    ros_node,
+    odom_msg,
+    target_frame,
+    source_frame,
+    map_frame=MAP_FRAME,
+    base_frame=BASE_LINK_FRAME,
+    timeout=0.5,
+):
+    """用 odom topic 处理 map/base 世界位姿，用 TF 处理机器人本体内部链路。"""
+    if target_frame == source_frame:
+        return tf_trans.identity_matrix()
+    if target_frame == map_frame:
+        return map_from_source_matrix_via_melon_odom(
+            tf_listener,
+            ros_node,
+            odom_msg,
+            source_frame,
+            map_frame=map_frame,
+            base_frame=base_frame,
+            timeout=timeout,
+        )
+    if target_frame == base_frame and source_frame == map_frame:
+        return base_from_map_matrix_via_melon_odom(
+            odom_msg,
+            map_frame=map_frame,
+            base_frame=base_frame,
+        )
+    if target_frame == base_frame:
+        return lookup_transform_matrix(
+            tf_listener,
+            ros_node,
+            base_frame,
+            source_frame,
+            timeout=timeout,
+        )
+    raise RuntimeError(
+        "不支持的 odom 分段转换: %s <- %s，仅支持 target 为 %s/%s"
+        % (target_frame, source_frame, map_frame, base_frame)
+    )
 
 
 def transform_base_point_to_map_with_pose2d(current_pose, base_position):

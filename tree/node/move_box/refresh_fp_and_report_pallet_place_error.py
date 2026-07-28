@@ -25,7 +25,7 @@ from .fp_grasp_visualization import (
     _axis_base_to_map,
     _box_edge_indices,
     _fp_box_corners,
-    _map_from_odom_message,
+    _map_from_base_matrix_via_melon_odom,
     _normalize,
     _point_base_to_map,
 )
@@ -183,7 +183,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             self.ros_node.get_logger().warning(f"[{self.config_label}] 等待 odom，无法把 FP 箱心转换到 map")
             return None
 
-        map_from_base = _map_from_odom_message(odom_msg)
+        map_from_base = _map_from_base_matrix_via_melon_odom(odom_msg)
         center_map = _point_base_to_map(box_center, map_from_base)
         left_axis_map = _axis_base_to_map(box_center, left_axis, map_from_base) if left_axis is not None else None
         up_axis_map = _axis_base_to_map(box_center, up_axis, map_from_base) if up_axis is not None else None

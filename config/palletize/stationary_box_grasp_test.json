@@ -13,6 +13,10 @@
         "name": "EnsureMoveBoxServices",
         "label": "初始化 move_box 视觉与控制实例",
         "params": {
+          "foundationpose_axis_convention": {
+            "value": "right_x_front_y_up_z",
+            "source": "CUSTOM"
+          },
           "initial_torso_height": {
             "value": "1.1",
             "source": "CUSTOM"

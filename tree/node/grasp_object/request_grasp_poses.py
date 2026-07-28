@@ -49,6 +49,12 @@ class RequestGraspPoses(GraspRequestClient, GraspObjectPayloadParser, TimedMockA
         self.target_frame = str(params.get("target_frame", BASE_LINK_FRAME)).strip()
         self.map_frame = str(params.get("map_frame", MAP_FRAME)).strip()
         self.chassis_frame = str(params.get("chassis_frame", CHASSIS_FRAME)).strip()
+        self.odom_topic = str(params.get("odom_topic", self.chassis_frame)).strip()
+        self.odom_transformer = self.get_odom_pose_transformer(
+            odom_topic=self.odom_topic,
+            target_frame=self.map_frame,
+            base_frame=BASE_LINK_FRAME,
+        )
         self.tf_timeout_sec = float(params.get("tf_timeout_sec", 2.0))
         self.filter_downward_grasp_poses = self._to_bool(
             params.get("filter_downward_grasp_poses", False)
@@ -75,8 +81,8 @@ class RequestGraspPoses(GraspRequestClient, GraspObjectPayloadParser, TimedMockA
             raise ValueError("target_frame 不能为空")
         if not self.map_frame:
             raise ValueError("map_frame 不能为空")
-        if not self.chassis_frame:
-            raise ValueError("chassis_frame 不能为空")
+        if not self.odom_topic:
+            raise ValueError("odom_topic 不能为空")
         if self.downward_grasp_max_angle_deg < 0.0 or self.downward_grasp_max_angle_deg > 90.0:
             raise ValueError("downward_grasp_max_angle_deg 必须在 [0, 90] 范围内")
         self.blackboard.register_key(
@@ -240,5 +246,5 @@ class RequestGraspPoses(GraspRequestClient, GraspObjectPayloadParser, TimedMockA
             f"no_grasp_object_status={self.no_grasp_object_status}, "
             f"objects_key={self.sorted_grasp_objects_key}, "
             f"frame={self.target_frame}/{self.map_frame}<-{self.source_frame}, "
-            f"chassis_frame={self.chassis_frame}"
+            f"odom_topic={self.odom_topic}"
         )

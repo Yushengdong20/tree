@@ -13,7 +13,7 @@ from kuavo_humanoid_sdk.common.yolo_boxes import (
 )
 
 from tree.constants import BASE_LINK_FRAME, CHASSIS_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
-from tree.utils.geometry import lookup_target_from_source_via_chassis
+from tree.utils.geometry import lookup_transform_matrix_via_melon_odom
 
 from ..base import TimedMockAction
 
@@ -34,6 +34,12 @@ class ComputeMoveBoxLockedYoloTarget(TimedMockAction):
         self.target_select_frame = str(params.get("target_select_frame", BASE_LINK_FRAME)).strip()
         self.control_frame = str(params.get("control_frame", MAP_FRAME)).strip()
         self.chassis_frame = str(params.get("chassis_frame", CHASSIS_FRAME)).strip()
+        self.odom_topic = str(params.get("odom_topic", self.chassis_frame)).strip()
+        self.odom_transformer = self.get_odom_pose_transformer(
+            odom_topic=self.odom_topic,
+            target_frame=MAP_FRAME,
+            base_frame=BASE_LINK_FRAME,
+        )
         self.target_point_key = str(
             params.get("target_point_key", "move_box_locked_yolo_head_target_point")
         ).strip()
@@ -132,24 +138,30 @@ class ComputeMoveBoxLockedYoloTarget(TimedMockAction):
         return nearest_pose
 
     def _transform_yolo_point_to_control_frame(self, head_controller, point, source_frame):
-        """通过两段 TF 把 YOLO 点从 source_frame 锁定到 control_frame。
+        """通过 odom topic 和本体 TF 把 YOLO 点从 source_frame 锁定到 control_frame。
 
-        T_control_source = T_control_chassis * T_base_source
-        其中默认认为 chassis_frame 与 base_frame 重合。
+        T_control_source = T_control_base(来自 odom topic) * T_base_source(来自本体 TF)
         """
+        odom_msg = self.odom_transformer.get_latest_odom()
+        if odom_msg is None:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 等待 odom 数据，无法锁定 YOLO 点: topic={self.odom_topic}"
+            )
+            return None
         try:
-            control_to_source = lookup_target_from_source_via_chassis(
+            control_to_source = lookup_transform_matrix_via_melon_odom(
                 head_controller.tf_listener,
                 self.ros_node,
+                odom_msg,
                 self.control_frame,
                 source_frame,
+                map_frame=MAP_FRAME,
                 base_frame=head_controller.base_frame,
-                chassis_frame=self.chassis_frame,
                 timeout=head_controller.tf_timeout,
             )
         except Exception as err:
             self.ros_node.get_logger().warning(
-                f"[{self.config_label}] 无法分段查询 {source_frame} -> {self.control_frame}: {err}"
+                f"[{self.config_label}] 无法通过 odom topic 转换 {source_frame} -> {self.control_frame}: {err}"
             )
             return None
         return self._matrix_dot_point(control_to_source, point)

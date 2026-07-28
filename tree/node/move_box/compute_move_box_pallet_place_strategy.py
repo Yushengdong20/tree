@@ -2,7 +2,7 @@
 
 本节点是码垛策略版流程里的唯一“码垛规划节点”：
 
-1. 根据固定垛盘 polygon / slot_reference_points / stack_count 选择本轮槽位。
+1. 根据固定或黑板动态托盘 polygon / slot_reference_points / stack_count 选择本轮槽位。
 2. 输出最终放置箱心、垛盘外导航目标和放置平面高度。
 3. 根据 stack_count 与 slot 行列推断相邻已放箱，选择放置策略：
    - direct_place：无明显邻箱，直接放。
@@ -25,9 +25,10 @@ from py_trees.common import Status
 from visualization_msgs.msg import Marker, MarkerArray
 
 from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.box_map_polygon import is_map_position_in_polygon
 from tree.utils.pallet_place_diagnostics import write_pallet_place_diagnostic
-from tree.runtime.http.move_and_grab_flow import (
-    Pose2D,
+from tree.utils.chassis_navigation import Pose2D
+from tree.utils.geometry import (
     transform_base_point_to_global,
     transform_global_point_to_base,
     ypr_to_rotation_matrix,
@@ -52,6 +53,17 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 "pallet_map_polygon",
                 [[-0.3, 1.0], [1.0, 1.0], [1.0, 0.1], [-0.3, 0.1]],
             )
+        )
+        # 可选：由 ``ComputeFoundationPosePalletMapPolygon`` 写入的真实托盘区域。
+        # 配置此 key 后，每轮规划都读取最新四边形，槽位方向、导航禁入判断和
+        # RViz 托盘轮廓将使用 FP 标定结果，而非 JSON 中的固定区域。
+        self.pallet_map_polygon_key = str(params.get("pallet_map_polygon_key", "")).strip()
+        self.pallet_pose_key = str(params.get("pallet_pose_key", "")).strip()
+        self.use_pallet_pose_z_as_surface = self._to_bool(
+            params.get("use_pallet_pose_z_as_surface", False)
+        )
+        self.pallet_surface_z_offset_m = float(
+            params.get("pallet_surface_z_offset_m", 0.0)
         )
         self.slot_reference_points = self._parse_polygon(params.get("slot_reference_points", []))
         self.slot_reference_row_axis = self._parse_vector(params.get("slot_reference_row_axis", []))
@@ -144,6 +156,16 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
 
         for key in (self.services_key, self.stack_count_key):
             self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
+        if self.pallet_map_polygon_key:
+            self.blackboard.register_key(
+                key=self.pallet_map_polygon_key,
+                access=py_trees.common.Access.READ,
+            )
+        if self.pallet_pose_key:
+            self.blackboard.register_key(
+                key=self.pallet_pose_key,
+                access=py_trees.common.Access.READ,
+            )
 
         for key in (
             self.navigation_target_key,
@@ -181,6 +203,8 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             )
 
     def update(self):
+        if not self._refresh_dynamic_pallet_geometry():
+            return Status.RUNNING
         if self.rows <= 0 or self.cols <= 0:
             self.ros_node.get_logger().error(
                 f"[{self.config_label}] rows/cols 必须为正数: rows={self.rows}, cols={self.cols}"
@@ -314,6 +338,58 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             },
         )
         return Status.SUCCESS
+
+    def _refresh_dynamic_pallet_geometry(self):
+        """按需从黑板更新托盘区域与放置平面高度。
+
+        当流程在抓住箱子后以 FP 识别托盘时，FP 节点先把 map 四边形和托盘
+        中心位姿写入黑板。本方法在真正规划前读取它们；未就绪时保持 RUNNING，
+        避免误回退到旧的静态托盘参数而把箱子放错区域。
+        """
+        if self.pallet_map_polygon_key:
+            if not self.blackboard.exists(self.pallet_map_polygon_key):
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 等待动态托盘区域: "
+                    f"key={self.pallet_map_polygon_key}"
+                )
+                return False
+            try:
+                polygon = self._parse_polygon(
+                    self.blackboard.get(self.pallet_map_polygon_key)
+                )
+            except (TypeError, ValueError) as exc:
+                self.ros_node.get_logger().error(
+                    f"[{self.config_label}] 动态托盘区域解析失败: "
+                    f"key={self.pallet_map_polygon_key}, error={exc}"
+                )
+                return False
+            if len(polygon) < 3:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 等待有效动态托盘区域: "
+                    f"key={self.pallet_map_polygon_key}, polygon={polygon}"
+                )
+                return False
+            self.pallet_map_polygon = polygon
+
+        if self.use_pallet_pose_z_as_surface:
+            if not self.pallet_pose_key or not self.blackboard.exists(self.pallet_pose_key):
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 等待动态托盘位姿高度: "
+                    f"key={self.pallet_pose_key or '<disabled>'}"
+                )
+                return False
+            try:
+                pallet_pose = self.blackboard.get(self.pallet_pose_key)
+                pallet_z = float(pallet_pose["z"])
+            except (KeyError, TypeError, ValueError) as exc:
+                self.ros_node.get_logger().error(
+                    f"[{self.config_label}] 动态托盘位姿高度无效: "
+                    f"key={self.pallet_pose_key}, error={exc}"
+                )
+                return False
+            self.pallet_surface_z = pallet_z + self.pallet_surface_z_offset_m
+
+        return True
 
     def _select_strategy(self, row, col, slot_col_axis, box_x_axis, stack_count, navigation_pose):
         if self.strategy_mode in ("direct", "direct_place"):
@@ -1697,9 +1773,12 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             return []
         parsed = []
         for point in polygon:
-            if not isinstance(point, (list, tuple)) or len(point) < 2:
-                continue
-            parsed.append((float(point[0]), float(point[1])))
+            if isinstance(point, dict):
+                if "x" not in point or "y" not in point:
+                    continue
+                parsed.append((float(point["x"]), float(point["y"])))
+            elif isinstance(point, (list, tuple)) and len(point) >= 2:
+                parsed.append((float(point[0]), float(point[1])))
         return parsed
 
     @staticmethod
@@ -1737,6 +1816,8 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             f"[{self.config_label}] ComputeMoveBoxPalletPlaceStrategy start: "
             f"mode={self.strategy_mode}, rows={self.rows}, cols={self.cols}, "
             f"max_layers={self.max_layers}, stack_count_key={self.stack_count_key}, "
+            f"dynamic_pallet_polygon_key={self.pallet_map_polygon_key or '<static>'}, "
+            f"dynamic_surface={self.use_pallet_pose_z_as_surface}, "
             f"nav_key={self.navigation_target_key}, plane_key={self.place_plane_height_key}, "
             f"slot_key={self.slot_pose_key}, expected_box_key={self.expected_box_pose_key}, "
             f"pre_offset={self.pre_place_lateral_offset_m:.3f}, push_distance={self.push_distance_m:.3f}, "

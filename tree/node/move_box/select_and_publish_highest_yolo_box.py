@@ -2003,15 +2003,15 @@ class SelectAndPublishHighestYoloBox(TimedMockAction):
                 f"limit_ms={self.odom_match_max_delta_sec * 1000.0:.1f}"
             )
             return None
-        map_from_base = self._map_from_odom_message(odom_msg)
+        map_from_base = self._map_from_base_matrix_via_melon_odom(odom_msg)
         return (
             tf_trans.concatenate_matrices(map_from_base, base_from_source),
             matched_odom_stamp_sec,
             odom_delta_sec * 1000.0,
         )
 
-    def _map_from_odom_message(self, odom_msg):
-        """从 odom.pose 构造 ``map <- base_link`` 4x4 变换矩阵。"""
+    def _map_from_base_matrix_via_melon_odom(self, odom_msg):
+        """从 melon_odom msg 的 base_link pose 构造 ``map <- base_link`` 4x4 变换矩阵。"""
         odom_position = odom_msg.pose.pose.position
         odom_orientation = odom_msg.pose.pose.orientation
         return tf_trans.concatenate_matrices(

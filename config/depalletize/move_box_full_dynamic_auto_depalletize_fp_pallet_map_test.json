@@ -225,7 +225,15 @@
                 "source": "CUSTOM"
               },
               "timeout_sec": {
-                "value": "10.0",
+                "value": "15.0",
+                "source": "CUSTOM"
+              },
+              "max_retries": {
+                "value": "3",
+                "source": "CUSTOM"
+              },
+              "retry_interval_sec": {
+                "value": "2.0",
                 "source": "CUSTOM"
               },
               "target_key": {
@@ -343,7 +351,15 @@
                 "source": "CUSTOM"
               },
               "timeout_sec": {
-                "value": "10.0",
+                "value": "15.0",
+                "source": "CUSTOM"
+              },
+              "max_retries": {
+                "value": "3",
+                "source": "CUSTOM"
+              },
+              "retry_interval_sec": {
+                "value": "2.0",
                 "source": "CUSTOM"
               },
               "target_key": {

@@ -13,6 +13,7 @@ from tree.constants import (
     CHASSIS_FRAME,
     MAP_FRAME,
     MODEL_TYPE_KEY,
+    ODOM_POSE_TRANSFORMER_KEY,
     ROBOT_SERVICES_KEY,
     WAIST_YAW_LINK_FRAME,
 )
@@ -59,6 +60,9 @@ class GraspTargetComputer(
             params.get("map_grasp_poses_key", "grasp_object_map_grasp_poses")
         ).strip()
         self.chassis_frame = str(params.get("chassis_frame", CHASSIS_FRAME)).strip()
+        self.odom_topic = str(params.get("odom_topic", self.chassis_frame)).strip()
+        self.odom_history_duration_sec = float(params.get("odom_history_duration_sec", 10.0))
+        self._odom_transformer = None
         self.grasp_offset_m = float(params.get("grasp_offset_m", 0.05))
         self.pregrasp_offset_min_m = float(params.get("pregrasp_offset_min_m", 0.12))
         self.pregrasp_offset_max_m = float(params.get("pregrasp_offset_max_m", 0.18))
@@ -289,7 +293,11 @@ class GraspTargetComputer(
         require_non_empty(self.base_grasp_poses_key, "base_grasp_poses_key 不能为空")
         require_non_empty(self.camera_grasp_poses_key, "camera_grasp_poses_key 不能为空")
         require_non_empty(self.map_grasp_poses_key, "map_grasp_poses_key 不能为空")
-        require_non_empty(self.chassis_frame, "chassis_frame 不能为空")
+        require_non_empty(self.odom_topic, "odom_topic 不能为空")
+        self.blackboard.register_key(
+            key=ODOM_POSE_TRANSFORMER_KEY,
+            access=py_trees.common.Access.READ,
+        )
         register_blackboard_read_write_keys(
             self.blackboard,
             (
@@ -567,7 +575,7 @@ class GraspTargetComputer(
 
         if self.blackboard.exists(self.selected_map_grasp_pose_key) and self.blackboard.get(self.selected_map_grasp_pose_key) is not None:
             map_grasp_pose = self.blackboard.get(self.selected_map_grasp_pose_key)
-            base_from_map = self._lookup_base_from_map_via_chassis()
+            base_from_map = self._base_from_map_matrix_via_melon_odom()
             grasp_pose = base_from_map @ map_grasp_pose
             self.blackboard.set(self.selected_base_grasp_pose_key, grasp_pose, overwrite=True)
         elif self.blackboard.exists(self.selected_base_grasp_pose_key):
@@ -650,7 +658,7 @@ class GraspTargetComputer(
         self._ensure_runtime_context()
         fixed_knee_from_base = self._lookup_fixed_knee_from_base()
         base_from_waist = self._lookup_transform_matrix(BASE_LINK_FRAME, WAIST_YAW_LINK_FRAME)
-        base_from_map = self._lookup_base_from_map_via_chassis()
+        base_from_map = self._base_from_map_matrix_via_melon_odom()
         current_fixed_knee_from_waist = fixed_knee_from_base @ base_from_waist
         current_sample = self._current_torso_sample(current_fixed_knee_from_waist)
         current_sample["base_from_map"] = base_from_map

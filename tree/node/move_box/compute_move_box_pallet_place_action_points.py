@@ -475,8 +475,6 @@ class ComputeMoveBoxPalletPlaceActionPoints(TimedMockAction):
 
     def _box_center_map_to_base_legacy(self, box_pose, current_pose, target_claw_z):
         """旧版 2D + 固定箱高回退；新的主路径不应使用这个近似。"""
-        from tree.runtime.http.move_and_grab_flow import Pose2D, transform_global_point_to_base
-
         current_pose_2d = Pose2D(
             x=float(current_pose[0]),
             y=float(current_pose[1]),
