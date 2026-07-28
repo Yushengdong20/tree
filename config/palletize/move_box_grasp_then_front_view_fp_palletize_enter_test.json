@@ -23,7 +23,7 @@
         "name": "WaitForEnter",
         "label": "确认1：导航到抓箱等待区",
         "params": {
-          "message": {"value": "将导航到抓箱等待区 (-0.78, 3.34, -105.02deg)，按 Enter 执行。", "source": "CUSTOM"}
+          "message": {"value": "将导航到抓箱等待区 (-0.78, 3.34, -90.0deg)，按 Enter 执行。", "source": "CUSTOM"}
         }
       },
       {
@@ -32,7 +32,7 @@
         "params": {
           "x": {"value": "-0.78", "source": "CUSTOM"},
           "y": {"value": "3.34", "source": "CUSTOM"},
-          "yaw": {"value": "-105.02", "source": "CUSTOM"},
+          "yaw": {"value": "-90.0", "source": "CUSTOM"},
           "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
           "navigation_timeout_sec": {"value": "600", "source": "CUSTOM"},
           "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
@@ -96,9 +96,9 @@
       },
       {
         "name": "WaitForEnter",
-        "label": "确认9：导航到45度托盘观察位",
+        "label": "确认9：导航到托盘观察位",
         "params": {
-          "message": {"value": "将携带箱体导航到托盘45度观察位（暂定 -1.80,1.52,-44deg；请按现场托盘大致区域复核），按 Enter 执行。", "source": "CUSTOM"}
+          "message": {"value": "将携带箱体导航到托盘观察位（请按现场托盘大致区域复核），按 Enter 执行。", "source": "CUSTOM"}
         }
       },
       {
@@ -106,8 +106,8 @@
         "label": "导航到45度托盘观察位",
         "params": {
           "x": {"value": "-1.0", "source": "CUSTOM"},
-          "y": {"value": "2.0", "source": "CUSTOM"},
-          "yaw": {"value": "-105.02", "source": "CUSTOM"},
+          "y": {"value": "3.0", "source": "CUSTOM"},
+          "yaw": {"value": "-90.0", "source": "CUSTOM"},
           "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
           "navigation_timeout_sec": {"value": "600", "source": "CUSTOM"},
           "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
@@ -125,19 +125,19 @@
       },
       {
         "name": "ComputeMoveBoxRelativeClawTargets",
-        "label": "计算托盘观察用双夹爪下移20厘米目标",
+        "label": "计算托盘观察用双夹爪下移45厘米目标",
         "params": {
           "services_key": {"value": "robot_services", "source": "CUSTOM"},
           "dx": {"value": "0.0", "source": "CUSTOM"},
           "dy": {"value": "0.0", "source": "CUSTOM"},
-          "dz": {"value": "-0.20", "source": "CUSTOM"},
+          "dz": {"value": "-0.45", "source": "CUSTOM"},
           "left_target_key": {"value": "move_box_pallet_observe_left_lower_claw_point", "source": "CUSTOM"},
           "right_target_key": {"value": "move_box_pallet_observe_right_lower_claw_point", "source": "CUSTOM"}
         }
       },
       {
         "name": "ArmsToPose",
-        "label": "双臂下移20厘米避让托盘观察视野",
+        "label": "双臂下移45厘米避让托盘观察视野",
         "params": {
           "target_type": {"value": "claw_point", "source": "CUSTOM"},
           "pose_frame": {"value": "base_link", "source": "CUSTOM"},
@@ -203,7 +203,29 @@
           }
         ]
       },
-
+      {
+        "name": "ComputeMoveBoxRelativeClawTargets",
+        "label": "计算托盘观察用双夹爪上移45厘米目标",
+        "params": {
+          "services_key": {"value": "robot_services", "source": "CUSTOM"},
+          "dx": {"value": "0.0", "source": "CUSTOM"},
+          "dy": {"value": "0.0", "source": "CUSTOM"},
+          "dz": {"value": "0.45", "source": "CUSTOM"},
+          "left_target_key": {"value": "move_box_pallet_observe_left_upper_claw_point", "source": "CUSTOM"},
+          "right_target_key": {"value": "move_box_pallet_observe_right_upper_claw_point", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "双臂上移45厘米准备放置",
+        "params": {
+          "target_type": {"value": "claw_point", "source": "CUSTOM"},
+          "pose_frame": {"value": "base_link", "source": "CUSTOM"},
+          "left_point_key": {"value": "move_box_pallet_observe_left_upper_claw_point", "source": "CUSTOM"},
+          "right_point_key": {"value": "move_box_pallet_observe_right_upper_claw_point", "source": "CUSTOM"},
+          "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
+        }
+      },
       {
         "name": "WaitForEnter",
         "label": "确认12：切回FP箱体模型",
@@ -231,6 +253,8 @@
           "pallet_surface_z_offset_m": {"value": "0.10", "source": "CUSTOM"},
           "slot_rows": {"value": "2", "source": "CUSTOM"},
           "slot_cols": {"value": "2", "source": "CUSTOM"},
+          "slot_order_mode": {"value": "near_column_first", "source": "CUSTOM"},
+          "layer_plan_key": {"value": "move_box_pallet_stack_layer_plan", "source": "CUSTOM"},
           "max_layers": {"value": "1", "source": "CUSTOM"},
           "box_size_x": {"value": "0.60", "source": "CUSTOM"},
           "box_size_y": {"value": "0.40", "source": "CUSTOM"},
@@ -316,17 +340,72 @@
         "params": {"message": {"value": "放箱流程结束。将导航回抓箱等待区，按 Enter 执行。", "source": "CUSTOM"}}
       },
       {
-        "name": "HttpNavigateToPose",
-        "label": "返回抓箱等待区",
+        "name": "Parallel",
+        "label": "放箱后返回等待区域并同步恢复姿态",
         "params": {
-          "x": {"value": "-0.78", "source": "CUSTOM"},
-          "y": {"value": "3.34", "source": "CUSTOM"},
-          "yaw": {"value": "-105.02", "source": "CUSTOM"},
-          "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
-          "navigation_timeout_sec": {"value": "600", "source": "CUSTOM"},
-          "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
-          "navigation_target_key": {"value": "move_box_grasp_wait_navigation_target", "source": "CUSTOM"}
-        }
+          "policy": {
+            "value": "SuccessOnAll",
+            "source": "CUSTOM"
+          }
+        },
+        "childs": [
+          {
+            "name": "HttpNavigateToPose",
+            "label": "回到等待区域",
+            "params": {
+              "x": {
+                "value": "-0.78",
+                "source": "CUSTOM"
+              },
+              "y": {
+                "value": "3.34",
+                "source": "CUSTOM"
+              },
+              "yaw": {
+                "value": "-90.0",
+                "source": "CUSTOM"
+              },
+              "chassis_url": {
+                "value": "http://localhost:8081",
+                "source": "CUSTOM"
+              },
+              "navigation_timeout_sec": {
+                "value": "600",
+                "source": "CUSTOM"
+              },
+              "poll_interval_sec": {
+                "value": "0.2",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_enabled": {
+                "value": "True",
+                "source": "CUSTOM"
+              },
+              "navigation_visualization_topic": {
+                "value": "/move_box/http_navigation_stack_return_wait_markers",
+                "source": "CUSTOM"
+              },
+              "navigation_target_key": {
+                "value": "navigation_target",
+                "source": "CUSTOM"
+              },
+              "odom_topic": {
+                "value": "melon_odom",
+                "source": "CUSTOM"
+              }
+            }
+          },
+          {
+            "name": "SubTree",
+            "label": "放箱后通用节点回到抓取初始位姿",
+            "params": {
+              "file": {
+                "value": "subtree/move_box_return_to_grasp_ready_common_memory_cn.json",
+                "source": "CUSTOM"
+              }
+            }
+          }
+        ]
       }
     ]
   }

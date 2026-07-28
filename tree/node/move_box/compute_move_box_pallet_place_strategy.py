@@ -3,6 +3,8 @@
 本节点是码垛策略版流程里的唯一“码垛规划节点”：
 
 1. 根据固定或黑板动态托盘 polygon / slot_reference_points / stack_count 选择本轮槽位。
+   ``near_column_first`` 模式会在每层第一箱时按机器人位置确定接近列，并把
+   本层四格顺序冻结到 blackboard，避免机器人移动后槽位顺序反转。
 2. 输出最终放置箱心、垛盘外导航目标和放置平面高度。
 3. 根据 stack_count 与 slot 行列推断相邻已放箱，选择放置策略：
    - direct_place：无明显邻箱，直接放。
@@ -71,6 +73,12 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         self.rows = int(params.get("slot_rows", 2))
         self.cols = int(params.get("slot_cols", 2))
         self.max_layers = int(params.get("max_layers", 1))
+        # row_major 保持历史顺序：(0,0)->(0,1)->(1,0)->(1,1)。
+        # near_column_first：每层先完成更接近机器人所在侧的一整列，再处理远列。
+        self.slot_order_mode = str(params.get("slot_order_mode", "row_major")).strip().lower()
+        self.layer_plan_key = str(
+            params.get("layer_plan_key", "move_box_pallet_stack_layer_plan")
+        ).strip()
         self.box_size_x = float(params.get("box_size_x", 0.60))
         self.box_size_y = float(params.get("box_size_y", 0.40))
         self.box_size_z = float(params.get("box_size_z", 0.34))
@@ -156,6 +164,15 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
 
         for key in (self.services_key, self.stack_count_key):
             self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
+        if self.layer_plan_key:
+            self.blackboard.register_key(
+                key=self.layer_plan_key,
+                access=py_trees.common.Access.READ,
+            )
+            self.blackboard.register_key(
+                key=self.layer_plan_key,
+                access=py_trees.common.Access.WRITE,
+            )
         if self.pallet_map_polygon_key:
             self.blackboard.register_key(
                 key=self.pallet_map_polygon_key,
@@ -225,9 +242,17 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             )
             return Status.FAILURE
 
-        slot_index = stack_count % slots_per_layer
-        row = slot_index // self.cols
-        col = slot_index % self.cols
+        slot_ordinal = stack_count % slots_per_layer
+        layer_slot_order = self._get_layer_slot_order(geometry, layer, stack_count)
+        if len(layer_slot_order) != slots_per_layer:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 本层槽位计划数量异常: "
+                f"expected={slots_per_layer}, actual={len(layer_slot_order)}, "
+                f"plan={layer_slot_order}"
+            )
+            return Status.FAILURE
+        row, col = layer_slot_order[slot_ordinal]
+        placed_slots = set(layer_slot_order[:slot_ordinal])
         slot_pose = self._compute_slot_pose(geometry, row, col, layer)
         navigation_pose = self._compute_navigation_pose(geometry, slot_pose)
         place_plane_height = (
@@ -249,7 +274,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             col=col,
             slot_col_axis=slot_col_axis,
             box_x_axis=x_axis,
-            stack_count=stack_count,
+            placed_slots=placed_slots,
             navigation_pose=navigation_pose,
         )
         final_box_pose = dict(expected_box_pose)
@@ -299,6 +324,7 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             f"[{self.config_label}] 已计算码垛放箱策略: "
             f"strategy={strategy_info['strategy']}, reason={strategy_info['reason']}, "
             f"stack_count={stack_count}, layer={layer}, row={row}, col={col}, "
+            f"slot_order_mode={self.slot_order_mode}, layer_order={layer_slot_order}, "
             f"slot=({slot_pose['x']:.3f}, {slot_pose['y']:.3f}, {slot_pose['yaw']:.2f}deg), "
             f"nav=({navigation_pose['x']:.3f}, {navigation_pose['y']:.3f}, "
             f"{navigation_pose['yaw']:.2f}deg), "
@@ -391,7 +417,110 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
 
         return True
 
-    def _select_strategy(self, row, col, slot_col_axis, box_x_axis, stack_count, navigation_pose):
+    def _get_layer_slot_order(self, geometry, layer, stack_count):
+        """返回本层稳定的槽位顺序。
+
+        ``near_column_first`` 在某一层的第一箱（ordinal=0）读取机器人 map
+        位置，比较每一列到机器人的平均距离，先排接近列。计划写入 blackboard
+        后，该层的后续箱子即使已导航到别的位置，也不会重新排序或重复选格。
+        """
+        slots_per_layer = self.rows * self.cols
+        ordinal = stack_count % slots_per_layer
+        if self.slot_order_mode not in ("near_column_first", "near_column", "robot_near_column"):
+            return [(row, col) for row in range(self.rows) for col in range(self.cols)]
+
+        # 第一个槽位总是重新取一次机器人站位，避免上一次任务残留的 layer=0
+        # 计划影响新的整层码垛；中途槽位才复用冻结计划。
+        if ordinal != 0:
+            saved_plan = self._read_saved_layer_plan(layer)
+            if saved_plan is not None:
+                return saved_plan
+
+        # 非首箱但不存在计划通常意味着外部手动改了 stack_count 或重启后没有恢复
+        # blackboard。此时仍生成一次计划并记录告警，避免退回 row-major 后造成重格。
+        if ordinal != 0:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 接近侧分列码垛缺少当前层冻结计划，"
+                f"将在中途重新生成: layer={layer}, ordinal={ordinal}, "
+                f"key={self.layer_plan_key}"
+            )
+
+        current_pose = self.odom_transformer.get_current_pose()
+        if current_pose is None:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 无法读取当前底盘 map 位姿，"
+                "接近侧分列码垛回退为行优先顺序"
+            )
+            return [(row, col) for row in range(self.rows) for col in range(self.cols)]
+
+        robot_x, robot_y = float(current_pose[0]), float(current_pose[1])
+        slot_poses = {
+            (row, col): self._compute_slot_pose(geometry, row, col, layer)
+            for row in range(self.rows)
+            for col in range(self.cols)
+        }
+        # 每列先按“列内两个槽位中心的平均距离”确定接近列；再按单格距离确定
+        # 该列先放哪个边角。这样机器人在托盘左/右侧时会先填对应整列。
+        column_order = sorted(
+            range(self.cols),
+            key=lambda col: sum(
+                (slot_poses[(row, col)]["x"] - robot_x) ** 2
+                + (slot_poses[(row, col)]["y"] - robot_y) ** 2
+                for row in range(self.rows)
+            ) / max(1, self.rows),
+        )
+        order = []
+        for col in column_order:
+            row_order = sorted(
+                range(self.rows),
+                key=lambda row: (
+                    (slot_poses[(row, col)]["x"] - robot_x) ** 2
+                    + (slot_poses[(row, col)]["y"] - robot_y) ** 2
+                ),
+            )
+            order.extend((row, col) for row in row_order)
+
+        if self.layer_plan_key:
+            plan = {
+                "layer": int(layer),
+                "rows": int(self.rows),
+                "cols": int(self.cols),
+                "mode": self.slot_order_mode,
+                "robot_pose_map": {"x": robot_x, "y": robot_y},
+                "slots": [{"row": row, "col": col} for row, col in order],
+            }
+            self.blackboard.set(self.layer_plan_key, plan, overwrite=True)
+        self.ros_node.get_logger().info(
+            f"[{self.config_label}] 已冻结本层接近侧分列码垛顺序: "
+            f"layer={layer}, robot_map=({robot_x:.3f},{robot_y:.3f}), "
+            f"column_order={column_order}, slots={order}, key={self.layer_plan_key}"
+        )
+        return order
+
+    def _read_saved_layer_plan(self, layer):
+        if not self.layer_plan_key or not self.blackboard.exists(self.layer_plan_key):
+            return None
+        try:
+            plan = self.blackboard.get(self.layer_plan_key)
+            if not isinstance(plan, dict):
+                return None
+            if int(plan.get("layer", -1)) != int(layer):
+                return None
+            if int(plan.get("rows", -1)) != self.rows or int(plan.get("cols", -1)) != self.cols:
+                return None
+            slots = plan.get("slots", [])
+            if not isinstance(slots, list) or len(slots) != self.rows * self.cols:
+                return None
+            order = [(int(item["row"]), int(item["col"])) for item in slots]
+            if len(set(order)) != len(order):
+                return None
+            if any(row < 0 or row >= self.rows or col < 0 or col >= self.cols for row, col in order):
+                return None
+            return order
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def _select_strategy(self, row, col, slot_col_axis, box_x_axis, placed_slots, navigation_pose):
         if self.strategy_mode in ("direct", "direct_place"):
             return self._strategy("direct_place", "none", "none", "配置强制直接放箱", (0.0, 0.0))
         if self.strategy_mode in ("right_push_left", "right_push_left_place"):
@@ -411,28 +540,29 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
                 tuple(-value for value in box_x_axis),
             )
 
-        # 自动策略基于 stack_count/slot 推断已有码垛箱：
-        # 同一 row 中，如果相邻 col 已经在本轮之前出现过，就用推箱策略贴靠邻箱。
+        # 自动策略根据本层已执行槽位推断相邻箱：同一 row 中，如果相邻 col
+        # 已经在本轮之前出现过，就用推箱策略贴靠邻箱。这里不能再使用
+        # ``slot_index < stack_count``，因为 near_column_first 的实际执行顺序
+        # 与 row-major 槽位编号不同。
         #
         # 左/右不是 map 固定左右，也不是 col-1/col+1 的名字，而是“机器人站在
         # navigation_pose 面向目标 slot 时”的左右。这样第一排和第二排由于导航朝向相反，
         # 同一个 map 侧的邻箱会自动得到相反的左/右关系。
-        slot_index = row * max(1, self.cols) + col
-        left_neighbor_index = row * max(1, self.cols) + col - 1
-        right_neighbor_index = row * max(1, self.cols) + col + 1
-        left_neighbor_placed = col > 0 and left_neighbor_index < stack_count
-        right_neighbor_placed = col < self.cols - 1 and right_neighbor_index < stack_count
+        left_neighbor_slot = (row, col - 1)
+        right_neighbor_slot = (row, col + 1)
+        left_neighbor_placed = col > 0 and left_neighbor_slot in placed_slots
+        right_neighbor_placed = col < self.cols - 1 and right_neighbor_slot in placed_slots
         if left_neighbor_placed:
             return self._strategy_for_neighbor_axis(
                 neighbor_axis=(-slot_col_axis[0], -slot_col_axis[1]),
                 navigation_pose=navigation_pose,
-                reason_prefix=f"col-1 邻箱已放(index={left_neighbor_index})",
+                reason_prefix=f"col-1 邻箱已放(slot={left_neighbor_slot})",
             )
         if right_neighbor_placed:
             return self._strategy_for_neighbor_axis(
                 neighbor_axis=slot_col_axis,
                 navigation_pose=navigation_pose,
-                reason_prefix=f"col+1 邻箱已放(index={right_neighbor_index})",
+                reason_prefix=f"col+1 邻箱已放(slot={right_neighbor_slot})",
             )
         return self._strategy("direct_place", "both", "none", "当前槽位无同排邻箱，直接放箱", (0.0, 0.0))
 
