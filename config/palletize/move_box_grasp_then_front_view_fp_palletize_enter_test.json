@@ -251,7 +251,7 @@
           "pallet_map_polygon_key": {"value": "move_box_detected_pallet_map_polygon", "source": "CUSTOM"},
           "pallet_pose_key": {"value": "move_box_detected_pallet_map_pose", "source": "CUSTOM"},
           "use_pallet_pose_z_as_surface": {"value": "True", "source": "CUSTOM"},
-          "pallet_surface_z_offset_m": {"value": "0.10", "source": "CUSTOM"},
+          "pallet_surface_z_offset_m": {"value": "0.08", "source": "CUSTOM"},
           "slot_rows": {"value": "2", "source": "CUSTOM"},
           "slot_cols": {"value": "2", "source": "CUSTOM"},
           "slot_order_mode": {"value": "near_column_first", "source": "CUSTOM"},

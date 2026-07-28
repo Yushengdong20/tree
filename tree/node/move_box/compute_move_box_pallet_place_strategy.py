@@ -1359,13 +1359,6 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         marker_id = self._append_box(
             marker_array,
             marker_id,
-            "held_box_estimate",
-            held_box_pose,
-            color=(0.2, 0.8, 1.0, 0.35),
-        )
-        marker_id = self._append_box(
-            marker_array,
-            marker_id,
             "pre_place_box",
             pre_box_pose,
             color=(1.0, 0.75, 0.05, 0.38),
@@ -1419,7 +1412,6 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             f"reason={strategy_info['reason']}\n"
             f"slot=({slot_pose['x']:.2f},{slot_pose['y']:.2f}) "
             f"nav=({navigation_pose['x']:.2f},{navigation_pose['y']:.2f})\n"
-            f"held=({held_box_pose['x']:.2f},{held_box_pose['y']:.2f}) source={held_box_pose.get('source', '')}\n"
             f"pre=({pre_box_pose['x']:.2f},{pre_box_pose['y']:.2f}) "
             f"final=({final_box_pose['x']:.2f},{final_box_pose['y']:.2f})\n"
             f"release={strategy_info['release_first_side']} push={strategy_info['push_side']}"
@@ -1519,14 +1511,6 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
         marker_id = self._append_box(
             marker_array,
             marker_id,
-            "base_link/held_box_estimate",
-            held_box_pose_base,
-            color=(0.2, 0.8, 1.0, 0.22),
-            frame_id=BASE_LINK_FRAME,
-        )
-        marker_id = self._append_box(
-            marker_array,
-            marker_id,
             "base_link/pre_place_box",
             pre_box_pose_base,
             color=(1.0, 0.75, 0.05, 0.25),
@@ -1597,7 +1581,6 @@ class ComputeMoveBoxPalletPlaceStrategy(TimedMockAction):
             f"strategy={strategy_info['strategy']}\n"
             f"slot=({slot_pose_base['x']:.2f},{slot_pose_base['y']:.2f}) "
             f"nav=({navigation_pose_base['x']:.2f},{navigation_pose_base['y']:.2f})\n"
-            f"held=({held_box_pose_base['x']:.2f},{held_box_pose_base['y']:.2f})\n"
             f"pre=({pre_box_pose_base['x']:.2f},{pre_box_pose_base['y']:.2f}) "
             f"final=({final_box_pose_base['x']:.2f},{final_box_pose_base['y']:.2f})\n"
             f"release={strategy_info['release_first_side']} push={strategy_info['push_side']}"

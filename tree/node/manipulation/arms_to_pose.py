@@ -110,10 +110,12 @@ class ArmsToPose(TimedMockAction):
             params.get("claw_point_diagnostics_error_distance_m", 0.08)
         )
         # ArmsToPose 的通用 FP 轮廓依赖 box_detector 的 box_size_x/y/z；该尺寸是
-        # 抓箱模型尺寸，切到托盘 mesh 后不能再用它画托盘。因此托盘由独立
-        # /move_box/fp_pallet_markers 发布，夹爪诊断话题仅保留手爪相关内容。
+        # 抓箱模型尺寸，不能可靠表示当前 FP 正在识别的任意目标（尤其是托盘）。
+        # 因此默认不叠加：托盘用 /move_box/fp_pallet_markers，箱体用
+        # /move_box/fp_grasp_markers；夹爪诊断话题只保留手爪执行信息。
+        # 如需临时调试，可在某个 ArmsToPose JSON 显式设为 True。
         self.claw_point_diagnostics_fp_box_enabled = self._to_bool(
-            params.get("claw_point_diagnostics_fp_box_enabled", True)
+            params.get("claw_point_diagnostics_fp_box_enabled", False)
         )
         self.claw_point_diagnostics_fp_box_target_key = str(
             params.get(
