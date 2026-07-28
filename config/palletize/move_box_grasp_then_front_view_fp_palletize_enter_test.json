@@ -331,6 +331,25 @@
         "params": {"file": {"value": "subtree/pallet_place/move_box_pallet_place_execute_strategy.json", "source": "CUSTOM"}}
       },
       {
+        "name": "RefreshFpAndReportPalletPlaceError",
+        "label": "放箱后FP复测并报告最终偏差",
+        "params": {
+          "services_key": {"value": "robot_services", "source": "CUSTOM"},
+          "expected_box_pose_key": {"value": "move_box_pallet_place_final_box_pose", "source": "CUSTOM"},
+          "result_key": {"value": "move_box_pallet_place_post_release_fp_result", "source": "CUSTOM"},
+          "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+          "wait_timeout_sec": {"value": "3.0", "source": "CUSTOM"},
+          "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
+          "clear_detection_cache_before_wait": {"value": "True", "source": "CUSTOM"},
+          "fail_on_timeout": {"value": "False", "source": "CUSTOM"},
+          "visualization_enabled": {"value": "True", "source": "CUSTOM"},
+          "visualization_topic": {"value": "/move_box/pallet_place_post_release_fp_markers", "source": "CUSTOM"},
+          "expected_box_size_x": {"value": "0.60", "source": "CUSTOM"},
+          "expected_box_size_y": {"value": "0.40", "source": "CUSTOM"},
+          "expected_box_size_z": {"value": "0.34", "source": "CUSTOM"}
+        }
+      },
+      {
         "name": "MoveBoxHeldBoxVisualizationMonitor",
         "label": "停止手中箱体持续可视化并保留最后标记",
         "params": {"action": {"value": "stop", "source": "CUSTOM"}, "clear_markers_on_stop": {"value": "False", "source": "CUSTOM"}}

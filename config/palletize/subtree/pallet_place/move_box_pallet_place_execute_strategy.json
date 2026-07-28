@@ -190,6 +190,25 @@
                 }
               },
               {
+                "name": "RefreshFpAndReportPalletPlaceError",
+                "label": "直接放箱：松爪前FP复测箱心",
+                "params": {
+                  "services_key": {"value": "robot_services", "source": "CUSTOM"},
+                  "expected_box_pose_key": {"value": "move_box_pallet_place_final_box_pose", "source": "CUSTOM"},
+                  "result_key": {"value": "move_box_pallet_place_pre_release_fp_result", "source": "CUSTOM"},
+                  "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+                  "wait_timeout_sec": {"value": "3.0", "source": "CUSTOM"},
+                  "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
+                  "clear_detection_cache_before_wait": {"value": "True", "source": "CUSTOM"},
+                  "fail_on_timeout": {"value": "False", "source": "CUSTOM"},
+                  "visualization_enabled": {"value": "True", "source": "CUSTOM"},
+                  "visualization_topic": {"value": "/move_box/pallet_place_pre_release_fp_markers", "source": "CUSTOM"},
+                  "expected_box_size_x": {"value": "0.60", "source": "CUSTOM"},
+                  "expected_box_size_y": {"value": "0.40", "source": "CUSTOM"},
+                  "expected_box_size_z": {"value": "0.34", "source": "CUSTOM"}
+                }
+              },
+              {
                 "name": "WaitForEnter",
                 "label": "直接放箱确认2：双爪已下降",
                 "params": {
@@ -379,6 +398,25 @@
                     "value": "[0.0, -60.0, 0.0]",
                     "source": "CUSTOM"
                   }
+                }
+              },
+              {
+                "name": "RefreshFpAndReportPalletPlaceError",
+                "label": "右推左放：松爪前FP复测箱心",
+                "params": {
+                  "services_key": {"value": "robot_services", "source": "CUSTOM"},
+                  "expected_box_pose_key": {"value": "move_box_pallet_place_final_box_pose", "source": "CUSTOM"},
+                  "result_key": {"value": "move_box_pallet_place_pre_release_fp_result", "source": "CUSTOM"},
+                  "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+                  "wait_timeout_sec": {"value": "3.0", "source": "CUSTOM"},
+                  "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
+                  "clear_detection_cache_before_wait": {"value": "True", "source": "CUSTOM"},
+                  "fail_on_timeout": {"value": "False", "source": "CUSTOM"},
+                  "visualization_enabled": {"value": "True", "source": "CUSTOM"},
+                  "visualization_topic": {"value": "/move_box/pallet_place_pre_release_fp_markers", "source": "CUSTOM"},
+                  "expected_box_size_x": {"value": "0.60", "source": "CUSTOM"},
+                  "expected_box_size_y": {"value": "0.40", "source": "CUSTOM"},
+                  "expected_box_size_z": {"value": "0.34", "source": "CUSTOM"}
                 }
               },
               {
@@ -607,6 +645,25 @@
                     "value": "[0.0, -60.0, 0.0]",
                     "source": "CUSTOM"
                   }
+                }
+              },
+              {
+                "name": "RefreshFpAndReportPalletPlaceError",
+                "label": "左推右放：松爪前FP复测箱心",
+                "params": {
+                  "services_key": {"value": "robot_services", "source": "CUSTOM"},
+                  "expected_box_pose_key": {"value": "move_box_pallet_place_final_box_pose", "source": "CUSTOM"},
+                  "result_key": {"value": "move_box_pallet_place_pre_release_fp_result", "source": "CUSTOM"},
+                  "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+                  "wait_timeout_sec": {"value": "3.0", "source": "CUSTOM"},
+                  "poll_interval_sec": {"value": "0.2", "source": "CUSTOM"},
+                  "clear_detection_cache_before_wait": {"value": "True", "source": "CUSTOM"},
+                  "fail_on_timeout": {"value": "False", "source": "CUSTOM"},
+                  "visualization_enabled": {"value": "True", "source": "CUSTOM"},
+                  "visualization_topic": {"value": "/move_box/pallet_place_pre_release_fp_markers", "source": "CUSTOM"},
+                  "expected_box_size_x": {"value": "0.60", "source": "CUSTOM"},
+                  "expected_box_size_y": {"value": "0.40", "source": "CUSTOM"},
+                  "expected_box_size_z": {"value": "0.34", "source": "CUSTOM"}
                 }
               },
               {
