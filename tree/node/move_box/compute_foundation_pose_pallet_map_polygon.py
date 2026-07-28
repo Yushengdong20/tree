@@ -1,4 +1,4 @@
-"""将 FoundationPose 检出的托盘中心/朝向转换为 map 四角禁入区域。"""
+"""将 FoundationPose 检出的托盘中心/朝向转换为 map 四角禁入区域及 3D 可视化。"""
 
 import math
 
@@ -33,6 +33,9 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         self.odom_topic = str(params.get("odom_topic", "melon_odom")).strip()
         self.pallet_size_x_m = float(params.get("pallet_size_x_m", 1.30))
         self.pallet_size_y_m = float(params.get("pallet_size_y_m", 0.90))
+        # FP 返回的是托盘模型中心与朝向；实体厚度由现场实测配置，供 map 下
+        # 3D 线框/半透明实体显示使用，不影响底盘禁入 polygon 的 XY 计算。
+        self.pallet_height_m = float(params.get("pallet_height_m", 0.15))
         self.pallet_map_polygon_key = str(
             params.get("pallet_map_polygon_key", "move_box_detected_pallet_map_polygon")
         ).strip()
@@ -49,8 +52,8 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         self.visualization_topic = str(
             params.get("visualization_topic", "/move_box/fp_pallet_markers")
         ).strip()
-        if self.pallet_size_x_m <= 0.0 or self.pallet_size_y_m <= 0.0:
-            raise ValueError("pallet_size_x_m/pallet_size_y_m 必须大于 0")
+        if min(self.pallet_size_x_m, self.pallet_size_y_m, self.pallet_height_m) <= 0.0:
+            raise ValueError("pallet_size_x_m/pallet_size_y_m/pallet_height_m 必须大于 0")
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         self.blackboard.register_key(
             key=self.pallet_map_polygon_key,
@@ -131,7 +134,7 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
             "z": float(center_base[2]) + float(pose[2]),
             "side_axis": [float(side_map[0]), float(side_map[1])],
             "front_axis": [float(front_map[0]), float(front_map[1])],
-            "size": [self.pallet_size_x_m, self.pallet_size_y_m],
+            "size": [self.pallet_size_x_m, self.pallet_size_y_m, self.pallet_height_m],
             "yaw": math.degrees(math.atan2(float(front_map[1]), float(front_map[0]))),
         }
         self.blackboard.set(self.pallet_map_polygon_key, polygon, overwrite=True)
@@ -141,7 +144,7 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         self.ros_node.get_logger().info(
             f"[{self.config_label}] FP 托盘 map 区域已生成: "
             f"center=({pose_data['x']:.3f},{pose_data['y']:.3f},{pose_data['z']:.3f}), "
-            f"size=({self.pallet_size_x_m:.3f},{self.pallet_size_y_m:.3f}), "
+            f"size=({self.pallet_size_x_m:.3f},{self.pallet_size_y_m:.3f},{self.pallet_height_m:.3f}), "
             f"yaw={pose_data['yaw']:.1f}deg, "
             f"yolo_size_xyz={yolo_size if yolo_size is not None else '<unavailable>'}, "
             f"polygon={polygon}"
@@ -198,31 +201,78 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         clear = Marker()
         clear.action = Marker.DELETEALL
         marker_array.markers.append(clear)
-        line = Marker()
-        line.header.frame_id = MAP_FRAME
-        line.header.stamp = self.ros_node.now()
-        line.ns = "fp_detected_pallet_polygon"
-        line.id = 1
-        line.type = Marker.LINE_STRIP
-        line.action = Marker.ADD
-        line.scale.x = 0.035
-        line.color.r, line.color.g, line.color.b, line.color.a = 1.0, 0.25, 0.05, 1.0
-        line.points = [Point(x=p["x"], y=p["y"], z=0.05) for p in polygon + polygon[:1]]
-        marker_array.markers.append(line)
+
+        # FP pose 的 z 是托盘模型中心；按真实高度上下各扩展一半，绘制完整 3D 托盘。
+        # 禁入 polygon 的 XY 几何不变，但不再把显示高度写死为 z=0.05。
+        center_z = float(pose_data["z"])
+        half_height = self.pallet_height_m * 0.5
+        bottom_z = center_z - half_height
+        top_z = center_z + half_height
+        bottom_corners = [Point(x=p["x"], y=p["y"], z=bottom_z) for p in polygon]
+        top_corners = [Point(x=p["x"], y=p["y"], z=top_z) for p in polygon]
+
+        solid = Marker()
+        solid.header.frame_id = MAP_FRAME
+        solid.header.stamp = self.ros_node.now()
+        solid.ns, solid.id = "fp_detected_pallet_solid", 1
+        solid.type, solid.action = Marker.CUBE, Marker.ADD
+        solid.pose.position.x = float(pose_data["x"])
+        solid.pose.position.y = float(pose_data["y"])
+        solid.pose.position.z = center_z
+        side_axis = pose_data["side_axis"]
+        side_yaw = math.atan2(float(side_axis[1]), float(side_axis[0]))
+        solid.pose.orientation.z = math.sin(side_yaw * 0.5)
+        solid.pose.orientation.w = math.cos(side_yaw * 0.5)
+        solid.scale.x = self.pallet_size_x_m
+        solid.scale.y = self.pallet_size_y_m
+        solid.scale.z = self.pallet_height_m
+        solid.color.r, solid.color.g, solid.color.b, solid.color.a = 1.0, 0.32, 0.06, 0.16
+        marker_array.markers.append(solid)
+
+        wireframe = Marker()
+        wireframe.header.frame_id = MAP_FRAME
+        wireframe.header.stamp = self.ros_node.now()
+        wireframe.ns, wireframe.id = "fp_detected_pallet_wireframe", 2
+        wireframe.type, wireframe.action = Marker.LINE_LIST, Marker.ADD
+        wireframe.scale.x = 0.035
+        wireframe.color.r, wireframe.color.g, wireframe.color.b, wireframe.color.a = 1.0, 0.25, 0.05, 1.0
+        for index in range(4):
+            next_index = (index + 1) % 4
+            wireframe.points.extend((bottom_corners[index], bottom_corners[next_index]))
+            wireframe.points.extend((top_corners[index], top_corners[next_index]))
+            wireframe.points.extend((bottom_corners[index], top_corners[index]))
+        marker_array.markers.append(wireframe)
+
+        center_marker = Marker()
+        center_marker.header.frame_id = MAP_FRAME
+        center_marker.header.stamp = self.ros_node.now()
+        center_marker.ns, center_marker.id = "fp_detected_pallet_center", 3
+        center_marker.type, center_marker.action = Marker.SPHERE, Marker.ADD
+        center_marker.pose.position.x = float(pose_data["x"])
+        center_marker.pose.position.y = float(pose_data["y"])
+        center_marker.pose.position.z = center_z
+        center_marker.pose.orientation.w = 1.0
+        center_marker.scale.x = center_marker.scale.y = center_marker.scale.z = 0.08
+        center_marker.color.r, center_marker.color.g, center_marker.color.b, center_marker.color.a = 1.0, 1.0, 0.1, 1.0
+        marker_array.markers.append(center_marker)
+
         text = Marker()
         text.header.frame_id = MAP_FRAME
         text.header.stamp = self.ros_node.now()
         text.ns = "fp_detected_pallet_text"
-        text.id = 2
+        text.id = 4
         text.type = Marker.TEXT_VIEW_FACING
         text.action = Marker.ADD
-        text.pose.position.x, text.pose.position.y, text.pose.position.z = pose_data["x"], pose_data["y"], 0.20
+        text.pose.position.x = float(pose_data["x"])
+        text.pose.position.y = float(pose_data["y"])
+        text.pose.position.z = top_z + 0.12
         text.pose.orientation.w = 1.0
         text.scale.z = 0.10
         text.color.r = text.color.g = text.color.b = text.color.a = 1.0
         text.text = (
-            "FP PALLET REGION\\n"
-            f"size=({self.pallet_size_x_m:.2f},{self.pallet_size_y_m:.2f}) "
+            "FP PALLET\\n"
+            f"center=({pose_data['x']:.2f},{pose_data['y']:.2f},{center_z:.2f})\\n"
+            f"size=({self.pallet_size_x_m:.2f},{self.pallet_size_y_m:.2f},{self.pallet_height_m:.2f}) "
             f"yaw={pose_data['yaw']:.1f}deg"
         )
         marker_array.markers.append(text)
@@ -231,6 +281,6 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
     def describe_start(self):
         return (
             f"[{self.config_label}] ComputeFoundationPosePalletMapPolygon start: "
-            f"size=({self.pallet_size_x_m:.3f},{self.pallet_size_y_m:.3f}), "
+            f"size=({self.pallet_size_x_m:.3f},{self.pallet_size_y_m:.3f},{self.pallet_height_m:.3f}), "
             f"polygon_key={self.pallet_map_polygon_key}"
         )

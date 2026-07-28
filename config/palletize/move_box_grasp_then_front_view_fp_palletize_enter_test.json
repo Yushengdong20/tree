@@ -195,6 +195,7 @@
               "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
               "pallet_size_x_m": {"value": "1.20", "source": "CUSTOM"},
               "pallet_size_y_m": {"value": "0.80", "source": "CUSTOM"},
+              "pallet_height_m": {"value": "0.15", "source": "CUSTOM"},
               "pallet_map_polygon_key": {"value": "move_box_detected_pallet_map_polygon", "source": "CUSTOM"},
               "pallet_pose_key": {"value": "move_box_detected_pallet_map_pose", "source": "CUSTOM"},
               "visualization_enabled": {"value": "True", "source": "CUSTOM"},

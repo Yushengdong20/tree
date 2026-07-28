@@ -55,6 +55,9 @@ class ArmsToPose(TimedMockAction):
     - lock_arm_side: 锁住当前关节的手臂，支持 left / right / 空
     - pose_frame: 目标位姿坐标系，支持 base_link / waist_yaw_link。
       注意：claw_point 模式目前只能使用 base_link。
+    - claw_point_diagnostics_fp_box_enabled: 是否在夹爪诊断中叠加通用 FP 箱体。
+    - claw_point_diagnostics_fp_box_skip_mesh_names: 当前 FP mesh 属于该列表时不叠加。
+      默认跳过 ``tuopan``，因为通用 box_detector 的尺寸仍是待抓箱尺寸，不能用于托盘。
 
     eef_pose 默认使用 waist_yaw_link，是为了和 ArmController.move_to_initial_pose()
     使用的初始化手臂位姿坐标系保持一致；point_key 会隐式选择
@@ -106,6 +109,21 @@ class ArmsToPose(TimedMockAction):
         self.claw_point_diagnostics_error_distance_m = float(
             params.get("claw_point_diagnostics_error_distance_m", 0.08)
         )
+        # ArmsToPose 的通用 FP 轮廓依赖 box_detector 的 box_size_x/y/z；该尺寸是
+        # 抓箱模型尺寸，切到托盘 mesh 后不能再用它画托盘。因此托盘由独立
+        # /move_box/fp_pallet_markers 发布，夹爪诊断话题仅保留手爪相关内容。
+        self.claw_point_diagnostics_fp_box_enabled = self._to_bool(
+            params.get("claw_point_diagnostics_fp_box_enabled", True)
+        )
+        self.claw_point_diagnostics_fp_box_target_key = str(
+            params.get(
+                "claw_point_diagnostics_fp_box_target_key",
+                "move_box_foundationpose_active_target",
+            )
+        ).strip()
+        self.claw_point_diagnostics_fp_box_skip_mesh_names = self._parse_name_set(
+            params.get("claw_point_diagnostics_fp_box_skip_mesh_names", ["tuopan"])
+        )
         # 只在码垛相关 ArmsToPose 配置中显式开启，避免通用手臂动作持续写入文件。
         self.pallet_place_diagnostic_log_enabled = self._to_bool(
             params.get("pallet_place_diagnostic_log_enabled", False)
@@ -148,6 +166,7 @@ class ArmsToPose(TimedMockAction):
         self.startup_error = None
         self._claw_point_diagnostics = {}
         self._diagnostics_logged = False
+        self._fp_box_skip_logged = False
         self.blackboard.register_key(key=self.services_key, access=py_trees.common.Access.READ)
         for key in [
             self.left_pose_key,
@@ -157,6 +176,7 @@ class ArmsToPose(TimedMockAction):
             self.point_key,
             self.left_point_key,
             self.right_point_key,
+            self.claw_point_diagnostics_fp_box_target_key,
         ]:
             if key:
                 self.blackboard.register_key(key=key, access=py_trees.common.Access.READ)
@@ -171,6 +191,7 @@ class ArmsToPose(TimedMockAction):
         self.startup_error = None
         self._claw_point_diagnostics = {}
         self._diagnostics_logged = False
+        self._fp_box_skip_logged = False
 
         if self.should_use_mock_execution():
             return
@@ -254,6 +275,23 @@ class ArmsToPose(TimedMockAction):
         if not isinstance(value, (list, tuple)) or len(value) != 3:
             raise ValueError(f"{name} 必须是长度为 3 的列表: [yaw, pitch, roll]")
         return [float(item) for item in value]
+
+    @staticmethod
+    def _parse_name_set(value):
+        """兼容 JSON list、Python list 字符串或逗号分隔 mesh 名称。"""
+        if value is None:
+            return set()
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return set()
+            try:
+                value = ast.literal_eval(text)
+            except (ValueError, SyntaxError):
+                value = [item.strip() for item in text.split(",")]
+        if not isinstance(value, (list, tuple, set)):
+            value = [value]
+        return {str(item).strip().lower() for item in value if str(item).strip()}
 
     def _get_blackboard_value(self, key, label):
         if not key:
@@ -996,6 +1034,8 @@ class ArmsToPose(TimedMockAction):
 
     def _append_fp_box_diagnostic_markers(self, marker_array, marker_id):
         """在夹爪诊断里叠加当前 FP 箱体，方便直接看夹爪相对箱体的位置。"""
+        if not self._should_append_fp_box_diagnostics():
+            return marker_id
         fp_box = self._get_latest_fp_box_for_diagnostics()
         if fp_box is None:
             return marker_id
@@ -1079,6 +1119,28 @@ class ArmsToPose(TimedMockAction):
                 box_size,
             )
         return marker_id
+
+    def _should_append_fp_box_diagnostics(self):
+        """避免把抓箱模型尺寸错误套用到 FP 托盘中心上。"""
+        if not self.claw_point_diagnostics_fp_box_enabled:
+            return False
+        key = self.claw_point_diagnostics_fp_box_target_key
+        if not key or not self.blackboard.exists(key):
+            return True
+        try:
+            active_mesh = str(self.blackboard.get(key)).strip().lower()
+        except (AttributeError, KeyError):
+            return True
+        if active_mesh not in self.claw_point_diagnostics_fp_box_skip_mesh_names:
+            return True
+        if not self._fp_box_skip_logged:
+            self.ros_node.get_logger().info(
+                f"[{self.config_label}] 当前 FP mesh={active_mesh}，"
+                "跳过 claw_point_diagnostics 中的通用 FP BOX 轮廓；"
+                "托盘请查看 /move_box/fp_pallet_markers"
+            )
+            self._fp_box_skip_logged = True
+        return False
 
     def _append_fp_box_base_link_diagnostic_markers(
         self,
