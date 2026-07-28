@@ -1,0 +1,160 @@
+{
+  "tree": {
+    "name": "Sequence",
+    "label": "直接放箱：开环下降后FP低位XY与Yaw迭代校正（测试）",
+    "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+    "childs": [
+      {
+        "name": "CheckBlackboardValue",
+        "label": "仅允许直接放箱策略进入本测试",
+        "params": {
+          "key": {"value": "move_box_pallet_place_strategy", "source": "CUSTOM"},
+          "expected": {"value": "direct_place", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "ComputeMoveBoxPlaceTargets",
+        "label": "开环计算直接放箱下降目标",
+        "params": {
+          "place_plane_height_key": {"value": "move_box_pallet_stack_place_plane_height", "source": "CUSTOM"},
+          "place_plane_frame": {"value": "map", "source": "CUSTOM"},
+          "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+          "expected_box_pose_key": {"value": "move_box_pallet_stack_expected_box_pose", "source": "CUSTOM"},
+          "align_xy_to_expected_box": {"value": "True", "source": "CUSTOM"},
+          "box_size_z": {"value": "0.34", "source": "CUSTOM"},
+          "left_target_key": {"value": "move_box_direct_place_fp_left_lower_claw_point", "source": "CUSTOM"},
+          "right_target_key": {"value": "move_box_direct_place_fp_right_lower_claw_point", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "开环下降到直接放箱目标确认",
+        "params": {
+          "message": {"value": "仅测试 direct_place：先按规划开环下降到目标高度和目标 XY；按 Enter 后执行。随后将用 FP 在低位仅微调 XY/yaw。", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "ArmsToPose",
+        "label": "直接放箱：开环同步下降到目标位置",
+        "params": {
+          "target_type": {"value": "claw_point", "source": "CUSTOM"},
+          "pose_frame": {"value": "base_link", "source": "CUSTOM"},
+          "left_point_key": {"value": "move_box_direct_place_fp_left_lower_claw_point", "source": "CUSTOM"},
+          "right_point_key": {"value": "move_box_direct_place_fp_right_lower_claw_point", "source": "CUSTOM"},
+          "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "SetBlackboardValue",
+        "label": "重置低位视觉对齐状态",
+        "params": {
+          "key": {"value": "move_box_direct_place_fp_aligned", "source": "CUSTOM"},
+          "value": {"value": "False", "source": "CUSTOM"}
+        }
+      },
+      {
+        "name": "RepeatUntilBlackboardValue",
+        "label": "低位重复FP复测并微调XY和Yaw",
+        "params": {
+          "key": {"value": "move_box_direct_place_fp_aligned", "source": "CUSTOM"},
+          "expected": {"value": "True", "source": "CUSTOM"},
+          "max_iterations": {"value": "5", "source": "CUSTOM"}
+        },
+        "childs": [
+          {
+            "name": "Sequence",
+            "label": "一轮低位视觉微调",
+            "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+            "childs": [
+              {
+                "name": "RefreshFpAndReportPalletPlaceError",
+                "label": "低位FP复测当前箱体误差",
+                "params": {
+                  "services_key": {"value": "robot_services", "source": "CUSTOM"},
+                  "expected_box_pose_key": {"value": "move_box_pallet_place_final_box_pose", "source": "CUSTOM"},
+                  "result_key": {"value": "move_box_direct_place_fp_error", "source": "CUSTOM"},
+                  "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+                  "wait_timeout_sec": {"value": "3.0", "source": "CUSTOM"},
+                  "poll_interval_sec": {"value": "0.15", "source": "CUSTOM"},
+                  "clear_detection_cache_before_wait": {"value": "True", "source": "CUSTOM"},
+                  "fail_on_timeout": {"value": "True", "source": "CUSTOM"},
+                  "visualization_enabled": {"value": "True", "source": "CUSTOM"},
+                  "visualization_topic": {"value": "/move_box/pallet_direct_fp_xy_yaw_markers", "source": "CUSTOM"},
+                  "expected_box_size_x": {"value": "0.60", "source": "CUSTOM"},
+                  "expected_box_size_y": {"value": "0.40", "source": "CUSTOM"},
+                  "expected_box_size_z": {"value": "0.34", "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "ComputeMoveBoxFpDirectPlaceCorrectionTargets",
+                "label": "计算低位XY与Yaw微调动作点",
+                "params": {
+                  "services_key": {"value": "robot_services", "source": "CUSTOM"},
+                  "error_result_key": {"value": "move_box_direct_place_fp_error", "source": "CUSTOM"},
+                  "left_pose_key": {"value": "move_box_direct_place_fp_left_eef_target", "source": "CUSTOM"},
+                  "right_pose_key": {"value": "move_box_direct_place_fp_right_eef_target", "source": "CUSTOM"},
+                  "aligned_key": {"value": "move_box_direct_place_fp_aligned", "source": "CUSTOM"},
+                  "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
+                  "xy_tolerance_m": {"value": "0.030", "source": "CUSTOM"},
+                  "yaw_tolerance_deg": {"value": "5.0", "source": "CUSTOM"},
+                  "yaw_axis_symmetric": {"value": "True", "source": "CUSTOM"},
+                  "max_step_xy_m": {"value": "0.015", "source": "CUSTOM"},
+                  "max_step_yaw_deg": {"value": "3.0", "source": "CUSTOM"}
+                }
+              },
+              {
+                "name": "Selector",
+                "label": "已收敛则跳过动作，否则执行低位小步",
+                "params": {"memory": {"value": "False", "source": "CUSTOM"}},
+                "childs": [
+                  {
+                    "name": "CheckBlackboardValue",
+                    "label": "本轮FP误差已在释放阈值内",
+                    "params": {
+                      "key": {"value": "move_box_direct_place_fp_aligned", "source": "CUSTOM"},
+                      "expected": {"value": "True", "source": "CUSTOM"}
+                    }
+                  },
+                  {
+                    "name": "Sequence",
+                    "label": "确认并执行低位FP微调",
+                    "params": {"memory": {"value": "True", "source": "CUSTOM"}},
+                    "childs": [
+                      {
+                        "name": "WaitForEnter",
+                        "label": "低位FP微调确认",
+                        "params": {"message": {"value": "本轮 FP 未收敛，已生成低位 XY/yaw 小步；确认周边无邻箱后按 Enter 执行。", "source": "CUSTOM"}}
+                      },
+                      {
+                        "name": "ArmsToPose",
+                        "label": "低位执行FP XY与Yaw微调",
+                        "params": {
+                          "pose_frame": {"value": "base_link", "source": "CUSTOM"},
+                          "left_pose_key": {"value": "move_box_direct_place_fp_left_eef_target", "source": "CUSTOM"},
+                          "right_pose_key": {"value": "move_box_direct_place_fp_right_eef_target", "source": "CUSTOM"}
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "WaitForEnter",
+        "label": "直接放箱低位视觉校正后释放确认",
+        "params": {"message": {"value": "FP 低位 XY/yaw 已满足阈值；按 Enter 张开双爪释放。", "source": "CUSTOM"}}
+      },
+      {
+        "name": "OpenClaw",
+        "label": "直接放箱：张开双夹爪释放",
+        "params": {
+          "side": {"value": "both", "source": "CUSTOM"},
+          "torque": {"value": "0.0", "source": "CUSTOM"}
+        }
+      }
+    ]
+  }
+}

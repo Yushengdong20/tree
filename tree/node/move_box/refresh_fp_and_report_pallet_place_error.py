@@ -14,6 +14,7 @@ import time
 
 import numpy as np
 import py_trees
+import tf.transformations as tf_trans
 from geometry_msgs.msg import Point
 from py_trees.common import Status
 from visualization_msgs.msg import Marker, MarkerArray
@@ -172,7 +173,12 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         detector = self.services.box_detector
         box_center = self._as_vector(detector.get_latest_box_center())
         box_axes = detector.get_latest_box_axes()
-        left_axis = self._as_vector(box_axes.get("left") if box_axes else None)
+        # ``right`` 是 FP 新约定 right_x_front_y_up_z 的局部 +X；旧抓取
+        # 业务只保存 left 时，以其反向兼容，绝不能把 left 当作新 +X。
+        right_axis = self._as_vector(box_axes.get("right") if box_axes else None)
+        if right_axis is None:
+            left_axis = self._as_vector(box_axes.get("left") if box_axes else None)
+            right_axis = -left_axis if left_axis is not None else None
         up_axis = self._as_vector(box_axes.get("up") if box_axes else None)
         front_axis = self._as_vector(getattr(detector, "get_latest_box_front_axis", lambda: None)())
         if box_center is None:
@@ -185,7 +191,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
 
         map_from_base = _map_from_base_matrix_via_melon_odom(odom_msg)
         center_map = _point_base_to_map(box_center, map_from_base)
-        left_axis_map = _axis_base_to_map(box_center, left_axis, map_from_base) if left_axis is not None else None
+        right_axis_map = _axis_base_to_map(box_center, right_axis, map_from_base) if right_axis is not None else None
         up_axis_map = _axis_base_to_map(box_center, up_axis, map_from_base) if up_axis is not None else None
         front_axis_map = _axis_base_to_map(box_center, front_axis, map_from_base) if front_axis is not None else None
 
@@ -193,7 +199,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         return {
             "center_base": box_center,
             "center_map": center_map,
-            "left_axis_map": left_axis_map,
+            "right_axis_map": right_axis_map,
             "front_axis_map": front_axis_map,
             "up_axis_map": up_axis_map,
             "box_size": box_size,
@@ -212,17 +218,30 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         delta = actual_center - expected_center
         planar = math.hypot(float(delta[0]), float(delta[1]))
         distance = float(np.linalg.norm(delta))
+        expected_rpy = {
+            "roll": float(expected_pose.get("roll", 0.0)),
+            "pitch": float(expected_pose.get("pitch", 0.0)),
+            "yaw": float(expected_pose.get("yaw", 0.0)),
+        }
+        actual_rpy = self._axes_to_rpy_deg(actual)
+        orientation_delta = None
+        if actual_rpy is not None:
+            orientation_delta = {
+                axis: self._normalize_angle_deg(actual_rpy[axis] - expected_rpy[axis])
+                for axis in ("roll", "pitch", "yaw")
+            }
         return {
             "expected": {
                 "x": float(expected_center[0]),
                 "y": float(expected_center[1]),
                 "z": float(expected_center[2]),
-                "yaw": float(expected_pose.get("yaw", 0.0)),
+                **expected_rpy,
             },
             "actual": {
                 "x": float(actual_center[0]),
                 "y": float(actual_center[1]),
                 "z": float(actual_center[2]),
+                "rpy": actual_rpy,
             },
             "delta": {
                 "x": float(delta[0]),
@@ -231,12 +250,50 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
                 "planar": float(planar),
                 "distance": float(distance),
             },
+            "orientation": {
+                "expected_rpy_deg": expected_rpy,
+                "actual_rpy_deg": actual_rpy,
+                "delta_rpy_deg": orientation_delta,
+            },
+        }
+
+    @staticmethod
+    def _normalize_angle_deg(angle_deg):
+        """把姿态差归一化到 [-180, 180)，避免跨 ±180° 产生假大误差。"""
+        return (float(angle_deg) + 180.0) % 360.0 - 180.0
+
+    @staticmethod
+    def _axes_to_rpy_deg(actual):
+        """从 FP 的 left/front/up 轴求 map 下箱体 R/P/Y（单位：度）。
+
+        轴定义与新 FP ``right_x_front_y_up_z`` 一致：right 是箱体局部 +X，
+        front 是局部 +Y，up 是局部 +Z。输入轴会先正交化，避免 FP 轻微噪声
+        造成旋转矩阵不合法；front 的正负由 FP 原始 front 轴保持一致。
+        """
+        axes = RefreshFpAndReportPalletPlaceError._actual_box_axes(actual)
+        if axes is None:
+            return None
+        right_axis, front_axis, up_axis = axes
+
+        rotation = np.identity(4, dtype=float)
+        rotation[:3, 0] = right_axis
+        rotation[:3, 1] = front_axis
+        rotation[:3, 2] = up_axis
+        try:
+            roll_rad, pitch_rad, yaw_rad = tf_trans.euler_from_matrix(rotation)
+        except (TypeError, ValueError):
+            return None
+        return {
+            "roll": float(math.degrees(roll_rad)),
+            "pitch": float(math.degrees(pitch_rad)),
+            "yaw": float(math.degrees(yaw_rad)),
         }
 
     def _log_result(self, result):
         expected = result["expected"]
         actual = result["actual"]
         delta = result["delta"]
+        orientation = result["orientation"]
         message = (
             f"[{self.config_label}] 放箱后 FP 实测偏差(map): "
             f"target=({expected['x']:.3f}, {expected['y']:.3f}, {expected['z']:.3f}), "
@@ -244,6 +301,20 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             f"delta=(dx={delta['x']:.3f}, dy={delta['y']:.3f}, dz={delta['z']:.3f}), "
             f"planar={delta['planar']:.3f}m, distance={delta['distance']:.3f}m"
         )
+        if orientation["actual_rpy_deg"] is not None:
+            expected_rpy = orientation["expected_rpy_deg"]
+            actual_rpy = orientation["actual_rpy_deg"]
+            delta_rpy = orientation["delta_rpy_deg"]
+            message += (
+                f"; target_rpy=({expected_rpy['roll']:.1f},"
+                f"{expected_rpy['pitch']:.1f},{expected_rpy['yaw']:.1f})deg, "
+                f"actual_rpy=({actual_rpy['roll']:.1f},"
+                f"{actual_rpy['pitch']:.1f},{actual_rpy['yaw']:.1f})deg, "
+                f"delta_rpy=({delta_rpy['roll']:+.1f},"
+                f"{delta_rpy['pitch']:+.1f},{delta_rpy['yaw']:+.1f})deg"
+            )
+        else:
+            message += "; RPY=unavailable(FP axes invalid)"
         self.ros_node.get_logger().info(f"\033[1;97;44m{message}\033[0m")
 
     def _publish_visualization(self, expected_pose, actual, result):
@@ -263,6 +334,8 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         marker_id = self._append_sphere(marker_array, marker_id, "actual_fp_box_center", actual_center, (1.0, 0.1, 0.1, 1.0), 0.08)
         marker_id = self._append_line(marker_array, marker_id, "place_error_vector", expected, actual_center, (1.0, 0.8, 0.0, 1.0), 0.025)
         marker_id = self._append_actual_box(marker_array, marker_id, actual)
+        marker_id = self._append_expected_axes(marker_array, marker_id, expected_pose)
+        marker_id = self._append_actual_axes(marker_array, marker_id, actual)
         self._append_text(marker_array, marker_id, expected, actual_center, result)
         self.visualization_pub.publish(marker_array)
         self.ros_node.get_logger().info(
@@ -271,18 +344,17 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
 
     def _append_actual_box(self, marker_array, marker_id, actual):
         center = np.array(actual["center_map"], dtype=float)
-        left_axis = _normalize(actual.get("left_axis_map"))
-        front_axis = _normalize(actual.get("front_axis_map"))
-        up_axis = _normalize(actual.get("up_axis_map"))
+        axes = self._actual_box_axes(actual)
         box_size = actual.get("box_size")
-        if left_axis is None or front_axis is None or up_axis is None or box_size is None:
+        if axes is None or box_size is None:
             return marker_id
+        right_axis, front_axis, up_axis = axes
 
         box_marker = self._new_marker(marker_id, "actual_fp_box_outline", Marker.LINE_LIST)
         marker_id += 1
         box_marker.scale.x = 0.025
         self._set_color(box_marker, 0.0, 0.9, 1.0, 0.95)
-        corners = _fp_box_corners(center, left_axis, front_axis, up_axis, box_size)
+        corners = _fp_box_corners(center, right_axis, front_axis, up_axis, box_size)
         for start_index, end_index in _box_edge_indices():
             box_marker.points.append(self._point(corners[start_index]))
             box_marker.points.append(self._point(corners[end_index]))
@@ -291,10 +363,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
 
     def _append_expected_box(self, marker_array, marker_id, expected_pose):
         """绘制绿色规划箱体，避免误差话题只剩两个箱心而难以判断真实占位。"""
-        yaw_rad = math.radians(float(expected_pose.get("yaw", 0.0)))
-        left_axis = np.array([math.cos(yaw_rad), math.sin(yaw_rad), 0.0], dtype=float)
-        front_axis = np.array([-math.sin(yaw_rad), math.cos(yaw_rad), 0.0], dtype=float)
-        up_axis = np.array([0.0, 0.0, 1.0], dtype=float)
+        right_axis, front_axis, up_axis = self._expected_box_axes(expected_pose)
         center = np.array(
             [expected_pose["x"], expected_pose["y"], expected_pose.get("z", 0.0)], dtype=float
         )
@@ -303,7 +372,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         self._set_color(marker, 0.15, 1.0, 0.25, 0.95)
         corners = _fp_box_corners(
             center,
-            left_axis,
+            right_axis,
             front_axis,
             up_axis,
             (self.expected_box_size_x, self.expected_box_size_y, self.expected_box_size_z),
@@ -313,6 +382,85 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             marker.points.append(self._point(corners[end_index]))
         marker_array.markers.append(marker)
         return marker_id + 1
+
+    @staticmethod
+    def _expected_box_axes(expected_pose):
+        """以新 FP 的 right(+X)/front(+Y)/up(+Z) 定义生成目标坐标轴。"""
+        rotation = tf_trans.euler_matrix(
+            math.radians(float(expected_pose.get("roll", 0.0))),
+            math.radians(float(expected_pose.get("pitch", 0.0))),
+            math.radians(float(expected_pose.get("yaw", 0.0))),
+        )[:3, :3]
+        return rotation[:, 0], rotation[:, 1], rotation[:, 2]
+
+    @staticmethod
+    def _actual_box_axes(actual):
+        """返回经正交化后的实测 right/front/up 轴，与 RPY 计算严格同源。"""
+        right_axis = _normalize(actual.get("right_axis_map"))
+        up_axis = _normalize(actual.get("up_axis_map"))
+        raw_front_axis = _normalize(actual.get("front_axis_map"))
+        if right_axis is None or up_axis is None or raw_front_axis is None:
+            return None
+
+        right_axis = _normalize(right_axis - np.dot(right_axis, up_axis) * up_axis)
+        if right_axis is None:
+            return None
+        front_axis = _normalize(np.cross(up_axis, right_axis))
+        if front_axis is None:
+            return None
+        if float(np.dot(front_axis, raw_front_axis)) < 0.0:
+            front_axis = -front_axis
+        return right_axis, front_axis, up_axis
+
+    def _append_expected_axes(self, marker_array, marker_id, expected_pose):
+        center = np.array(
+            [expected_pose["x"], expected_pose["y"], expected_pose.get("z", 0.0)],
+            dtype=float,
+        )
+        return self._append_coordinate_axes(
+            marker_array,
+            marker_id,
+            "target_axes_right_x_front_y_up_z",
+            center,
+            self._expected_box_axes(expected_pose),
+            alpha=0.60,
+            width=0.016,
+        )
+
+    def _append_actual_axes(self, marker_array, marker_id, actual):
+        axes = self._actual_box_axes(actual)
+        if axes is None:
+            return marker_id
+        return self._append_coordinate_axes(
+            marker_array,
+            marker_id,
+            "actual_fp_axes_right_x_front_y_up_z",
+            np.array(actual["center_map"], dtype=float),
+            axes,
+            alpha=1.0,
+            width=0.025,
+        )
+
+    def _append_coordinate_axes(self, marker_array, marker_id, namespace, center, axes, alpha, width):
+        """绘制坐标轴：X/right=红、Y/front=绿、Z/up=蓝。"""
+        axis_length = 0.26
+        for label, axis, color in (
+            ("right_x", axes[0], (1.0, 0.15, 0.15)),
+            ("front_y", axes[1], (0.15, 1.0, 0.15)),
+            ("up_z", axes[2], (0.15, 0.35, 1.0)),
+        ):
+            marker = self._new_marker(marker_id, f"{namespace}/{label}", Marker.ARROW)
+            marker_id += 1
+            marker.scale.x = float(width)
+            marker.scale.y = float(width * 2.2)
+            marker.scale.z = float(width * 2.8)
+            marker.points = [
+                self._point(center),
+                self._point(center + np.array(axis, dtype=float) * axis_length),
+            ]
+            self._set_color(marker, color[0], color[1], color[2], alpha)
+            marker_array.markers.append(marker)
+        return marker_id
 
     def _append_sphere(self, marker_array, marker_id, namespace, point, color, scale):
         marker = self._new_marker(marker_id, namespace, Marker.SPHERE)
@@ -348,6 +496,16 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             f"delta=({delta['x']:.3f},{delta['y']:.3f},{delta['z']:.3f})\n"
             f"planar={delta['planar']:.3f}m dist={delta['distance']:.3f}m"
         )
+        orientation = result.get("orientation", {})
+        actual_rpy = orientation.get("actual_rpy_deg")
+        delta_rpy = orientation.get("delta_rpy_deg")
+        if actual_rpy is not None and delta_rpy is not None:
+            marker.text += (
+                f"\nactual_rpy=({actual_rpy['roll']:.1f},{actual_rpy['pitch']:.1f},"
+                f"{actual_rpy['yaw']:.1f})deg"
+                f"\ndelta_rpy=({delta_rpy['roll']:+.1f},{delta_rpy['pitch']:+.1f},"
+                f"{delta_rpy['yaw']:+.1f})deg"
+            )
         marker_array.markers.append(marker)
 
     def _read_expected_pose(self):
@@ -368,6 +526,8 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
                 "y": float(raw["y"]),
                 "z": float(raw.get("z", 0.0)),
                 "yaw": float(raw.get("yaw", 0.0)),
+                "pitch": float(raw.get("pitch", raw.get("p", 0.0))),
+                "roll": float(raw.get("roll", raw.get("r", 0.0))),
             }
         except (KeyError, TypeError, ValueError) as exc:
             self.ros_node.get_logger().error(

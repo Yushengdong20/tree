@@ -136,6 +136,21 @@ class BehaviorTreeFactory:
                 ros_node=self.ros_node,
                 params=node_params,
             )
+        elif node_name == "RepeatUntilBlackboardValue":
+            if len(children) != 1:
+                raise ValueError("RepeatUntilBlackboardValue 节点必须且只能有一个子节点")
+            from tree.node.common.repeat_until_blackboard_value import (
+                RepeatUntilBlackboardValue,
+            )
+
+            child = self._build_tree_recursive(children[0], source_dir=source_dir)
+            node = RepeatUntilBlackboardValue(
+                name=node_label,
+                child=child,
+                config_label=node_label,
+                ros_node=self.ros_node,
+                params=node_params,
+            )
         else:
             # 其余节点视为业务叶子节点，按约定去 pytrees_ros2.node 下动态加载。
             node = self._create_leaf(node_name=node_name, node_label=node_label, params=node_params)
@@ -144,7 +159,9 @@ class BehaviorTreeFactory:
         node.node_type_raw = node_name
         node.json_label = node_label
 
-        if hasattr(node, "add_child") and node_name not in ("Repeat", "RepeatUntilBlackboardNumber"):
+        if hasattr(node, "add_child") and node_name not in (
+            "Repeat", "RepeatUntilBlackboardNumber", "RepeatUntilBlackboardValue"
+        ):
             # 组合节点继续递归构建子树，叶子节点则没有 children。
             for child_config in children:
                 node.add_child(self._build_tree_recursive(child_config, source_dir=source_dir))

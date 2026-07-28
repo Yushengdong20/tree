@@ -263,7 +263,7 @@
           "slot_gap_x": {"value": "0.00", "source": "CUSTOM"},
           "slot_gap_y": {"value": "0.00", "source": "CUSTOM"},
           "place_clearance_z": {"value": "-0.08", "source": "CUSTOM"},
-          "place_box_forward_offset_m": {"value": "0.95", "source": "CUSTOM"},
+          "place_box_forward_offset_m": {"value": "0.90", "source": "CUSTOM"},
           "navigation_approach_mode": {"value": "two_sided_feasible", "source": "CUSTOM"},
           "navigation_pallet_clearance_m": {"value": "0.10", "source": "CUSTOM"},
           "navigation_yaw_cost_weight": {"value": "0.01", "source": "CUSTOM"},
