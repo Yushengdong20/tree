@@ -59,6 +59,9 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         self.expected_box_size_x = float(params.get("expected_box_size_x", 0.60))
         self.expected_box_size_y = float(params.get("expected_box_size_y", 0.40))
         self.expected_box_size_z = float(params.get("expected_box_size_z", 0.34))
+        # 无前后特征的矩形箱可绕自身 up 轴翻转 180° 而保持同一几何占位。
+        # 用于避免规划轴与 FP 等价反向轴产生虚假的 ±180° yaw 误差。
+        self.yaw_axis_symmetric = self._to_bool(params.get("yaw_axis_symmetric", True))
 
         self.odom_transformer = self.get_odom_pose_transformer(
             self.odom_topic,
@@ -224,10 +227,21 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             "yaw": float(expected_pose.get("yaw", 0.0)),
         }
         actual_rpy = self._axes_to_rpy_deg(actual)
+        comparison_expected_rpy = dict(expected_rpy)
+        target_axis_flipped = False
+        if actual_rpy is not None and self.yaw_axis_symmetric:
+            expected_axes, target_axis_flipped = self._canonical_expected_box_axes(
+                expected_pose, actual
+            )
+            canonical_rpy = self._axes_to_rpy_deg_from_axes(expected_axes)
+            if canonical_rpy is not None:
+                comparison_expected_rpy = canonical_rpy
         orientation_delta = None
         if actual_rpy is not None:
             orientation_delta = {
-                axis: self._normalize_angle_deg(actual_rpy[axis] - expected_rpy[axis])
+                axis: self._normalize_angle_deg(
+                    actual_rpy[axis] - comparison_expected_rpy[axis]
+                )
                 for axis in ("roll", "pitch", "yaw")
             }
         return {
@@ -252,8 +266,11 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             },
             "orientation": {
                 "expected_rpy_deg": expected_rpy,
+                "comparison_expected_rpy_deg": comparison_expected_rpy,
                 "actual_rpy_deg": actual_rpy,
                 "delta_rpy_deg": orientation_delta,
+                "target_axis_flipped_180": target_axis_flipped,
+                "yaw_axis_symmetric": self.yaw_axis_symmetric,
             },
         }
 
@@ -271,6 +288,13 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         造成旋转矩阵不合法；front 的正负由 FP 原始 front 轴保持一致。
         """
         axes = RefreshFpAndReportPalletPlaceError._actual_box_axes(actual)
+        if axes is None:
+            return None
+        return RefreshFpAndReportPalletPlaceError._axes_to_rpy_deg_from_axes(axes)
+
+    @staticmethod
+    def _axes_to_rpy_deg_from_axes(axes):
+        """从已正交化的 right/front/up 轴求 RPY。"""
         if axes is None:
             return None
         right_axis, front_axis, up_axis = axes
@@ -303,6 +327,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         )
         if orientation["actual_rpy_deg"] is not None:
             expected_rpy = orientation["expected_rpy_deg"]
+            comparison_rpy = orientation["comparison_expected_rpy_deg"]
             actual_rpy = orientation["actual_rpy_deg"]
             delta_rpy = orientation["delta_rpy_deg"]
             message += (
@@ -313,6 +338,11 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
                 f"delta_rpy=({delta_rpy['roll']:+.1f},"
                 f"{delta_rpy['pitch']:+.1f},{delta_rpy['yaw']:+.1f})deg"
             )
+            if orientation["target_axis_flipped_180"]:
+                message += (
+                    f"; target_axis=flipped_180_for_symmetric_box, "
+                    f"compare_target_yaw={comparison_rpy['yaw']:.1f}deg"
+                )
         else:
             message += "; RPY=unavailable(FP axes invalid)"
         self.ros_node.get_logger().info(f"\033[1;97;44m{message}\033[0m")
@@ -329,12 +359,13 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         marker_id = 1
         expected = np.array([result["expected"]["x"], result["expected"]["y"], result["expected"]["z"]], dtype=float)
         actual_center = np.array(actual["center_map"], dtype=float)
-        marker_id = self._append_expected_box(marker_array, marker_id, expected_pose)
+        expected_axes, _ = self._canonical_expected_box_axes(expected_pose, actual)
+        marker_id = self._append_expected_box(marker_array, marker_id, expected_pose, expected_axes)
         marker_id = self._append_sphere(marker_array, marker_id, "expected_box_center", expected, (0.1, 1.0, 0.1, 1.0), 0.08)
         marker_id = self._append_sphere(marker_array, marker_id, "actual_fp_box_center", actual_center, (1.0, 0.1, 0.1, 1.0), 0.08)
         marker_id = self._append_line(marker_array, marker_id, "place_error_vector", expected, actual_center, (1.0, 0.8, 0.0, 1.0), 0.025)
         marker_id = self._append_actual_box(marker_array, marker_id, actual)
-        marker_id = self._append_expected_axes(marker_array, marker_id, expected_pose)
+        marker_id = self._append_expected_axes(marker_array, marker_id, expected_pose, expected_axes)
         marker_id = self._append_actual_axes(marker_array, marker_id, actual)
         self._append_text(marker_array, marker_id, expected, actual_center, result)
         self.visualization_pub.publish(marker_array)
@@ -361,9 +392,9 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         marker_array.markers.append(box_marker)
         return marker_id
 
-    def _append_expected_box(self, marker_array, marker_id, expected_pose):
+    def _append_expected_box(self, marker_array, marker_id, expected_pose, axes=None):
         """绘制绿色规划箱体，避免误差话题只剩两个箱心而难以判断真实占位。"""
-        right_axis, front_axis, up_axis = self._expected_box_axes(expected_pose)
+        right_axis, front_axis, up_axis = axes or self._expected_box_axes(expected_pose)
         center = np.array(
             [expected_pose["x"], expected_pose["y"], expected_pose.get("z", 0.0)], dtype=float
         )
@@ -393,6 +424,18 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
         )[:3, :3]
         return rotation[:, 0], rotation[:, 1], rotation[:, 2]
 
+    def _canonical_expected_box_axes(self, expected_pose, actual):
+        """目标矩形箱轴与实测反向时，选择等价的 X/Y 同时翻转版本。"""
+        expected_axes = self._expected_box_axes(expected_pose)
+        if not self.yaw_axis_symmetric:
+            return expected_axes, False
+        actual_axes = self._actual_box_axes(actual)
+        if actual_axes is None:
+            return expected_axes, False
+        if float(np.dot(expected_axes[0], actual_axes[0])) < 0.0:
+            return (-expected_axes[0], -expected_axes[1], expected_axes[2]), True
+        return expected_axes, False
+
     @staticmethod
     def _actual_box_axes(actual):
         """返回经正交化后的实测 right/front/up 轴，与 RPY 计算严格同源。"""
@@ -412,7 +455,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             front_axis = -front_axis
         return right_axis, front_axis, up_axis
 
-    def _append_expected_axes(self, marker_array, marker_id, expected_pose):
+    def _append_expected_axes(self, marker_array, marker_id, expected_pose, axes=None):
         center = np.array(
             [expected_pose["x"], expected_pose["y"], expected_pose.get("z", 0.0)],
             dtype=float,
@@ -422,7 +465,7 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
             marker_id,
             "target_axes_right_x_front_y_up_z",
             center,
-            self._expected_box_axes(expected_pose),
+            axes or self._expected_box_axes(expected_pose),
             alpha=0.60,
             width=0.016,
         )
@@ -506,6 +549,8 @@ class RefreshFpAndReportPalletPlaceError(TimedMockAction):
                 f"\ndelta_rpy=({delta_rpy['roll']:+.1f},{delta_rpy['pitch']:+.1f},"
                 f"{delta_rpy['yaw']:+.1f})deg"
             )
+            if orientation.get("target_axis_flipped_180"):
+                marker.text += "\ntarget_axes=180deg axial-equivalent"
         marker_array.markers.append(marker)
 
     def _read_expected_pose(self):

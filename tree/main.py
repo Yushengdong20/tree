@@ -62,7 +62,7 @@ from tree.ros_interface import create_ros_interface
 # 抓箱后从侧面观察用 FP 标定托盘，再按真实托盘区域码垛（每个动作均需 Enter 确认）。
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_grasp_then_side_view_fp_palletize_enter_test.json"
 # 抓箱后从正面观察用 FP 标定托盘，再按真实托盘区域码垛（每个动作均需 Enter 确认）。
-DEFAULT_TREE_FILE_NAME = "palletize/move_box_grasp_then_front_view_fp_palletize_enter_test.json"
+# DEFAULT_TREE_FILE_NAME = "palletize/move_box_grasp_then_front_view_fp_palletize_enter_test.json"
 # DEFAULT_TREE_FILE_NAME = "tree/grasp_object/grasp_and_place.json"
 # HTTP 本地客户端任务入口由 server_main.py 动态加载 service tree，不在普通 main.py 中启用。
 # DEFAULT_TREE_FILE_NAME = "tree/service/move_box/start_move_box.json"
@@ -74,6 +74,8 @@ DEFAULT_TREE_FILE_NAME = "palletize/move_box_grasp_then_front_view_fp_palletize_
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_fp_direct_grasp_new_claw_enter_test_cn.json"
 # 夹爪开合与姿态测试。move_box_fp_direct_grasp_new_claw_same_point_place_enter_test_cn
 # DEFAULT_TREE_FILE_NAME = "tree/test/move_box_claw_open_close_enter_loop_test_cn.json"
+# 腰部测试。move_box_fp_direct_grasp_new_claw_same_point_place_enter_test_cn
+DEFAULT_TREE_FILE_NAME = "tree/test/move_box_torso_test.json"
 
 def parse_main_args(args=None):
     """
