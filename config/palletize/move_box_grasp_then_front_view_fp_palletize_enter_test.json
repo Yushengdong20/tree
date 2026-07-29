@@ -8,7 +8,9 @@
         "name": "EnsureMoveBoxServices",
         "label": "初始化move_box视觉与控制服务",
         "params": {
-          "skip_torso_motion": {"value": "False", "source": "CUSTOM"}
+          "skip_torso_motion": {"value": "False", "source": "CUSTOM"},
+          "foundationpose_raw_box_topic": {"value": "/foundationpose/box", "source": "CUSTOM"},
+          "foundationpose_prefer_raw_box": {"value": "True", "source": "CUSTOM"}
         }
       },
       {
@@ -95,18 +97,11 @@
         }
       },
       {
-        "name": "WaitForEnter",
-        "label": "确认9：导航到托盘观察位",
-        "params": {
-          "message": {"value": "将携带箱体导航到托盘观察位（请按现场托盘大致区域复核），按 Enter 执行。", "source": "CUSTOM"}
-        }
-      },
-      {
         "name": "HttpNavigateToPose",
-        "label": "导航到45度托盘观察位",
+        "label": "导航到托盘观察位",
         "params": {
           "x": {"value": "-1.0", "source": "CUSTOM"},
-          "y": {"value": "3.0", "source": "CUSTOM"},
+          "y": {"value": "2.5", "source": "CUSTOM"},
           "yaw": {"value": "-90.0", "source": "CUSTOM"},
           "chassis_url": {"value": "http://localhost:8081", "source": "CUSTOM"},
           "navigation_timeout_sec": {"value": "600", "source": "CUSTOM"},
@@ -114,13 +109,6 @@
           "navigation_target_key": {"value": "move_box_pallet_observation_target", "source": "CUSTOM"},
           "navigation_visualization_enabled": {"value": "True", "source": "CUSTOM"},
           "navigation_visualization_topic": {"value": "/move_box/http_navigation_pallet_observation_markers", "source": "CUSTOM"}
-        }
-      },
-      {
-        "name": "WaitForEnter",
-        "label": "确认10：双臂下移避让托盘观察视野",
-        "params": {
-          "message": {"value": "将保持夹持，仅让双臂相对当前实际夹爪位置下移 20cm，以避开头部观察托盘的视野；按 Enter 执行。", "source": "CUSTOM"}
         }
       },
       {
@@ -146,14 +134,6 @@
           "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
         }
       },
-      {
-        "name": "WaitForEnter",
-        "label": "确认11：头部俯视托盘区域",
-        "params": {
-          "message": {"value": "将持续跟踪 map 托盘观察点 (-0.71, 1.20, -1.10)，同时切换并刷新 FP 托盘检测；按 Enter 执行。", "source": "CUSTOM"}
-        }
-      },
-      
       {
         "name": "Sequence",
         "label": "切换并标定FoundationPose托盘区域",
@@ -193,14 +173,18 @@
             "params": {
               "services_key": {"value": "robot_services", "source": "CUSTOM"},
               "odom_topic": {"value": "melon_odom", "source": "CUSTOM"},
-              "pallet_size_x_m": {"value": "1.20", "source": "CUSTOM"},
-              "pallet_size_y_m": {"value": "0.80", "source": "CUSTOM"},
-              "pallet_height_m": {"value": "0.15", "source": "CUSTOM"},
+              "use_raw_box_obb": {"value": "True", "source": "CUSTOM"},
+              "raw_box_tf_timeout_sec": {"value": "0.5", "source": "CUSTOM"},
               "pallet_map_polygon_key": {"value": "move_box_detected_pallet_map_polygon", "source": "CUSTOM"},
               "pallet_pose_key": {"value": "move_box_detected_pallet_map_pose", "source": "CUSTOM"},
               "visualization_enabled": {"value": "True", "source": "CUSTOM"},
               "visualization_topic": {"value": "/move_box/fp_pallet_markers", "source": "CUSTOM"}
             }
+          },
+          {
+            "name": "WaitForEnter",
+            "label": "夹爪回位",
+            "params": {"message": {"value": "按 Enter 执行夹爪回位。", "source": "CUSTOM"}}
           }
         ]
       },
@@ -226,11 +210,6 @@
           "right_point_key": {"value": "move_box_pallet_observe_right_upper_claw_point", "source": "CUSTOM"},
           "claw_ypr": {"value": "[0.0, -60.0, 0.0]", "source": "CUSTOM"}
         }
-      },
-      {
-        "name": "WaitForEnter",
-        "label": "确认12：切回FP箱体模型",
-        "params": {"message": {"value": "FP 托盘区域已标定。将 FP 切回 large_green 箱体模型，按 Enter 执行。", "source": "CUSTOM"}}
       },
       {
         "name": "SwitchFoundationPoseTarget",
@@ -281,11 +260,6 @@
         }
       },
       {
-        "name": "WaitForEnter",
-        "label": "确认14：导航到FP托盘码垛站位",
-        "params": {"message": {"value": "将导航到由 FP 托盘四边形生成的垛盘外站位，并正对当前槽位；按 Enter 执行。", "source": "CUSTOM"}}
-      },
-      {
         "name": "HttpNavigateToPose",
         "label": "导航到FP托盘码垛站位",
         "params": {
@@ -310,11 +284,6 @@
           "place_torso_x": {"value": "0.50", "source": "CUSTOM"},
           "target_pose_key": {"value": "move_box_pallet_place_torso_pose", "source": "CUSTOM"}
         }
-      },
-      {
-        "name": "WaitForEnter",
-        "label": "确认16：调整躯干到FP托盘码垛高度",
-        "params": {"message": {"value": "将根据 FP 托盘上表面高度调整躯干，按 Enter 执行。", "source": "CUSTOM"}}
       },
       {
         "name": "MoveTorsoPose",

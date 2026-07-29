@@ -41,6 +41,8 @@ class RobotServices:
 def build_robot_services(
     model_type=IK_MODEL_MOVE_BOX,
     foundationpose_axis_convention=None,
+    foundationpose_raw_box_topic=None,
+    foundationpose_prefer_raw_box=None,
 ) -> RobotServices:
     """创建一套可被行为树节点复用的 move_box 真实服务对象。"""
     model_type = str(model_type).strip() or IK_MODEL_MOVE_BOX
@@ -50,6 +52,14 @@ def build_robot_services(
     detector_type = str(rospy.get_param("~box_detector_type", "foundationpose")).lower()
     marker_topic = rospy.get_param("~marker_topic", "/aruco_single/poses")
     box_pose_topic = rospy.get_param("~box_pose_topic", "/foundationpose/pose")
+    if foundationpose_raw_box_topic is None:
+        foundationpose_raw_box_topic = rospy.get_param(
+            "~foundationpose_raw_box_topic", "/foundationpose/box"
+        )
+    if foundationpose_prefer_raw_box is None:
+        foundationpose_prefer_raw_box = bool(
+            rospy.get_param("~foundationpose_prefer_raw_box", False)
+        )
     if foundationpose_axis_convention is None:
         foundationpose_axis_convention = rospy.get_param(
             "~foundationpose_axis_convention", "right_x_front_y_up_z"
@@ -75,6 +85,8 @@ def build_robot_services(
             tf_listener,
             box_pose_topic,
             axis_convention=foundationpose_axis_convention,
+            raw_box_topic=foundationpose_raw_box_topic,
+            prefer_raw_box=foundationpose_prefer_raw_box,
         )
         detector_topic = box_pose_topic
     yolo_detector = YoloBoxDetector(target_frame, tf_listener, yolo_target_poses_topic)

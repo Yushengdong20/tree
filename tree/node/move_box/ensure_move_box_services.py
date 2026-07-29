@@ -33,6 +33,14 @@ class EnsureMoveBoxServices(TimedMockAction):
         self.foundationpose_axis_convention = str(
             params.get("foundationpose_axis_convention", "right_x_front_y_up_z")
         ).strip().lower()
+        # 仅在需要“/foundationpose/box 原始 OBB 与抓取/托盘计算同帧”时启用。
+        # 默认 False，保持历史树继续使用 /foundationpose/pose 的行为。
+        self.foundationpose_raw_box_topic = str(
+            params.get("foundationpose_raw_box_topic", "/foundationpose/box")
+        ).strip()
+        self.foundationpose_prefer_raw_box = self._to_bool(
+            params.get("foundationpose_prefer_raw_box", False)
+        )
         self.odom_topic = str(params.get("odom_topic", CHASSIS_FRAME)).strip()
         self.odom_target_frame = str(params.get("odom_target_frame", MAP_FRAME)).strip()
         self.odom_base_frame = str(params.get("odom_base_frame", BASE_LINK_FRAME)).strip()
@@ -103,6 +111,8 @@ class EnsureMoveBoxServices(TimedMockAction):
             services = build_robot_services(
                 model_type=self.model_type,
                 foundationpose_axis_convention=self.foundationpose_axis_convention,
+                foundationpose_raw_box_topic=self.foundationpose_raw_box_topic,
+                foundationpose_prefer_raw_box=self.foundationpose_prefer_raw_box,
             )
             self.blackboard.set(self.services_key, services, overwrite=True)
             self.ros_node.get_logger().info(

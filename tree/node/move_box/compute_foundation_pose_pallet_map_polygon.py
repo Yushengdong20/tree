@@ -4,12 +4,13 @@ import math
 
 import numpy as np
 import py_trees
+import tf.transformations as tf_trans
 from py_trees.common import Status
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
 
-from tree.constants import MAP_FRAME, ROBOT_SERVICES_KEY
-from tree.utils.geometry import transform_base_point_to_global
+from tree.constants import BASE_LINK_FRAME, MAP_FRAME, ROBOT_SERVICES_KEY
+from tree.utils.geometry import map_from_source_matrix_via_melon_odom, transform_base_point_to_global
 
 from ..base import TimedMockAction
 
@@ -17,8 +18,11 @@ from ..base import TimedMockAction
 class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
     """根据 FP 托盘检测输出，生成与托盘真实朝向一致的 map 四边形。
 
-    FP 当前只提供中心和朝向，托盘长宽由配置提供。节点读取共享 FP detector
-    最近一次的 base_link 下中心、左右轴和前向轴，结合当前 odom 的平面位姿生成：
+    默认读取共享 FP detector 最近一次的 base_link 下中心、左右轴和前向轴，结合
+    当前 odom 的平面位姿生成。启用 ``use_raw_box_obb=True`` 时，则直接读取共享
+    detector 已锁定的 ``/foundationpose/box`` 原始 OBB，并采用完整
+    ``map <- base_link <- camera_link`` 矩阵变换；此模式可与原始 OBB 诊断可视化
+    严格保持同一中心、朝向和时间对齐链路。
 
     - ``pallet_map_polygon_key``：四个 ``[{x, y}, ...]`` map 顶点；
     - ``pallet_pose_key``：中心、边轴与尺寸，供后续导航/可视化诊断使用。
@@ -36,6 +40,10 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         # FP 返回的是托盘模型中心与朝向；实体厚度由现场实测配置，供 map 下
         # 3D 线框/半透明实体显示使用，不影响底盘禁入 polygon 的 XY 计算。
         self.pallet_height_m = float(params.get("pallet_height_m", 0.15))
+        # True 时不再使用 /foundationpose/pose 的平面近似链路，而是使用已被
+        # FPBoxDetector 消费的 /foundationpose/box 原始帧。默认 False 保持历史树行为。
+        self.use_raw_box_obb = self._to_bool(params.get("use_raw_box_obb", False))
+        self.raw_box_tf_timeout_sec = max(float(params.get("raw_box_tf_timeout_sec", 0.5)), 0.05)
         self.pallet_map_polygon_key = str(
             params.get("pallet_map_polygon_key", "move_box_detected_pallet_map_polygon")
         ).strip()
@@ -87,55 +95,79 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
                 f"[{self.config_label}] 缺少 FP detector: services_key={self.services_key}"
             )
             return Status.FAILURE
-        center_base = detector.get_latest_box_center()
-        axes = detector.get_latest_box_axes()
-        front_axis = detector.get_latest_box_front_axis()
-        pose = self.odom_transformer.get_current_pose()
-        if center_base is None or axes is None or front_axis is None:
-            self.ros_node.get_logger().warning(
-                f"[{self.config_label}] 等待 FP 托盘中心与方向轴"
+        if self.use_raw_box_obb:
+            raw_map_pose = self._build_raw_obb_map_pose(services, detector)
+            if raw_map_pose is None:
+                return Status.RUNNING
+            center_map = raw_map_pose["center"]
+            pallet_size = raw_map_pose["size"]
+            try:
+                side_map = self._normalize_xy(raw_map_pose["side_axis"], "raw_box_x_axis")
+                front_map = self._normalize_xy(raw_map_pose["front_axis"], "raw_box_y_axis")
+                front_map = front_map - side_map * float(np.dot(front_map, side_map))
+                front_map = self._normalize_xy(front_map, "raw_box_orthogonal_y_axis")
+            except (TypeError, ValueError) as exc:
+                self.ros_node.get_logger().error(
+                    f"[{self.config_label}] 原始 FP 托盘 OBB 方向轴无效: {exc}"
+                )
+                return Status.FAILURE
+            transform_source = "raw_box_obb_3d"
+            raw_stamp = raw_map_pose["stamp_sec"]
+            odom_delta_sec = raw_map_pose["odom_delta_sec"]
+        else:
+            center_base = detector.get_latest_box_center()
+            axes = detector.get_latest_box_axes()
+            front_axis = detector.get_latest_box_front_axis()
+            pose = self.odom_transformer.get_current_pose()
+            if center_base is None or axes is None or front_axis is None:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 等待 FP 托盘中心与方向轴"
+                )
+                return Status.RUNNING
+            if pose is None:
+                self.ros_node.get_logger().warning(
+                    f"[{self.config_label}] 等待 odom 以生成托盘 map 区域: {self.odom_topic}"
+                )
+                return Status.RUNNING
+            try:
+                center_base = np.asarray(center_base, dtype=float)
+                side_base = self._normalize_xy(axes["left"], "left_axis")
+                front_base = self._normalize_xy(front_axis, "front_axis")
+                front_base = front_base - side_base * float(np.dot(front_base, side_base))
+                front_base = self._normalize_xy(front_base, "orthogonal_front_axis")
+            except (KeyError, TypeError, ValueError) as exc:
+                self.ros_node.get_logger().error(
+                    f"[{self.config_label}] FP 托盘方向轴无效: {exc}"
+                )
+                return Status.FAILURE
+            center_map_xy = transform_base_point_to_global(
+                self._pose2d(pose), float(center_base[0]), float(center_base[1])
             )
-            return Status.RUNNING
-        if pose is None:
-            self.ros_node.get_logger().warning(
-                f"[{self.config_label}] 等待 odom 以生成托盘 map 区域: {self.odom_topic}"
-            )
-            return Status.RUNNING
-        try:
-            center_base = np.asarray(center_base, dtype=float)
-            side_base = self._normalize_xy(axes["left"], "left_axis")
-            front_base = self._normalize_xy(front_axis, "front_axis")
-            # 处理数值误差；投影后的两轴须保持正交，以免四边形被拉斜。
-            front_base = front_base - side_base * float(np.dot(front_base, side_base))
-            front_base = self._normalize_xy(front_base, "orthogonal_front_axis")
-        except (KeyError, TypeError, ValueError) as exc:
-            self.ros_node.get_logger().error(
-                f"[{self.config_label}] FP 托盘方向轴无效: {exc}"
-            )
-            return Status.FAILURE
-
-        center_map_xy = transform_base_point_to_global(
-            self._pose2d(pose), float(center_base[0]), float(center_base[1])
-        )
-        side_map = self._rotate_base_axis_to_map(side_base, float(pose[3]))
-        front_map = self._rotate_base_axis_to_map(front_base, float(pose[3]))
-        half_x = self.pallet_size_x_m * 0.5
-        half_y = self.pallet_size_y_m * 0.5
+            center_map = [float(center_map_xy["x"]), float(center_map_xy["y"]), float(center_base[2]) + float(pose[2])]
+            pallet_size = [self.pallet_size_x_m, self.pallet_size_y_m, self.pallet_height_m]
+            side_map = self._rotate_base_axis_to_map(side_base, float(pose[3]))
+            front_map = self._rotate_base_axis_to_map(front_base, float(pose[3]))
+            transform_source = "detector_pose_2d"
+            raw_stamp = None
+            odom_delta_sec = None
+        half_x = float(pallet_size[0]) * 0.5
+        half_y = float(pallet_size[1]) * 0.5
         corners = [
-            np.asarray([center_map_xy["x"], center_map_xy["y"]]) + sx * side_map * half_x + sy * front_map * half_y
+            np.asarray([center_map[0], center_map[1]]) + sx * side_map * half_x + sy * front_map * half_y
             for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))
         ]
         polygon = [{"x": float(point[0]), "y": float(point[1])} for point in corners]
         pose_data = {
-            "x": float(center_map_xy["x"]),
-            "y": float(center_map_xy["y"]),
-            # 当前 base_link 在 map 的 z 也应计入，避免日志中的“map 托盘高度”
-            # 实际仍是 base_link 高度而造成后续使用者误解。
-            "z": float(center_base[2]) + float(pose[2]),
+            "x": float(center_map[0]),
+            "y": float(center_map[1]),
+            "z": float(center_map[2]),
             "side_axis": [float(side_map[0]), float(side_map[1])],
             "front_axis": [float(front_map[0]), float(front_map[1])],
-            "size": [self.pallet_size_x_m, self.pallet_size_y_m, self.pallet_height_m],
+            "size": [float(value) for value in pallet_size],
             "yaw": math.degrees(math.atan2(float(front_map[1]), float(front_map[0]))),
+            "transform_source": transform_source,
+            "raw_box_stamp": raw_stamp,
+            "odom_delta_sec": odom_delta_sec,
         }
         self.blackboard.set(self.pallet_map_polygon_key, polygon, overwrite=True)
         self.blackboard.set(self.pallet_pose_key, pose_data, overwrite=True)
@@ -144,8 +176,11 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         self.ros_node.get_logger().info(
             f"[{self.config_label}] FP 托盘 map 区域已生成: "
             f"center=({pose_data['x']:.3f},{pose_data['y']:.3f},{pose_data['z']:.3f}), "
-            f"size=({self.pallet_size_x_m:.3f},{self.pallet_size_y_m:.3f},{self.pallet_height_m:.3f}), "
+            f"size=({pose_data['size'][0]:.3f},{pose_data['size'][1]:.3f},{pose_data['size'][2]:.3f}), "
             f"yaw={pose_data['yaw']:.1f}deg, "
+            f"transform={transform_source}, "
+            f"raw_stamp={raw_stamp if raw_stamp is not None else '<n/a>'}, "
+            f"odom_delta_ms={odom_delta_sec * 1000.0 if odom_delta_sec is not None else '<n/a>'}, "
             f"yolo_size_xyz={yolo_size if yolo_size is not None else '<unavailable>'}, "
             f"polygon={polygon}"
         )
@@ -169,6 +204,73 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         if self.yolo_pallet_size_key:
             self.blackboard.set(self.yolo_pallet_size_key, size, overwrite=True)
         return size
+
+    def _build_raw_obb_map_pose(self, services, detector):
+        """将 detector 已消费的 /foundationpose/box 原始 OBB 直接转换到 map。
+
+        这里不使用 detector 的 base_link 箱心再做 2D 平面近似，而是完整组合
+        ``map <- base_link <- source_frame <- box``。raw frame 是
+        ``update_latest_grasp_pose()`` 实际参与本次检测计算的一帧，因此与抓取
+        缓存、原始 OBB 对比可视化使用同一 stamp。
+        """
+        getter = getattr(detector, "get_latest_raw_box_frame", None)
+        raw_box = getter() if callable(getter) else None
+        if raw_box is None:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 等待共享 detector 消费 /foundationpose/box 原始 OBB"
+            )
+            return None
+        arm_controller = getattr(services, "arm_controller", None)
+        tf_listener = getattr(arm_controller, "tf_listener", None)
+        if tf_listener is None:
+            self.ros_node.get_logger().error(
+                f"[{self.config_label}] 缺少 tf_listener，无法转换原始 FP OBB"
+            )
+            return None
+        stamp_sec = float(raw_box.get("stamp_sec", 0.0))
+        odom_msg = self.odom_transformer.get_nearest_odom_by_stamp_sec(
+            stamp_sec if stamp_sec > 0.0 else None
+        )
+        if odom_msg is None:
+            odom_msg = self.odom_transformer.get_latest_odom()
+        if odom_msg is None:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 等待 odom 以转换原始 FP OBB: {self.odom_topic}"
+            )
+            return None
+        try:
+            map_from_source = map_from_source_matrix_via_melon_odom(
+                tf_listener,
+                self.ros_node,
+                odom_msg,
+                str(raw_box["frame_id"]),
+                map_frame=MAP_FRAME,
+                base_frame=BASE_LINK_FRAME,
+                timeout=self.raw_box_tf_timeout_sec,
+            )
+            source_from_box = tf_trans.concatenate_matrices(
+                tf_trans.translation_matrix(raw_box["center"]),
+                tf_trans.quaternion_matrix(raw_box["quat"]),
+            )
+            map_from_box = tf_trans.concatenate_matrices(map_from_source, source_from_box)
+            matched_stamp = self._stamp_to_sec(odom_msg.header.stamp)
+            return {
+                "center": [float(value) for value in map_from_box[:3, 3]],
+                "side_axis": [float(value) for value in map_from_box[:3, 0]],
+                "front_axis": [float(value) for value in map_from_box[:3, 1]],
+                "size": [float(value) for value in raw_box["size"]],
+                "stamp_sec": stamp_sec,
+                "odom_delta_sec": abs(matched_stamp - stamp_sec) if stamp_sec > 0.0 else 0.0,
+            }
+        except Exception as exc:
+            self.ros_node.get_logger().warning(
+                f"[{self.config_label}] 原始 FP OBB 转 map 失败: {exc}"
+            )
+            return None
+
+    @staticmethod
+    def _stamp_to_sec(stamp):
+        return float(stamp.secs) + float(stamp.nsecs) * 1e-9
 
     @staticmethod
     def _normalize_xy(vector, name):
@@ -202,10 +304,12 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         clear.action = Marker.DELETEALL
         marker_array.markers.append(clear)
 
-        # FP pose 的 z 是托盘模型中心；按真实高度上下各扩展一半，绘制完整 3D 托盘。
+        # pose_data 的 size 在 raw OBB 模式直接来自 /foundationpose/box；历史模式则
+        # 来自 JSON。二者都按“模型中心 + 完整三维尺寸”绘制。
+        pallet_size = [float(value) for value in pose_data["size"]]
         # 禁入 polygon 的 XY 几何不变，但不再把显示高度写死为 z=0.05。
         center_z = float(pose_data["z"])
-        half_height = self.pallet_height_m * 0.5
+        half_height = pallet_size[2] * 0.5
         bottom_z = center_z - half_height
         top_z = center_z + half_height
         bottom_corners = [Point(x=p["x"], y=p["y"], z=bottom_z) for p in polygon]
@@ -223,9 +327,7 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         side_yaw = math.atan2(float(side_axis[1]), float(side_axis[0]))
         solid.pose.orientation.z = math.sin(side_yaw * 0.5)
         solid.pose.orientation.w = math.cos(side_yaw * 0.5)
-        solid.scale.x = self.pallet_size_x_m
-        solid.scale.y = self.pallet_size_y_m
-        solid.scale.z = self.pallet_height_m
+        solid.scale.x, solid.scale.y, solid.scale.z = pallet_size
         solid.color.r, solid.color.g, solid.color.b, solid.color.a = 1.0, 0.32, 0.06, 0.16
         marker_array.markers.append(solid)
 
@@ -272,15 +374,18 @@ class ComputeFoundationPosePalletMapPolygon(TimedMockAction):
         text.text = (
             "FP PALLET\\n"
             f"center=({pose_data['x']:.2f},{pose_data['y']:.2f},{center_z:.2f})\\n"
-            f"size=({self.pallet_size_x_m:.2f},{self.pallet_size_y_m:.2f},{self.pallet_height_m:.2f}) "
+            f"size=({pallet_size[0]:.2f},{pallet_size[1]:.2f},{pallet_size[2]:.2f}) "
             f"yaw={pose_data['yaw']:.1f}deg"
         )
         marker_array.markers.append(text)
         self.publisher.publish(marker_array)
 
     def describe_start(self):
+        size_description = "raw /foundationpose/box" if self.use_raw_box_obb else (
+            f"({self.pallet_size_x_m:.3f},{self.pallet_size_y_m:.3f},{self.pallet_height_m:.3f})"
+        )
         return (
             f"[{self.config_label}] ComputeFoundationPosePalletMapPolygon start: "
-            f"size=({self.pallet_size_x_m:.3f},{self.pallet_size_y_m:.3f},{self.pallet_height_m:.3f}), "
+            f"size={size_description}, "
             f"polygon_key={self.pallet_map_polygon_key}"
         )
