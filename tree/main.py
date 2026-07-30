@@ -59,10 +59,12 @@ from tree.ros_interface import create_ros_interface
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_full_direct_grasp_palletize.json"
 # 码垛策略版：动态预估箱体，按直接/左推/右推策略执行真实放箱，每步 Enter 确认。
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_palletize_strategy_preview.json"
-# 抓箱后从侧面观察用 FP 标定托盘，再按真实托盘区域码垛（每个动作均需 Enter 确认）。
+# 抓箱后从侧面观察用 FP 标定托盘，再按真实大托盘区域码垛（每个动作均需 Enter 确认）。
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_grasp_then_side_view_fp_palletize_enter_test.json"
-# 抓箱后从正面观察用 FP 标定托盘，再按真实托盘区域码垛（每个动作均需 Enter 确认）。
+# 抓箱后从正面观察用 FP 标定托盘，再按真实大托盘区域码垛（每个动作均需 Enter 确认）。
 # DEFAULT_TREE_FILE_NAME = "palletize/move_box_grasp_then_front_view_fp_palletize_enter_test.json"
+# 抓箱后从正面观察用 FP 标定托盘，再按真实小托盘直接放箱（每个动作均需 Enter 确认）。
+DEFAULT_TREE_FILE_NAME = "palletize/move_box_grasp_then_front_view_fp_pallet_center_place_enter_test.json"
 # DEFAULT_TREE_FILE_NAME = "tree/grasp_object/grasp_and_place.json"
 # HTTP 本地客户端任务入口由 server_main.py 动态加载 service tree，不在普通 main.py 中启用。
 # DEFAULT_TREE_FILE_NAME = "tree/service/move_box/start_move_box.json"

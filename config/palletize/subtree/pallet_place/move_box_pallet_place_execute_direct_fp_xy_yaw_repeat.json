@@ -27,13 +27,6 @@
         }
       },
       {
-        "name": "WaitForEnter",
-        "label": "开环下降到直接放箱目标确认",
-        "params": {
-          "message": {"value": "仅测试 direct_place：先按规划开环下降到目标高度和目标 XY；按 Enter 后执行。随后将用 FP 在低位仅微调 XY/yaw。", "source": "CUSTOM"}
-        }
-      },
-      {
         "name": "ArmsToPose",
         "label": "直接放箱：开环同步下降到目标位置",
         "params": {

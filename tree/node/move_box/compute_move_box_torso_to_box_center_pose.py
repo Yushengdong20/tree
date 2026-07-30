@@ -64,7 +64,7 @@ class ComputeMoveBoxTorsoToBoxCenterPose(TimedMockAction):
             )
             return Status.FAILURE
 
-        target_pose[0] = min(max(float(box_center[0]) - 0.5, 0.0), 0.5)
+        target_pose[0] = min(max(float(box_center[0]) - 0.3, 0.0), 0.5)
         target_pose[2] = min(max(float(box_center[2]) + 0.2, 0.6), 1.4)
 
         # 关键步骤：三连杆模型以 knee_joint 为原点，控制目标 z 需要扣除该关节高度。
